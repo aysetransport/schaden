@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Schadensfälle</title>
+<script>
+// Adresse des Cloud-Skripts (…/exec). Bleibt sie leer, fragt die App beim ersten Start danach.
+window.API_URL = "";
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1F4E79">
+<link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#F8F9FF;--flaeche:#F2F3FA;--flaeche2:#ECEEF4;--hoch:#E1E2E8;--text:#191C20;--leise:#43474E;--rand:#C3C7CF;--linie:#DFE2EB;
+  --primaer:#36618E;--auf-primaer:#fff;--primaer-hell:#D1E4FF;--auf-primaer-hell:#194975;--fehler:#BA1A1A;
+  --blau-f:#D1E4FF;--blau-t:#0B3A63;--violett-f:#E3DFFF;--violett-t:#2F2A7A;--gelb-f:#FFDF9E;--gelb-t:#4F3A00;--lila-f:#F2DAFF;--lila-t:#4A3657;
+  --tuerkis-f:#BFE9EC;--tuerkis-t:#00363A;--orange-f:#FFDBC8;--orange-t:#6A2D00;--gruen-f:#BDEFC2;--gruen-t:#0C3A18;--grau-f:#E1E2E8;--grau-t:#43474E;--rot-f:#FFDAD6;--rot-t:#93000A;
+  font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#111418;--flaeche:#191C20;--flaeche2:#1D2024;--hoch:#32353A;--text:#E1E2E8;--leise:#C3C7CF;--rand:#43474E;--linie:#32353A;
+  --primaer:#A0CAFD;--auf-primaer:#003258;--primaer-hell:#194975;--auf-primaer-hell:#D1E4FF;--fehler:#FFB4AB;
+  --blau-f:#194975;--blau-t:#D1E4FF;--violett-f:#454093;--violett-t:#E3DFFF;--gelb-f:#5B4300;--gelb-t:#FFDF9E;--lila-f:#523F5F;--lila-t:#F2DAFF;
+  --tuerkis-f:#1E4D52;--tuerkis-t:#BFE9EC;--orange-f:#75390D;--orange-t:#FFDBC8;--gruen-f:#1F4F2A;--gruen-t:#BDEFC2;--grau-f:#43474E;--grau-t:#E1E2E8;--rot-f:#93000A;--rot-t:#FFDAD6;
+  color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text)}
+body{min-height:100vh}
+h1,h2,h3,p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--linie)}
+header h1{font-size:20px;font-weight:500;flex:1}
+main{display:grid;grid-template-columns:minmax(0,1fr);max-width:1280px;margin:0 auto}
+main>section{padding:12px 16px 96px;min-width:0}
+@media (min-width:900px){
+  main{grid-template-columns:minmax(340px,420px) minmax(0,1fr);align-items:start}
+  main>section{padding-bottom:32px}
+  #liste{position:sticky;top:53px;max-height:calc(100vh - 53px);overflow:auto;border-right:1px solid var(--linie)}
+}
+@media (max-width:899px){body.zeigt-detail #liste,body:not(.zeigt-detail) #detail{display:none}}
+.karte{background:var(--flaeche);border-radius:14px;padding:16px;margin-bottom:12px}
+.karte.klickbar{cursor:pointer;display:block;width:100%;text-align:left;border:0}
+.karte.klickbar:hover,.karte.gewaehlt{background:var(--flaeche2)}
+.karte.gewaehlt{outline:2px solid var(--primaer)}
+.zeile{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.zeile.eng{flex-wrap:nowrap}
+.fuell{flex:1;min-width:0}
+.titel{font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.leise{color:var(--leise);font-size:13px}
+.gross{font-size:22px;font-weight:500}
+.zwei-zeilen{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.marke{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:8px;font-size:12px;font-weight:600;white-space:nowrap}
+.blau{background:var(--blau-f);color:var(--blau-t)}.violett{background:var(--violett-f);color:var(--violett-t)}.gelb{background:var(--gelb-f);color:var(--gelb-t)}
+.lila{background:var(--lila-f);color:var(--lila-t)}.tuerkis{background:var(--tuerkis-f);color:var(--tuerkis-t)}.orange{background:var(--orange-f);color:var(--orange-t)}
+.gruen{background:var(--gruen-f);color:var(--gruen-t)}.grau{background:var(--grau-f);color:var(--grau-t)}.rot{background:var(--rot-f);color:var(--rot-t)}
+.kennzahlen{display:grid;grid-template-columns:1fr 1fr 1.8fr;gap:8px;margin-bottom:12px}
+.kennzahl{border:0;border-radius:12px;padding:10px 12px;text-align:left;background:var(--flaeche2);cursor:pointer}
+.kennzahl b{display:block;font-size:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kennzahl span{font-size:12px}
+.kennzahl.rot{background:var(--rot-f);color:var(--rot-t)}
+.suche{width:100%;padding:11px 16px;border:1px solid var(--rand);border-radius:999px;background:transparent;margin-bottom:12px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{padding:6px 14px;border:1px solid var(--rand);border-radius:8px;background:transparent;cursor:pointer;white-space:nowrap}
+.chip[aria-pressed=true]{background:var(--primaer-hell);color:var(--auf-primaer-hell);border-color:transparent}
+.knopf{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border-radius:999px;border:1px solid var(--rand);background:transparent;cursor:pointer;white-space:nowrap}
+.knopf.voll{background:var(--primaer);color:var(--auf-primaer);border-color:transparent}
+.knopf.tonal{background:var(--primaer-hell);color:var(--auf-primaer-hell);border-color:transparent}
+.knopf.text{border-color:transparent;color:var(--primaer);padding:9px 10px}
+.knopf.gefahr{color:var(--fehler)}
+.knopf:disabled{opacity:.45;cursor:default}
+.symbol{border:0;background:transparent;cursor:pointer;padding:8px;border-radius:999px;font-size:18px;line-height:1}
+.symbol:hover{background:var(--flaeche2)}
+:focus-visible{outline:2px solid var(--primaer);outline-offset:2px}
+.fab{position:fixed;right:16px;bottom:16px;z-index:4;box-shadow:0 3px 10px rgba(0,0,0,.25);padding:14px 20px;border-radius:16px}
+@media (min-width:900px){.fab{position:static;box-shadow:none;border-radius:999px;padding:9px 18px;margin-bottom:12px}}
+.wv{border-radius:14px;padding:16px;margin-bottom:12px;background:var(--flaeche2)}
+.wv.rot{background:var(--rot-f);color:var(--rot-t)}.wv.gelb{background:var(--gelb-f);color:var(--gelb-t)}
+.wv .knopf:not(.voll){border-color:currentColor;color:inherit}
+.kontakt{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.block h3{font-size:14px;color:var(--primaer);margin:14px 0 6px}
+.block h3:first-child{margin-top:0}
+dl{margin:0;display:grid;grid-template-columns:128px minmax(0,1fr);gap:6px 8px}
+dt{color:var(--leise)}dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.anlagen{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.anlage{width:104px;border:0;background:transparent;padding:0;cursor:pointer;text-align:left;position:relative}
+.anlage .bild{width:104px;height:104px;border-radius:12px;background:var(--hoch);display:flex;align-items:center;justify-content:center;font-size:30px;overflow:hidden}
+.anlage img{width:100%;height:100%;object-fit:cover}
+.anlage span{display:block;font-size:11px;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anlage .weg{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.55);color:#fff;font-size:13px;padding:3px 7px}
+.verlauf{list-style:none;margin:0;padding:0}
+.verlauf li{display:flex;gap:12px;padding:8px 0;align-items:flex-start}
+.verlauf .rund{flex:none;width:34px;height:34px;border-radius:50%;background:var(--primaer-hell);color:var(--auf-primaer-hell);display:flex;align-items:center;justify-content:center;font-size:15px}
+.verlauf .inhalt{white-space:pre-wrap;overflow-wrap:anywhere}
+label.feld{display:block;margin-bottom:10px;font-size:12px;color:var(--leise)}
+label.feld input,label.feld select,label.feld textarea{display:block;width:100%;margin-top:3px;padding:10px 12px;border:1px solid var(--rand);border-radius:8px;background:transparent;font-size:15px;color:var(--text)}
+label.feld textarea{min-height:84px;resize:vertical}
+.fehlertext{color:var(--fehler);font-size:13px}
+dialog{border:0;border-radius:24px;padding:24px;background:var(--flaeche);color:var(--text);width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog h2{font-size:22px;font-weight:500;margin-bottom:12px}
+dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
+.dialog-knoepfe{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
+.auswahl{display:flex;align-items:center;gap:12px;padding:8px 4px;cursor:pointer;border-radius:8px}
+.auswahl:hover{background:var(--flaeche2)}
+.vorlage{display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px 8px;border-radius:8px;cursor:pointer}
+.vorlage:hover{background:var(--flaeche2)}
+.leer{text-align:center;padding:40px 16px;color:var(--leise)}
+.leer b{display:block;color:var(--text);font-size:16px;margin:10px 0 4px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:20;background:#2E3135;color:#EFF0F7;padding:12px 18px;border-radius:8px;max-width:calc(100vw - 32px);box-shadow:0 3px 10px rgba(0,0,0,.3)}
+#sync{font-size:12px;padding:4px 10px;border-radius:999px;border:0;cursor:pointer}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <button class="symbol" id="zurueck" aria-label="Zurück zur Liste" hidden>←</button>
+  <h1>Schadensfälle</h1>
+  <button id="sync" class="grau" title="Jetzt abgleichen"></button>
+  <button class="symbol" id="einstellungen-knopf" aria-label="Einstellungen">⚙</button>
+</header>
+<main>
+  <section id="liste" aria-label="Fallliste"></section>
+  <section id="detail" aria-label="Fall"></section>
+</main>
+<dialog id="dialog"></dialog>
+<div id="toast" role="status" hidden></div>
+
+<script>
+'use strict';
+// ============================== Grundlagen ==============================
+const $ = (auswahl, wurzel = document) => wurzel.querySelector(auswahl);
+const esc = t => String(t ?? '').replace(/[&<>"']/g, z => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[z]));
+const pad = n => String(n).padStart(2, '0');
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID()
+  : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)));
+
+const STATUS = {
+  NEU: { label: 'Neu', offen: true, farbe: 'blau' },
+  IN_PRUEFUNG: { label: 'In Prüfung', offen: true, farbe: 'violett' },
+  WARTET_AUF_RUECKMELDUNG: { label: 'Wartet auf Rückmeldung', offen: true, farbe: 'gelb' },
+  BEI_VERSICHERUNG: { label: 'Bei Versicherung', offen: true, farbe: 'lila' },
+  VERGLEICH_ANGEBOTEN: { label: 'Vergleich angeboten', offen: true, farbe: 'tuerkis' },
+  ZAHLUNG_OFFEN: { label: 'Zahlung offen', offen: true, farbe: 'orange' },
+  ERLEDIGT: { label: 'Erledigt', offen: false, farbe: 'gruen' },
+  ABGELEHNT: { label: 'Abgelehnt', offen: false, farbe: 'grau' },
+};
+const SCHADENSART = { WARE: 'Beschädigung der Ware', GEBAEUDE: 'Schaden an Gebäude / Einrichtung', VERLUST: 'Verlust / Fehlmenge',
+  VERZUG: 'Lieferverzug', FAHRZEUG: 'Fahrzeug- / Verkehrsschaden', SONSTIGES: 'Sonstiges' };
+const PARTNER = { ANSPRUCHSTELLER: 'Anspruchsteller', AUFTRAGGEBER: 'Auftraggeber', VERSICHERUNG: 'Versicherung', FAHRER: 'Fahrer',
+  GUTACHTER: 'Gutachter / Werkstatt', INTERN: 'Intern' };
+const VERLAUF = { ANGELEGT: ['Fall angelegt', '🚚'], NOTIZ: ['Notiz', '✎'], ANRUF: ['Telefonat', '☎'], EMAIL: ['E-Mail', '✉'], NACHRICHT: ['Nachricht', '💬'],
+  BRIEF: ['Schreiben', '📄'], STATUS: ['Statusänderung', '⚑'], WIEDERVORLAGE: ['Wiedervorlage', '⏱'], ANLAGE: ['Anlage', '📎'] };
+const status = f => STATUS[f.status] || STATUS.NEU;
+
+// ---------- Datum ----------
+const isoTag = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const heute = () => isoTag(new Date());
+const alsTag = iso => { const [j, m, t] = iso.split('-').map(Number); return new Date(j, m - 1, t); };
+const plusTage = (iso, n) => { const d = alsTag(iso); d.setDate(d.getDate() + n); return isoTag(d); };
+const tageBis = iso => Math.round((alsTag(iso) - alsTag(heute())) / 86400000);
+const datumText = iso => (iso ? iso.split('-').reverse().join('.') : '');
+const datumMitTag = iso => ['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.'][alsTag(iso).getDay()] + ', ' + datumText(iso);
+const zeitText = iso => { const d = new Date(iso); return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const jetztIso = () => new Date().toISOString();
+
+// ---------- Fachlogik (entspricht der Android-App) ----------
+function faelligkeit(f) {
+  if (!status(f).offen || !f.wiedervorlageAm) return { art: 'keine', faellig: false, farbe: 'grau', text: 'Keine Wiedervorlage' };
+  const t = tageBis(f.wiedervorlageAm);
+  if (t < 0) return { art: 'ueber', faellig: true, farbe: 'rot', text: t === -1 ? 'seit gestern überfällig' : `seit ${-t} Tagen überfällig` };
+  if (t === 0) return { art: 'heute', faellig: true, farbe: 'gelb', text: 'heute fällig' };
+  return { art: 'kommend', faellig: false, farbe: 'grau', tage: t, text: t === 1 ? 'morgen fällig' : `in ${t} Tagen fällig` };
+}
+const geld = cent => (cent / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const geldOhneSymbol = cent => (cent / 100).toFixed(2).replace('.', ',');
+/** Liest „1.234,56“, „1,234.56“ oder „450 €“; gibt Cent zurück oder null bei ungültiger Eingabe. */
+function geldLesen(eingabe) {
+  const roh = String(eingabe).replace(/€|EUR/gi, '').replace(/[\s ]/g, '');
+  if (!roh || !/^[\d.,]+$/.test(roh)) return null;
+  const punkt = roh.lastIndexOf('.'), komma = roh.lastIndexOf(',');
+  let zahl;
+  if (punkt >= 0 && komma >= 0) zahl = komma > punkt ? roh.replace(/\./g, '').replace(',', '.') : roh.replace(/,/g, '');
+  else if (komma >= 0) { if (roh.split(',').length > 2) return null; zahl = roh.replace(',', '.'); }
+  else if (punkt >= 0) {
+    const gruppen = roh.split('.');
+    const tausender = gruppen.slice(1).every(g => g.length === 3) && gruppen[0].length >= 1 && gruppen[0].length <= 3;
+    if (tausender) zahl = roh.replace(/\./g, ''); else if (gruppen.length === 2) zahl = roh; else return null;
+  } else zahl = roh;
+  if (!/^\d*(\.\d{0,2})?$/.test(zahl) || zahl === '' || zahl === '.') return null;
+  const [ganz, bruch = ''] = zahl.split('.');
+  const cent = Number(ganz || '0') * 100 + Number((bruch + '00').slice(0, 2));
+  return Number.isSafeInteger(cent) ? cent : null;
+}
+function naechsteFallnummer(faelle, jahr = new Date().getFullYear()) {
+  const praefix = jahr + '-';
+  const hoechste = Math.max(0, ...faelle.filter(f => !f.geloescht && String(f.fallnummer).startsWith(praefix))
+    .map(f => Number(f.fallnummer.slice(praefix.length))).filter(Number.isInteger));
+  return praefix + String(hoechste + 1).padStart(3, '0');
+}
+/** „Ali Kaya, Ben Ott“ – oder leer, wenn kein Beifahrer eingetragen ist. */
+const beifahrer = f => [f.beifahrer1, f.beifahrer2].map(b => (b || '').trim()).filter(Boolean).join(', ');
+const anzeigeName = f => (f.kundeName && f.kundeFirma ? `${f.kundeName} · ${f.kundeFirma}` : f.kundeName || f.kundeFirma || `Fall ${f.fallnummer}`);
+
+const FILTER = { FAELLIG: 'Fällig', OFFEN: 'Offen', ABGESCHLOSSEN: 'Abgeschlossen', ALLE: 'Alle' };
+function filtereUndSortiere(faelle, filter, suchtext) {
+  const begriffe = suchtext.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const passt = f => {
+    const heu = [f.fallnummer, f.kundeName, f.kundeFirma, f.kundeTelefon, f.kundeEmail, f.kundenAktenzeichen, f.auftraggeber, f.auftragsReferenz,
+      f.tour, f.fahrzeug, f.fahrer, f.beifahrer1, f.beifahrer2, f.schadensort, f.beschreibung, f.versicherungsNummer, status(f).label].join('\n').toLowerCase();
+    return begriffe.every(b => heu.includes(b));
+  };
+  const rang = f => [status(f).offen ? 0 : 1, status(f).offen && f.wiedervorlageAm ? 0 : 1, status(f).offen ? f.wiedervorlageAm || '' : ''];
+  return faelle
+    .filter(f => ({ FAELLIG: faelligkeit(f).faellig, OFFEN: status(f).offen, ABGESCHLOSSEN: !status(f).offen, ALLE: true }[filter]))
+    .filter(passt)
+    .sort((a, b) => {
+      const ra = rang(a), rb = rang(b);
+      return ra[0] - rb[0] || ra[1] - rb[1] || ra[2].localeCompare(rb[2]) || String(b.geaendertAm).localeCompare(String(a.geaendertAm));
+    });
+}
+function kennzahlen(faelle) {
+  const offene = faelle.filter(f => status(f).offen);
+  return { faellig: offene.filter(f => faelligkeit(f).faellig).length, offen: offene.length, forderung: offene.reduce((s, f) => s + (f.forderungCent || 0), 0) };
+}
+
+const VORLAGEN = {
+  EINGANGSBESTAETIGUNG: ['Eingangsbestätigung', 'Bestätigt nur den Eingang der Meldung', true],
+  UNTERLAGEN_ANFORDERN: ['Unterlagen anfordern', 'Fotos, Kaufbeleg und Lieferschein nachfordern', true],
+  ERINNERUNG: ['Erinnerung', 'Nachhaken, wenn eine Rückmeldung aussteht', true],
+  ZWISCHENBESCHEID: ['Zwischenbescheid', 'Mitteilen, dass die Prüfung noch läuft', true],
+  SACHSTANDSANFRAGE: ['Sachstandsanfrage', 'Stand bei Versicherung oder Auftraggeber erfragen', false],
+};
+/** Kurze, haftungsneutrale Nachrichten – Wortlaut identisch zur Android-App. */
+function vorlageText(art, f, absender) {
+  const [titel, , anAnspruchsteller] = VORLAGEN[art];
+  const vorfall = f.schadensdatum ? `zum Vorfall vom ${datumText(f.schadensdatum)}` : 'zu dem gemeldeten Vorfall';
+  const frist = datumText(plusTage(heute(), 14));
+  const absaetze = {
+    EINGANGSBESTAETIGUNG: [`wir bestätigen den Eingang Ihrer Schadensmeldung ${vorfall}.`,
+      'Wir prüfen den Sachverhalt und melden uns unaufgefordert bei Ihnen, sobald die Prüfung abgeschlossen ist.',
+      'Diese Nachricht bestätigt ausschließlich den Eingang Ihrer Meldung. Eine Aussage zur Haftung ist damit nicht verbunden.'],
+    UNTERLAGEN_ANFORDERN: [`für die weitere Prüfung Ihrer Schadensmeldung ${vorfall} benötigen wir noch folgende Unterlagen:`,
+      '– Fotos des Schadens (Gesamtansicht und Detailaufnahmen)\n– Kaufbeleg oder Rechnung\n– Lieferschein, gegebenenfalls mit Schadensvermerk',
+      `Bitte senden Sie uns die Unterlagen bis zum ${frist} zu. Sobald sie vorliegen, setzen wir die Prüfung fort.`],
+    ERINNERUNG: [`wir kommen zurück auf unsere Nachricht ${vorfall}. Bislang liegt uns dazu keine Rückmeldung vor.`,
+      `Bitte melden Sie sich bis zum ${frist} bei uns, damit wir den Vorgang weiter bearbeiten können.`],
+    ZWISCHENBESCHEID: [`die Prüfung Ihrer Schadensmeldung ${vorfall} dauert noch an.`,
+      `Wir melden uns voraussichtlich bis zum ${frist} wieder bei Ihnen. Sollten sich in der Zwischenzeit neue Informationen ergeben, teilen Sie uns diese gern mit.`],
+    SACHSTANDSANFRAGE: ['wir bitten um Mitteilung des aktuellen Bearbeitungsstands zu folgendem Schadensfall:',
+      [(f.kundeName || f.kundeFirma) && 'Anspruchsteller: ' + [f.kundeName, f.kundeFirma].filter(Boolean).join(', '),
+        f.schadensdatum && 'Schadensdatum: ' + datumText(f.schadensdatum), f.versicherungsNummer && 'Schadennummer: ' + f.versicherungsNummer.trim(),
+        f.auftragsReferenz && 'Auftrag: ' + f.auftragsReferenz.trim(), f.tour && 'Tour: ' + f.tour.trim()].filter(Boolean).join('\n') || 'Vorgang ' + f.fallnummer,
+      `Für eine Rückmeldung bis zum ${frist} wären wir dankbar.`],
+  }[art];
+  const anrede = anAnspruchsteller && f.kundeName ? `Guten Tag ${f.kundeName.trim()},` : 'Sehr geehrte Damen und Herren,';
+  let gruss = 'Mit freundlichen Grüßen';
+  if (absender.bearbeiter) gruss += '\n\ni.A. ' + absender.bearbeiter.trim();
+  if (absender.funktion) gruss += '\n' + absender.funktion.trim();
+  if (absender.firma) gruss += '\n' + absender.firma.trim();
+
+  const bezug = f.meldedatum || f.schadensdatum;
+  const was = art === 'SACHSTANDSANFRAGE' ? 'Sachstandsanfrage Schadensfall' + (f.schadensdatum ? ' vom ' + datumText(f.schadensdatum) : '')
+    : 'Ihre Schadensmeldung' + (bezug ? ' vom ' + datumText(bezug) : '');
+  const fremd = art === 'SACHSTANDSANFRAGE' ? f.versicherungsNummer || f.kundenAktenzeichen : f.kundenAktenzeichen;
+  const betreff = [was, titel, fremd && 'Ihr Zeichen ' + fremd.trim(), f.fallnummer && 'unser Vorgang ' + f.fallnummer].filter(Boolean).join(' – ');
+  return { betreff, text: anrede + '\n\n' + absaetze.join('\n\n') + '\n\n' + gruss, anAnspruchsteller };
+}
+function zusammenfassung(f, anlagenAnzahl) {
+  const oder = t => (t && String(t).trim()) || 'unbekannt';
+  const besatzung = [f.fahrer && 'Fahrer: ' + f.fahrer.trim(), beifahrer(f) && 'Beifahrer: ' + beifahrer(f)].filter(Boolean).join(', ');
+  const tour = [f.tour, f.fahrzeug].filter(Boolean).join(' / ') + (besatzung ? (f.tour || f.fahrzeug ? ' ' : '') + `(${besatzung})` : '');
+  const auftrag = [f.auftraggeber, f.auftragsReferenz].filter(Boolean).join(' · ');
+  const z = [`Schadensfall ${f.fallnummer}`, `Status: ${status(f).label}`, `Kunde/Absender: ${oder([f.kundeName, f.kundeFirma].filter(Boolean).join(', '))}`,
+    `Kontakt: ${oder([f.kundeTelefon, f.kundeEmail].filter(Boolean).join(' · '))}`];
+  if (f.kundenAktenzeichen) z.push(`Zeichen des Kunden: ${f.kundenAktenzeichen.trim()}`);
+  z.push(`Schadensdatum: ${f.schadensdatum ? datumText(f.schadensdatum) : 'unbekannt'}`, `Tour/Fahrzeug: ${oder(tour)}`);
+  if (auftrag) z.push(`Auftraggeber/Auftrag: ${auftrag}`);
+  if (f.schadensort) z.push(`Schadensort: ${f.schadensort.trim()}`);
+  z.push(`Schaden: ${SCHADENSART[f.schadensart] || SCHADENSART.SONSTIGES} – ${oder(f.beschreibung)}`, `Schadenshöhe: ${f.forderungCent != null ? geld(f.forderungCent) : 'unbekannt'}`);
+  if (f.vergleichCent != null) z.push(`Vergleich/Regulierung: ${geld(f.vergleichCent)}`);
+  if (f.zahlungsfrist) z.push(`Zahlungsfrist: ${datumText(f.zahlungsfrist)}`);
+  if (f.versicherungsNummer) z.push(`Schadennummer Versicherung: ${f.versicherungsNummer.trim()}`);
+  z.push(`Anlagen: ${anlagenAnzahl}`);
+  if (status(f).offen && f.wiedervorlageAm) z.push(`Wiedervorlage: ${datumText(f.wiedervorlageAm)}` + (f.wartetAuf ? ` (wartet auf ${PARTNER[f.wartetAuf]})` : '') + (f.wiedervorlageNotiz ? ` – ${f.wiedervorlageNotiz.trim()}` : ''));
+  return z.join('\n');
+}
+const CSV_KOPF = ['Fall-Nr.', 'Status', 'Tour', 'Fahrzeug', 'Fahrer', 'Beifahrer 1', 'Beifahrer 2', 'Schadensdatum', 'Gemeldet am', 'Kunde', 'Firma', 'Telefon', 'E-Mail', 'Anschrift', 'Zeichen des Kunden',
+  'Auftraggeber', 'Auftrags-Nr.', 'Schadensart', 'Schadensbeschreibung', 'Schadensort', 'Forderung (EUR)', 'Vergleich (EUR)', 'Zahlungsfrist', 'Schadennr. Versicherung',
+  'Wartet auf', 'Wiedervorlage', 'Nächster Schritt', 'Anlagen', 'Angelegt am', 'Geändert am'];
+function csvZelle(wert) {
+  wert = String(wert ?? '');
+  const formel = /^[=@\t\r]/.test(wert) || (/^[+-]/.test(wert) && /[^\d /().,-]/.test(wert.slice(1)));
+  if (formel) wert = "'" + wert;
+  return /[;"\n\r]/.test(wert) ? '"' + wert.replace(/"/g, '""') + '"' : wert;
+}
+function csvErstellen(faelle, anlagenJeFall) {
+  const tagVon = iso => (iso ? datumText(isoTag(new Date(iso))) : '');
+  const zeilen = [...faelle].sort((a, b) => String(a.fallnummer).localeCompare(String(b.fallnummer))).map(f => [f.fallnummer, status(f).label, f.tour, f.fahrzeug, f.fahrer, f.beifahrer1, f.beifahrer2,
+    datumText(f.schadensdatum), datumText(f.meldedatum), f.kundeName, f.kundeFirma, f.kundeTelefon, f.kundeEmail, f.kundeAnschrift, f.kundenAktenzeichen, f.auftraggeber,
+    f.auftragsReferenz, SCHADENSART[f.schadensart] || '', f.beschreibung, f.schadensort, f.forderungCent != null ? geldOhneSymbol(f.forderungCent) : '',
+    f.vergleichCent != null ? geldOhneSymbol(f.vergleichCent) : '', datumText(f.zahlungsfrist), f.versicherungsNummer, f.wartetAuf ? PARTNER[f.wartetAuf] : '',
+    datumText(f.wiedervorlageAm), f.wiedervorlageNotiz, anlagenJeFall[f.id] || 0, tagVon(f.erstelltAm), tagVon(f.geaendertAm)]);
+  return '﻿' + [CSV_KOPF, ...zeilen].map(z => z.map(csvZelle).join(';')).join('\r\n') + '\r\n';
+}
+
+// ============================== Daten im Browser ==============================
+const SPEICHER = 'schadensfaelle-v1', PIN_SPEICHER = 'schadensfaelle-pin';
+const LEER = () => ({ faelle: {}, verlauf: {}, anlagen: {}, seit: 0, kennung: '', apiUrl: '', nurLokal: false,
+  einstellungen: { firma: '', bearbeiter: '', funktion: '', wiedervorlageTage: 7 } });
+let S = LEER();
+try { S = Object.assign(LEER(), JSON.parse(localStorage.getItem(SPEICHER) || '{}')); } catch { /* beschädigter Stand: neu beginnen, die Cloud liefert nach */ }
+let PIN = ''; try { PIN = localStorage.getItem(PIN_SPEICHER) || ''; } catch {}
+const apiUrl = () => window.API_URL || S.apiUrl;
+const mitCloud = () => !!apiUrl() && !S.nurLokal;
+
+function speichere() {
+  try { localStorage.setItem(SPEICHER, JSON.stringify(S)); }
+  catch { toast('Speichern im Browser fehlgeschlagen – bitte Speicherplatz prüfen.'); }
+}
+const alle = tabelle => Object.values(S[tabelle]).filter(d => !d.geloescht);
+const faelle = () => alle('faelle');
+const verlaufVon = id => alle('verlauf').filter(v => v.fallId === id).sort((a, b) => String(b.zeitpunkt).localeCompare(String(a.zeitpunkt)));
+const anlagenVon = id => alle('anlagen').filter(a => a.fallId === id).sort((a, b) => String(b.hinzugefuegtAm).localeCompare(String(a.hinzugefuegtAm)));
+
+/** Merkt einen geänderten Datensatz zum Hochladen vor. */
+function merke(tabelle, d) { d._dirty = true; d._n = (d._n || 0) + 1; S[tabelle][d.id] = d; return d; }
+/** Löscht lokal; mit Cloud bleibt ein Löschvermerk, bis der Server ihn bestätigt hat. */
+function entferne(tabelle, d, extra = {}) {
+  if (mitCloud()) merke(tabelle, { id: d.id, geloescht: true, _n: d._n, ...extra }); else delete S[tabelle][d.id];
+}
+const vermerke = (fallId, typ, text) => merke('verlauf', { id: uuid(), fallId, zeitpunkt: jetztIso(), typ, text });
+const wvText = (datum, wartetAuf, schritt) => (!datum ? 'Keine Wiedervorlage geplant'
+  : `Wiedervorlage am ${datumText(datum)}` + (wartetAuf ? ` · wartet auf ${PARTNER[wartetAuf]}` : '') + (schritt && schritt.trim() ? ` · ${schritt.trim()}` : ''));
+function fallMerken(f) {
+  if (!status(f).offen) Object.assign(f, { wiedervorlageAm: null, wartetAuf: null, wiedervorlageNotiz: '' }); // abgeschlossen: keine Wiedervorlage mehr
+  f.geaendertAm = jetztIso();
+  return merke('faelle', f);
+}
+function nachAenderung() { speichere(); zeichne(); planeAbgleich(); }
+
+const Aktionen = {
+  anlegen(entwurf) {
+    const jetzt = jetztIso();
+    const f = fallMerken({ ...entwurf, id: uuid(), fallnummer: naechsteFallnummer(faelle()), erstelltAm: jetzt });
+    vermerke(f.id, 'ANGELEGT', `Fall ${f.fallnummer} angelegt`);
+    nachAenderung(); return f.id;
+  },
+  speichern(id, neu) {
+    const alt = S.faelle[id]; if (!alt) return;
+    const f = fallMerken({ ...alt, ...neu, id, fallnummer: alt.fallnummer, erstelltAm: alt.erstelltAm });
+    if (alt.status !== f.status) vermerke(id, 'STATUS', `Status: ${status(alt).label} → ${status(f).label}`);
+    if (status(f).offen && alt.wiedervorlageAm !== f.wiedervorlageAm) vermerke(id, 'WIEDERVORLAGE', wvText(f.wiedervorlageAm, f.wartetAuf, f.wiedervorlageNotiz));
+    nachAenderung();
+  },
+  status(id, neu, notiz) {
+    const alt = S.faelle[id]; if (!alt || (alt.status === neu && !notiz.trim())) return;
+    const vorher = status(alt).label;
+    fallMerken({ ...alt, status: neu });
+    vermerke(id, 'STATUS', `Status: ${vorher} → ${STATUS[neu].label}` + (notiz.trim() ? '\n' + notiz.trim() : ''));
+    nachAenderung();
+  },
+  nachhaken(id, kanal, ergebnis, datum, wartetAuf, schritt) {
+    const alt = S.faelle[id]; if (!alt) return;
+    fallMerken({ ...alt, wiedervorlageAm: datum, wartetAuf, wiedervorlageNotiz: schritt.trim() });
+    vermerke(id, kanal, (ergebnis.trim() || 'Nachgehakt') + '\n' + wvText(datum, wartetAuf, schritt));
+    nachAenderung(); toast('Im Verlauf vermerkt');
+  },
+  wiedervorlage(id, datum, wartetAuf, schritt) {
+    const alt = S.faelle[id]; if (!alt) return;
+    if (alt.wiedervorlageAm === datum && alt.wartetAuf === wartetAuf && alt.wiedervorlageNotiz === schritt.trim()) return;
+    const f = fallMerken({ ...alt, wiedervorlageAm: datum, wartetAuf, wiedervorlageNotiz: schritt.trim() });
+    vermerke(id, 'WIEDERVORLAGE', wvText(f.wiedervorlageAm, f.wartetAuf, f.wiedervorlageNotiz));
+    nachAenderung();
+  },
+  notiz(id, typ, text) {
+    if (!text.trim() || !S.faelle[id]) return;
+    vermerke(id, typ, text.trim()); fallMerken({ ...S.faelle[id] }); nachAenderung();
+  },
+  verlaufLoeschen(v) { entferne('verlauf', v, { fallId: v.fallId }); nachAenderung(); },
+  async anlageHinzufuegen(fallId, datei) {
+    const blob = await verkleinere(datei);
+    if (blob.size > 25 * 1024 * 1024) { toast(`„${datei.name}“ ist größer als 25 MB und wurde nicht übernommen`); return; }
+    const name = blob === datei ? datei.name : datei.name.replace(/\.[^.]+$/, '') + '.jpg';
+    const a = merke('anlagen', { id: uuid(), fallId, anzeigename: name, mimeType: blob.type || 'application/octet-stream', groesseBytes: blob.size,
+      hinzugefuegtAm: jetztIso(), vorhanden: false });
+    await Dateien.lege(a.id, blob);
+    vermerke(fallId, 'ANLAGE', `Anlage hinzugefügt: ${name}`);
+    nachAenderung();
+  },
+  anlageLoeschen(a) {
+    entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id);
+    vermerke(a.fallId, 'ANLAGE', `Anlage entfernt: ${a.anzeigename}`); nachAenderung();
+  },
+  fallLoeschen(id) {
+    const f = S.faelle[id]; if (!f) return;
+    // Verlauf und Anlagen entfernt der Server zusammen mit dem Fall; lokal verschwinden sie sofort.
+    for (const v of Object.values(S.verlauf)) if (v.fallId === id) delete S.verlauf[v.id];
+    for (const a of Object.values(S.anlagen)) if (a.fallId === id) { delete S.anlagen[a.id]; Dateien.loesche(a.id); }
+    entferne('faelle', f, { geaendertAm: jetztIso() });
+    nachAenderung();
+  },
+};
+
+// ---------- Dateien der Anlagen (IndexedDB) ----------
+const Dateien = {
+  adressen: new Map(),
+  db() {
+    return this._db || (this._db = new Promise((ok, fehler) => {
+      const r = indexedDB.open('schadensfaelle', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('dateien');
+      r.onsuccess = () => ok(r.result); r.onerror = () => fehler(r.error);
+    }));
+  },
+  async tx(modus, fn) {
+    const db = await this.db();
+    return new Promise((ok, fehler) => { const t = db.transaction('dateien', modus), q = fn(t.objectStore('dateien')); t.oncomplete = () => ok(q && q.result); t.onerror = () => fehler(t.error); });
+  },
+  lege(id, blob) { return this.tx('readwrite', s => s.put(blob, id)); },
+  hole(id) { return this.tx('readonly', s => s.get(id)).catch(() => null); },
+  loesche(id) { const u = this.adressen.get(id); if (u) URL.revokeObjectURL(u); this.adressen.delete(id); return this.tx('readwrite', s => s.delete(id)).catch(() => {}); },
+  /** Liefert eine anzeigbare Adresse; lädt die Datei bei Bedarf aus der Cloud nach. */
+  async adresse(a) {
+    if (this.adressen.has(a.id)) return this.adressen.get(a.id);
+    let blob = await this.hole(a.id);
+    if (!blob && a.vorhanden && mitCloud() && PIN) {
+      const r = await api('anlageLaden', PIN, a.id);
+      blob = new Blob([Uint8Array.from(atob(r.base64), z => z.charCodeAt(0))], { type: r.mimeType });
+      await this.lege(a.id, blob);
+    }
+    if (!blob) return null;
+    const u = URL.createObjectURL(blob); this.adressen.set(a.id, u); return u;
+  },
+};
+/** Große Fotos auf höchstens 2560 Pixel Kantenlänge verkleinern – spart Übertragung und Speicher. */
+async function verkleinere(datei) {
+  if (!/^image\/(jpeg|png|webp)$/.test(datei.type) || datei.size < 1.5 * 1024 * 1024) return datei;
+  try {
+    const bild = await createImageBitmap(datei);
+    const faktor = Math.min(1, 2560 / Math.max(bild.width, bild.height));
+    const c = Object.assign(document.createElement('canvas'), { width: Math.round(bild.width * faktor), height: Math.round(bild.height * faktor) });
+    c.getContext('2d').drawImage(bild, 0, 0, c.width, c.height);
+    const klein = await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.85));
+    return klein && klein.size < datei.size ? klein : datei;
+  } catch { return datei; }
+}
+const alsBase64 = blob => new Promise((ok, fehler) => { const l = new FileReader(); l.onload = () => ok(String(l.result).split(',')[1] || ''); l.onerror = () => fehler(l.error); l.readAsDataURL(blob); });
+
+// ============================== Cloud ==============================
+// Wie bei Tagesdispo: POST als Text (keine CORS-Vorabfrage), Antwort {ok} oder {error}.
+async function api(fn, ...args) {
+  const r = await fetch(apiUrl(), { method: 'POST', body: JSON.stringify({ fn, args }) });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j.ok;
+}
+const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
+const ohneLokales = d => Object.fromEntries(Object.entries(d).filter(([k]) => !k.startsWith('_')));
+const offene = tabelle => Object.values(S[tabelle]).filter(d => d._dirty);
+
+function planeAbgleich(ms = 1200) { if (!mitCloud()) return; clearTimeout(SYNC.timer); SYNC.timer = setTimeout(abgleich, ms); zeichneSync(); }
+
+async function abgleich() {
+  if (!mitCloud()) return;
+  if (!PIN) { anmeldung(); return; }
+  if (SYNC.laeuft) { SYNC.nochmal = true; return; }
+  SYNC.laeuft = true; SYNC.nochmal = false; zeichneSync();
+  try {
+    const gesendet = { faelle: offene('faelle'), verlauf: offene('verlauf'), anlagen: offene('anlagen') };
+    const marken = new Map(Object.values(gesendet).flat().map(d => [d.id, d._n]));
+    const r = await api('sync', PIN, { seit: S.seit, kennung: S.kennung,
+      faelle: gesendet.faelle.map(ohneLokales), verlauf: gesendet.verlauf.map(ohneLokales), anlagen: gesendet.anlagen.map(ohneLokales) });
+
+    let neuesVomServer = false;
+    for (const tabelle of ['faelle', 'verlauf', 'anlagen']) {
+      // Gesendetes gilt als angekommen, sofern es seit dem Absenden nicht erneut geändert wurde.
+      for (const d of gesendet[tabelle]) {
+        const lokal = S[tabelle][d.id];
+        if (!lokal || lokal._n !== marken.get(d.id)) continue;
+        if (lokal.geloescht) delete S[tabelle][d.id]; else lokal._dirty = false;
+      }
+      for (const fern of r[tabelle]) {
+        const lokal = S[tabelle][fern.id];
+        if (lokal && lokal._dirty) continue; // inzwischen lokal geändert – geht beim nächsten Abgleich hoch
+        if (fern.geloescht) {
+          if (lokal) { neuesVomServer = true; delete S[tabelle][fern.id]; if (tabelle === 'anlagen') Dateien.loesche(fern.id); }
+          continue;
+        }
+        if (!lokal || JSON.stringify(ohneLokales(lokal)) !== JSON.stringify(fern)) neuesVomServer = true;
+        S[tabelle][fern.id] = { ...fern, _n: lokal ? lokal._n : 0 };
+      }
+    }
+    if (S.kennung && r.kennung !== S.kennung) {
+      // Der Bestand in der Cloud wurde neu angelegt: alles von diesem Gerät erneut hochladen.
+      for (const tabelle of ['faelle', 'verlauf', 'anlagen']) for (const d of Object.values(S[tabelle])) { d._dirty = true; if (tabelle === 'anlagen') d.vorhanden = false; }
+      S.seit = 0; SYNC.nochmal = true;
+    } else S.seit = r.rev;
+    S.kennung = r.kennung;
+    speichere();
+
+    for (const a of alle('anlagen').filter(a => !a.vorhanden && !a._dirty)) {
+      const blob = await Dateien.hole(a.id);
+      if (!blob) continue; // liegt auf einem anderen Gerät und wird von dort hochgeladen
+      await api('anlageHochladen', PIN, a.id, await alsBase64(blob));
+      a.vorhanden = true; speichere();
+    }
+    SYNC.fehler = ''; SYNC.zuletzt = Date.now();
+    if (neuesVomServer) zeichne();
+  } catch (e) {
+    const m = String(e.message || e);
+    if (m.includes('GESPERRT')) SYNC.fehler = m.replace(/^.*GESPERRT: /, '');
+    else if (m.includes('PIN')) { PIN = ''; try { localStorage.removeItem(PIN_SPEICHER); } catch {} SYNC.fehler = 'PIN erforderlich'; anmeldung(m.includes('falsch')); }
+    else SYNC.fehler = navigator.onLine === false || e instanceof TypeError ? 'offline' : m;
+  } finally {
+    SYNC.laeuft = false; zeichneSync();
+    if (SYNC.nochmal) planeAbgleich(300);
+  }
+}
+/** Fragt gelegentlich nach, ob ein anderes Gerät etwas geändert hat. */
+async function pruefeStand() {
+  if (!mitCloud() || !PIN || SYNC.laeuft || document.hidden) return;
+  try { const r = await api('stand', PIN); if (r.rev !== S.seit || r.kennung !== S.kennung) abgleich(); else if (SYNC.fehler === 'offline') { SYNC.fehler = ''; zeichneSync(); } }
+  catch { if (offene('faelle').length + offene('verlauf').length + offene('anlagen').length) { SYNC.fehler = 'offline'; zeichneSync(); } }
+}
+function zeichneSync() {
+  const el = $('#sync');
+  const wartend = offene('faelle').length + offene('verlauf').length + offene('anlagen').length;
+  let text, farbe = 'grau';
+  if (!mitCloud()) text = 'Nur auf diesem Gerät';
+  else if (!PIN) { text = 'Anmeldung nötig'; farbe = 'gelb'; }
+  else if (SYNC.laeuft) text = 'Gleiche ab …';
+  else if (SYNC.fehler === 'offline') { text = wartend ? `Offline · ${wartend} Änderung${wartend === 1 ? '' : 'en'} wartet` : 'Offline'; farbe = 'gelb'; }
+  else if (SYNC.fehler) { text = SYNC.fehler; farbe = 'rot'; }
+  else if (wartend || !SYNC.zuletzt) text = 'Speichere …';
+  else { text = 'Cloud aktuell'; farbe = 'gruen'; }
+  el.textContent = text; el.className = farbe; el.dataset.zustand = !mitCloud() ? 'lokal' : !PIN ? 'anmelden' : SYNC.laeuft || wartend || !SYNC.zuletzt ? 'beschaeftigt' : SYNC.fehler ? 'fehler' : 'aktuell';
+}
+
+// ---------- Anmeldung ----------
+let anmeldungOffen = false;
+async function anmeldung(falsch = false) {
+  if (anmeldungOffen) return; anmeldungOffen = true;
+  let eingerichtet = true;
+  try { eingerichtet = (await api('status')).eingerichtet; }
+  catch { anmeldungOffen = false; SYNC.fehler = 'offline'; zeichneSync(); return; }
+  const neu = !eingerichtet;
+  dialog(`<form method="dialog" id="pin-form"><h2>${neu ? 'PIN festlegen' : 'PIN eingeben'}</h2>
+    <p class="leise">${neu ? 'Diese PIN schützt die Daten in der Cloud. Sie wird auf jedem Gerät einmal abgefragt (mindestens 6 Zeichen).' : 'Die PIN der Schadensfälle-Cloud.'}</p>
+    <p class="fehlertext" id="pin-fehler" ${falsch ? '' : 'hidden'}>Die PIN war falsch.</p>
+    <label class="feld">PIN<input id="pin1" type="password" autocomplete="${neu ? 'new-password' : 'current-password'}" required minlength="${neu ? 6 : 1}"></label>
+    ${neu ? '<label class="feld">PIN wiederholen<input id="pin2" type="password" autocomplete="new-password" required></label>' : ''}
+    <div class="dialog-knoepfe"><button class="knopf voll" value="ok">${neu ? 'Festlegen' : 'Anmelden'}</button></div></form>`, { schliessbar: false });
+  $('#pin-form').onsubmit = async ereignis => {
+    ereignis.preventDefault();
+    const pin = $('#pin1').value, fehler = $('#pin-fehler');
+    const zeige = t => { fehler.textContent = t; fehler.hidden = false; };
+    if (neu && pin !== $('#pin2').value) { zeige('Die beiden Eingaben stimmen nicht überein.'); return; }
+    try {
+      if (neu) await api('pinFestlegen', pin);
+      await api('anmelden', pin);
+      PIN = pin; try { localStorage.setItem(PIN_SPEICHER, PIN); } catch {}
+      anmeldungOffen = false; $('#dialog').close(); SYNC.fehler = ''; abgleich();
+    } catch (e) {
+      const m = String(e.message || e);
+      zeige(m.includes('GESPERRT') ? m.replace(/^.*GESPERRT: /, '') : m.includes('falsch') ? 'Die PIN war falsch.' : e instanceof TypeError ? 'Keine Verbindung zur Cloud.' : m);
+    }
+  };
+}
+
+// ============================== Oberfläche ==============================
+const ANSICHT = { filter: 'OFFEN', suche: '', notiz: '' };
+function route() {
+  const [, art = '', id = ''] = location.hash.split('/');
+  return { art, id };
+}
+const gehe = hash => { if (location.hash === hash) zeichne(); else location.hash = hash; };
+
+function toast(text, ms = 3500) {
+  const el = $('#toast'); el.textContent = text; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, ms);
+}
+function dialog(html, { schliessbar = true } = {}) {
+  const d = $('#dialog'); d.innerHTML = html; d.oncancel = e => { if (!schliessbar) e.preventDefault(); };
+  if (!d.open) d.showModal(); return d;
+}
+function bestaetige(titel, text, knopf, dann) {
+  dialog(`<h2>${esc(titel)}</h2><p>${esc(text)}</p><div class="dialog-knoepfe"><button class="knopf text" data-zu>Abbrechen</button><button class="knopf text gefahr" id="ja">${esc(knopf)}</button></div>`);
+  $('#ja').onclick = () => { $('#dialog').close(); dann(); };
+}
+document.addEventListener('click', e => { if (e.target.closest('[data-zu]')) $('#dialog').close(); });
+
+function zeichne() {
+  const r = route();
+  document.body.classList.toggle('zeigt-detail', !!r.art);
+  $('#zurueck').hidden = !r.art;
+  zeichneListe(r); zeichneDetail(r); zeichneSync();
+}
+
+function zeichneListe(r = route()) {
+  const k = kennzahlen(faelle());
+  const liste = filtereUndSortiere(faelle(), ANSICHT.filter, ANSICHT.suche);
+  const el = $('#liste');
+  const fokusSuche = document.activeElement && document.activeElement.id === 'suche';
+  const karten = liste.map(f => {
+    const fk = faelligkeit(f);
+    const text = fk.art === 'kommend' && fk.tage > 7 ? 'Wiedervorlage ' + datumText(f.wiedervorlageAm) : fk.text;
+    const naechstes = [f.wartetAuf && 'Wartet auf ' + PARTNER[f.wartetAuf], f.wiedervorlageNotiz].filter(Boolean).join(' · ');
+    return `<button class="karte klickbar ${r.id === f.id ? 'gewaehlt' : ''}" data-fall="${f.id}">
+      <div class="zeile eng"><span class="titel fuell">${esc(anzeigeName(f))}</span><span class="marke ${status(f).farbe}">${esc(status(f).label)}</span></div>
+      <div class="leise">${esc([f.fallnummer, f.tour, f.schadensdatum && 'Schaden vom ' + datumText(f.schadensdatum)].filter(Boolean).join(' · '))}</div>
+      ${f.beschreibung ? `<div class="zwei-zeilen">${esc(f.beschreibung)}</div>` : ''}
+      ${status(f).offen && naechstes ? `<div class="leise">${esc(naechstes)}</div>` : ''}
+      <div class="zeile eng" style="margin-top:6px">${fk.art !== 'keine' ? `<span class="marke ${fk.farbe}">⏱ ${esc(text)}</span>` : status(f).offen ? '<span class="leise">Keine Wiedervorlage</span>' : ''}
+        <span class="fuell"></span>${f.forderungCent != null ? `<b>${geld(f.forderungCent)}</b>` : ''}</div></button>`;
+  }).join('');
+  const leer = !faelle().length
+    ? `<div class="leer">🚚<b>Noch keine Schadensfälle</b>Lege den ersten Fall an – so geht keine Wiedervorlage unter.<br><br><button class="knopf voll" data-neu>Ersten Fall anlegen</button></div>`
+    : `<div class="leer"><b>${ANSICHT.suche.trim() ? 'Keine Treffer' : { FAELLIG: 'Nichts fällig', OFFEN: 'Keine offenen Fälle', ABGESCHLOSSEN: 'Noch nichts abgeschlossen', ALLE: 'Keine Fälle' }[ANSICHT.filter]}</b>
+        ${ANSICHT.suche.trim() ? `Zu „${esc(ANSICHT.suche.trim())}“ wurde in dieser Ansicht nichts gefunden.` : ANSICHT.filter === 'FAELLIG' ? 'Heute muss bei keinem Fall nachgehakt werden.' : 'In dieser Ansicht gibt es derzeit keine Fälle.'}</div>`;
+  el.innerHTML = `
+    <div class="kennzahlen">
+      <button class="kennzahl ${k.faellig ? 'rot' : ''}" data-filter="FAELLIG"><b>${k.faellig}</b><span>Fällig</span></button>
+      <button class="kennzahl" data-filter="OFFEN"><b>${k.offen}</b><span>Offen</span></button>
+      <button class="kennzahl" data-filter="OFFEN"><b>${geld(k.forderung)}</b><span>Offene Forderungen</span></button>
+    </div>
+    <input class="suche" id="suche" type="search" placeholder="Name, Tour, Fall-Nr., Stichwort …" aria-label="Suche" value="${esc(ANSICHT.suche)}">
+    <div class="chips" role="group" aria-label="Ansicht">${Object.entries(FILTER).map(([wert, label]) =>
+      `<button class="chip" data-filter="${wert}" aria-pressed="${ANSICHT.filter === wert}">${label}${wert === 'FAELLIG' ? ` (${k.faellig})` : wert === 'OFFEN' ? ` (${k.offen})` : ''}</button>`).join('')}</div>
+    <button class="knopf voll fab" data-neu>＋ Neuer Fall</button>
+    <div id="karten">${liste.length ? karten : leer}</div>`;
+  if (fokusSuche) { const s = $('#suche'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+}
+$('#liste').addEventListener('input', e => { if (e.target.id === 'suche') { ANSICHT.suche = e.target.value; zeichneListe(); } });
+$('#liste').addEventListener('click', e => {
+  const f = e.target.closest('[data-filter]'), fall = e.target.closest('[data-fall]');
+  if (f) { ANSICHT.filter = f.dataset.filter; zeichneListe(); return; }
+  const ziel = fall ? '#/fall/' + fall.dataset.fall : e.target.closest('[data-neu]') ? '#/neu' : '';
+  if (ziel && formularSchliessen()) { formularStand = $('#fall-form') ? formularWerte() : ''; gehe(ziel); }
+});
+$('#zurueck').onclick = () => { if (!formularSchliessen()) return; gehe('#/'); };
+$('#einstellungen-knopf').onclick = () => gehe('#/einstellungen');
+$('#sync').onclick = () => (mitCloud() ? abgleich() : gehe('#/einstellungen'));
+
+function zeichneDetail(r = route()) {
+  const el = $('#detail');
+  if (r.art === 'neu' || r.art === 'bearbeiten') { if (!el.querySelector('#fall-form') || el.dataset.id !== r.art + r.id) zeichneFormular(r); return; }
+  el.dataset.id = '';
+  if (r.art === 'einstellungen') { zeichneEinstellungen(); return; }
+  const f = r.art === 'fall' ? S.faelle[r.id] : null;
+  if (!f || f.geloescht) {
+    if (r.art === 'fall') { gehe('#/'); return; } // Fall wurde gelöscht (hier oder auf einem anderen Gerät)
+    el.innerHTML = faelle().length ? '<div class="leer"><b>Kein Fall ausgewählt</b>Wähle links einen Fall oder lege einen neuen an.</div>' : '';
+    return;
+  }
+  const fk = faelligkeit(f), anl = anlagenVon(f.id);
+  const zeilen = paare => paare.filter(([, w]) => w && String(w).trim()).map(([l, w]) => `<dt>${l}</dt><dd>${esc(String(w).trim())}</dd>`).join('');
+  const block = (titel, paare, leer) => { const z = zeilen(paare); return z || leer ? `<h3>${titel}</h3>${z ? `<dl>${z}</dl>` : `<p class="leise">${leer}</p>`}` : ''; };
+  const zusatz = [f.wartetAuf && 'Wartet auf ' + PARTNER[f.wartetAuf], f.wiedervorlageNotiz].filter(Boolean).join(' · ');
+  const notizFokus = document.activeElement && document.activeElement.id === 'notiz';
+  el.innerHTML = `
+    <div class="karte">
+      <div class="zeile eng"><h2 class="gross fuell">${esc(anzeigeName(f))}</h2>
+        <button class="symbol" data-akt="bearbeiten" aria-label="Bearbeiten">✎</button><button class="symbol" data-akt="mehr" aria-label="Weitere Aktionen">⋮</button></div>
+      <p class="leise">Fall ${esc(f.fallnummer)} · ${esc(SCHADENSART[f.schadensart] || '')}${f.schadensdatum ? ' am ' + datumText(f.schadensdatum) : ''}</p>
+      <div class="zeile" style="margin-top:10px"><span class="marke ${status(f).farbe}">${esc(status(f).label)}</span><button class="knopf text" data-akt="status">Status ändern</button>
+        <span class="fuell"></span>${f.forderungCent != null ? `<span style="text-align:right"><span class="leise">Forderung</span><br><b>${geld(f.forderungCent)}</b></span>` : ''}</div>
+    </div>
+    <div class="wv ${fk.faellig ? fk.farbe : ''}" id="wiedervorlage">
+      <div class="titel">⏱ Wiedervorlage</div>
+      ${!status(f).offen ? '<p>Der Fall ist abgeschlossen – es wird nicht mehr nachgehakt.</p>' : `
+        <p>${f.wiedervorlageAm ? `<b>${datumMitTag(f.wiedervorlageAm)} · ${fk.text}</b>` : 'Kein Termin geplant.'}</p>${zusatz ? `<p>${esc(zusatz)}</p>` : ''}
+        <div class="zeile" style="margin-top:10px"><button class="knopf voll" data-akt="nachgehakt">✓ Nachgehakt</button>
+          <button class="knopf" data-akt="termin">${f.wiedervorlageAm ? 'Termin ändern' : 'Termin setzen'}</button></div>`}
+    </div>
+    <div class="kontakt">
+      <button class="knopf tonal" data-akt="anrufen" ${f.kundeTelefon ? '' : 'disabled'}>☎ Anrufen</button>
+      <button class="knopf tonal" data-akt="email">✉ E-Mail</button>
+      <button class="knopf tonal" data-akt="nachricht">💬 Nachricht</button>
+    </div>
+    <div class="karte block">
+      ${block('Schaden', [['Beschreibung', f.beschreibung], ['Schadensort', f.schadensort], ['Gemeldet am', datumText(f.meldedatum)]], 'Noch keine Beschreibung erfasst.')}
+      ${block('Transportauftrag', [['Auftraggeber', f.auftraggeber], ['Auftrags-Nr.', f.auftragsReferenz], ['Tour', f.tour], ['Fahrzeug', f.fahrzeug], ['Fahrer', f.fahrer], ['Beifahrer', beifahrer(f)]], 'Keine Angaben zum Auftrag.')}
+      ${block('Anspruchsteller', [['Name', f.kundeName], ['Firma', f.kundeFirma], ['Telefon', f.kundeTelefon], ['E-Mail', f.kundeEmail], ['Anschrift', f.kundeAnschrift], ['Zeichen', f.kundenAktenzeichen]], 'Keine Kontaktdaten erfasst.')}
+      ${block('Regulierung', [['Vergleich / Regulierung', f.vergleichCent != null ? geld(f.vergleichCent) : ''], ['Zahlungsfrist', datumText(f.zahlungsfrist)], ['Schadennr. Versicherung', f.versicherungsNummer]], '')}
+    </div>
+    <div class="karte block">
+      <h3>Anlagen${anl.length ? ` (${anl.length})` : ''}</h3>
+      ${anl.length ? `<div class="anlagen">${anl.map(a => `<div class="anlage"><button class="anlage" data-anlage="${a.id}" title="${esc(a.anzeigename)}">
+        <div class="bild" data-bild="${a.id}">${a.mimeType.startsWith('image/') ? '🖼' : '📄'}</div><span>${esc(a.anzeigename)}</span></button>
+        <button class="symbol weg" data-anlage-weg="${a.id}" aria-label="Anlage ${esc(a.anzeigename)} entfernen">✕</button></div>`).join('')}</div>` : '<p class="leise">Noch keine Fotos oder Belege.</p>'}
+      <label class="knopf" style="margin-top:8px">📎 Foto oder Datei hinzufügen<input type="file" id="datei" multiple hidden></label>
+    </div>
+    <h3 style="font-size:16px;margin:16px 0 8px">Verlauf</h3>
+    <form class="zeile eng" id="notiz-form"><input class="suche fuell" style="margin:0;border-radius:8px" id="notiz" placeholder="Notiz hinzufügen …" aria-label="Notiz" value="${esc(ANSICHT.notiz)}">
+      <button class="knopf tonal">Speichern</button></form>
+    <ul class="verlauf">${verlaufVon(f.id).map(v => `<li><span class="rund">${(VERLAUF[v.typ] || VERLAUF.NOTIZ)[1]}</span><div class="fuell">
+      <div class="leise">${esc((VERLAUF[v.typ] || VERLAUF.NOTIZ)[0])} · ${zeitText(v.zeitpunkt)}</div><div class="inhalt">${esc(v.text)}</div></div>
+      <button class="symbol" data-verlauf-weg="${v.id}" aria-label="Eintrag löschen">✕</button></li>`).join('')}</ul>`;
+  if (notizFokus) { const n = $('#notiz'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+  for (const a of anl.filter(a => a.mimeType.startsWith('image/'))) {
+    Dateien.adresse(a).then(u => { const ziel = el.querySelector(`[data-bild="${a.id}"]`); if (u && ziel) ziel.innerHTML = `<img src="${u}" alt="">`; }).catch(() => {});
+  }
+}
+$('#detail').addEventListener('input', e => { if (e.target.id === 'notiz') ANSICHT.notiz = e.target.value; });
+$('#detail').addEventListener('submit', e => {
+  if (e.target.id !== 'notiz-form') return;
+  e.preventDefault(); const text = ANSICHT.notiz; ANSICHT.notiz = ''; Aktionen.notiz(route().id, 'NOTIZ', text);
+});
+$('#detail').addEventListener('change', async e => {
+  if (e.target.id !== 'datei') return;
+  const id = route().id;
+  for (const datei of e.target.files) await Aktionen.anlageHinzufuegen(id, datei);
+});
+$('#detail').addEventListener('click', async e => {
+  const f = S.faelle[route().id];
+  const akt = e.target.closest('[data-akt]'), anlage = e.target.closest('[data-anlage]'), anlageWeg = e.target.closest('[data-anlage-weg]'), verlaufWeg = e.target.closest('[data-verlauf-weg]');
+  if (anlageWeg) { const a = S.anlagen[anlageWeg.dataset.anlageWeg]; bestaetige('Anlage entfernen?', `„${a.anzeigename}“ wird aus dem Fall gelöscht.`, 'Entfernen', () => Aktionen.anlageLoeschen(a)); return; }
+  if (anlage) {
+    const a = S.anlagen[anlage.dataset.anlage];
+    try { const u = await Dateien.adresse(a); if (u) window.open(u, '_blank'); else toast('Die Datei wurde noch nicht in die Cloud übertragen.'); }
+    catch { toast('Die Datei konnte nicht geladen werden.'); }
+    return;
+  }
+  if (verlaufWeg) { const v = S.verlauf[verlaufWeg.dataset.verlaufWeg]; bestaetige('Eintrag löschen?', `Der Verlaufseintrag vom ${zeitText(v.zeitpunkt)} wird entfernt.`, 'Löschen', () => Aktionen.verlaufLoeschen(v)); return; }
+  if (!akt || !f) return;
+  ({ bearbeiten: () => gehe('#/bearbeiten/' + f.id), status: () => statusDialog(f), nachgehakt: () => wiedervorlageDialog(f, true), termin: () => wiedervorlageDialog(f, false),
+    anrufen: () => { location.href = 'tel:' + f.kundeTelefon.replace(/[^\d+]/g, ''); }, email: () => vorlagenDialog(f, 'email'), nachricht: () => vorlagenDialog(f, 'nachricht'), mehr: () => mehrDialog(f) })[akt.dataset.akt]();
+});
+
+// ---------- Dialoge ----------
+const TAGE_WAHL = [[1, 'Morgen'], [3, '3 Tage'], [7, '1 Woche'], [14, '2 Wochen']];
+const KANAELE = [['ANRUF', 'Telefonat'], ['EMAIL', 'E-Mail'], ['NACHRICHT', 'Nachricht'], ['BRIEF', 'Schreiben'], ['NOTIZ', 'Sonstiges']];
+function wiedervorlageDialog(f, nachgehakt) {
+  const z = { kanal: 'ANRUF', datum: nachgehakt ? plusTage(heute(), S.einstellungen.wiedervorlageTage) : f.wiedervorlageAm || plusTage(heute(), S.einstellungen.wiedervorlageTage), wartetAuf: f.wartetAuf || null };
+  const chips = (liste, aktiv, attr) => liste.map(([wert, label]) => `<button type="button" class="chip" data-${attr}="${wert}" aria-pressed="${aktiv === wert}">${label}</button>`).join('');
+  const male = () => {
+    const ergebnis = $('#ergebnis') ? $('#ergebnis').value : '', schritt = $('#schritt') ? $('#schritt').value : f.wiedervorlageNotiz || '';
+    const schnell = TAGE_WAHL.find(([t]) => plusTage(heute(), t) === z.datum);
+    dialog(`<form method="dialog" id="wv-form"><h2>${nachgehakt ? 'Nachgehakt' : 'Wiedervorlage ändern'}</h2>
+      ${nachgehakt ? `<h3>Wie?</h3><div class="chips">${chips(KANAELE, z.kanal, 'kanal')}</div>
+        <label class="feld">Was kam dabei heraus?<textarea id="ergebnis">${esc(ergebnis)}</textarea></label>` : ''}
+      <h3>Nächste Wiedervorlage</h3>
+      <div class="chips">${TAGE_WAHL.map(([t, label]) => `<button type="button" class="chip" data-tage="${t}" aria-pressed="${!!schnell && schnell[0] === t}">${label}</button>`).join('')}
+        <button type="button" class="chip" data-tage="keine" aria-pressed="${!z.datum}">Keine</button></div>
+      <label class="feld">Datum<input type="date" id="wv-datum" value="${z.datum || ''}"></label>
+      <p class="leise">${z.datum ? 'Am ' + datumMitTag(z.datum) : 'Der Fall taucht nicht mehr in „Fällig“ auf.'}</p>
+      ${z.datum ? `<h3>Auf wen wird gewartet?</h3><div class="chips">${chips(Object.entries(PARTNER), z.wartetAuf, 'partner')}</div>
+        <label class="feld">Nächster Schritt<input id="schritt" placeholder="z. B. Fotos nachfordern" value="${esc(schritt)}"></label>` : ''}
+      <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
+    const form = $('#wv-form');
+    form.onclick = e => {
+      const c = e.target.closest('.chip'); if (!c) return;
+      if (c.dataset.kanal) z.kanal = c.dataset.kanal;
+      if (c.dataset.tage) z.datum = c.dataset.tage === 'keine' ? null : plusTage(heute(), Number(c.dataset.tage));
+      if (c.dataset.partner) z.wartetAuf = z.wartetAuf === c.dataset.partner ? null : c.dataset.partner;
+      male();
+    };
+    $('#wv-datum').onchange = e => { z.datum = e.target.value || null; male(); };
+    form.onsubmit = e => {
+      e.preventDefault(); $('#dialog').close();
+      const schrittNeu = z.datum && $('#schritt') ? $('#schritt').value : '', warten = z.datum ? z.wartetAuf : null;
+      if (nachgehakt) Aktionen.nachhaken(f.id, z.kanal, $('#ergebnis').value, z.datum, warten, schrittNeu);
+      else Aktionen.wiedervorlage(f.id, z.datum, warten, schrittNeu);
+    };
+  };
+  male();
+}
+function statusDialog(f) {
+  dialog(`<form method="dialog" id="status-form"><h2>Status ändern</h2>
+    ${Object.entries(STATUS).map(([wert, s]) => `<label class="auswahl"><input type="radio" name="status" value="${wert}" ${f.status === wert ? 'checked' : ''}> ${s.label}</label>`).join('')}
+    <p class="leise" id="abschluss-hinweis" ${status(f).offen ? 'hidden' : ''}>Der Fall wird abgeschlossen; eine geplante Wiedervorlage entfällt.</p>
+    <label class="feld" style="margin-top:12px">Anmerkung (optional)<input id="status-notiz"></label>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf text">Übernehmen</button></div></form>`);
+  const form = $('#status-form');
+  form.onchange = () => { $('#abschluss-hinweis').hidden = STATUS[form.status.value].offen; };
+  form.onsubmit = e => { e.preventDefault(); $('#dialog').close(); Aktionen.status(f.id, form.status.value, $('#status-notiz').value); };
+}
+function vorlagenDialog(f, art) {
+  dialog(`<h2>${art === 'email' ? 'E-Mail vorbereiten' : 'Nachricht vorbereiten'}</h2><p class="leise">Der Text wird vorbereitet und kann vor dem Senden angepasst werden.</p>
+    ${Object.entries(VORLAGEN).map(([wert, [titel, beschreibung]]) => `<button class="vorlage" data-vorlage="${wert}"><b>${titel}</b><br><span class="leise">${beschreibung}</span></button>`).join('')}
+    <div class="dialog-knoepfe"><button class="knopf text" data-zu>Abbrechen</button></div>`).onclick = async e => {
+    const v = e.target.closest('[data-vorlage]'); if (!v) return;
+    $('#dialog').onclick = null; $('#dialog').close();
+    const n = vorlageText(v.dataset.vorlage, f, S.einstellungen), titel = VORLAGEN[v.dataset.vorlage][0];
+    if (art === 'email') {
+      const an = n.anAnspruchsteller ? encodeURIComponent(f.kundeEmail.trim()).replace(/%40/g, '@') : '';
+      oeffne(`mailto:${an}?subject=${encodeURIComponent(n.betreff)}&body=${encodeURIComponent(n.text)}`);
+      Aktionen.notiz(f.id, 'EMAIL', `E-Mail vorbereitet: ${titel}`);
+    } else if (await teile(n.betreff, n.text)) Aktionen.notiz(f.id, 'NACHRICHT', `Nachricht vorbereitet: ${titel}`);
+  };
+}
+/** Öffnet Mail- oder Telefon-App, ohne die Seite zu verlassen. */
+function oeffne(adresse) { window.__geoeffnet = adresse; const a = document.createElement('a'); a.href = adresse; a.click(); }
+/** Teilt Text über das Gerät oder legt ihn – am PC – in die Zwischenablage. */
+async function teile(titel, text) {
+  try {
+    if (navigator.share) { await navigator.share({ title: titel, text }); return true; }
+    await navigator.clipboard.writeText(text); toast('Text in die Zwischenablage kopiert'); return true;
+  } catch (e) { if (e && e.name === 'AbortError') return false; toast('Der Text konnte nicht geteilt werden.'); return false; }
+}
+function mehrDialog(f) {
+  dialog(`<h2>Fall ${esc(f.fallnummer)}</h2><button class="vorlage" id="teilen"><b>Zusammenfassung teilen</b><br><span class="leise">Kompakter Textblock für Notizen oder die Falltabelle</span></button>
+    <button class="vorlage" id="loeschen"><b style="color:var(--fehler)">Fall löschen</b><br><span class="leise">Mit Verlauf und allen Anlagen – auf allen Geräten</span></button>
+    <div class="dialog-knoepfe"><button class="knopf text" data-zu>Schließen</button></div>`);
+  $('#teilen').onclick = () => { $('#dialog').close(); teile('Schadensfall ' + f.fallnummer, zusammenfassung(f, anlagenVon(f.id).length)); };
+  $('#loeschen').onclick = () => bestaetige(`Fall ${f.fallnummer} löschen?`, 'Der Fall wird mit Verlauf und allen Anlagen endgültig gelöscht.', 'Löschen', () => { Aktionen.fallLoeschen(f.id); gehe('#/'); });
+}
+
+// ---------- Formular ----------
+const FELDER = [
+  ['Anspruchsteller', [['kundeName', 'Name'], ['kundeFirma', 'Firma'], ['kundeTelefon', 'Telefon', 'tel'], ['kundeEmail', 'E-Mail', 'email'], ['kundeAnschrift', 'Anschrift', 'lang'], ['kundenAktenzeichen', 'Zeichen / Aktenzeichen des Kunden']]],
+  ['Schaden', [['schadensdatum', 'Schadensdatum', 'date'], ['meldedatum', 'Gemeldet am', 'date'], ['schadensart', 'Schadensart', SCHADENSART], ['beschreibung', 'Was ist passiert?', 'lang'], ['schadensort', 'Schadensort / Lieferadresse'], ['forderung', 'Geforderter Betrag (€)', 'geld']]],
+  ['Transportauftrag', [['auftraggeber', 'Auftraggeber'], ['auftragsReferenz', 'Auftrags- / Lieferschein-Nr.'], ['tour', 'Tour'], ['fahrzeug', 'Fahrzeug / Kennzeichen'], ['fahrer', 'Fahrer'], ['beifahrer1', 'Beifahrer 1'], ['beifahrer2', 'Beifahrer 2']]],
+  ['Bearbeitung', [['status', 'Status', Object.fromEntries(Object.entries(STATUS).map(([k, s]) => [k, s.label]))], ['wiedervorlageAm', 'Wiedervorlage am', 'date'], ['wartetAuf', 'Wartet auf', { '': '–', ...PARTNER }], ['wiedervorlageNotiz', 'Nächster Schritt']]],
+  ['Regulierung', [['vergleich', 'Vergleichs- / Regulierungsbetrag (€)', 'geld'], ['zahlungsfrist', 'Zahlungsfrist', 'date'], ['versicherungsNummer', 'Schadennummer der Versicherung']]],
+];
+let formularStand = '';
+const formularWerte = () => JSON.stringify([...new FormData($('#fall-form'))]);
+/** Fragt nach, bevor ungespeicherte Eingaben verloren gehen. Gibt false zurück, wenn der Nutzer bleiben will. */
+function formularSchliessen() {
+  const form = $('#fall-form');
+  return !form || formularWerte() === formularStand || confirm('Die Eingaben wurden noch nicht gespeichert. Trotzdem verlassen?');
+}
+function zeichneFormular(r) {
+  const alt = r.art === 'bearbeiten' ? S.faelle[r.id] : null;
+  if (r.art === 'bearbeiten' && !alt) { gehe('#/'); return; }
+  const f = alt ? { ...alt, forderung: alt.forderungCent != null ? geldOhneSymbol(alt.forderungCent) : '', vergleich: alt.vergleichCent != null ? geldOhneSymbol(alt.vergleichCent) : '' }
+    : { status: 'NEU', schadensart: 'WARE', meldedatum: heute(), wiedervorlageAm: plusTage(heute(), S.einstellungen.wiedervorlageTage) };
+  const feld = ([name, label, art]) => {
+    const wert = esc(f[name] ?? '');
+    if (art && typeof art === 'object') return `<label class="feld">${label}<select name="${name}">${Object.entries(art).map(([k, t]) => `<option value="${k}" ${String(f[name] ?? '') === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
+    if (art === 'lang') return `<label class="feld">${label}<textarea name="${name}">${wert}</textarea></label>`;
+    const typ = { date: 'type="date"', tel: 'type="tel"', email: 'type="email"', geld: 'inputmode="decimal"' }[art] || '';
+    return `<label class="feld">${label}<input name="${name}" ${typ} value="${wert}"><span class="fehlertext" data-fehler="${name}" hidden></span></label>`;
+  };
+  const el = $('#detail'); el.dataset.id = r.art + r.id;
+  el.innerHTML = `<form id="fall-form" novalidate>
+    <div class="zeile eng" style="margin-bottom:12px"><h2 class="gross fuell">${alt ? 'Fall bearbeiten' : 'Neuer Schadensfall'}</h2>
+      <button type="button" class="knopf text" id="abbrechen">Abbrechen</button><button class="knopf voll">Speichern</button></div>
+    <p class="fehlertext" id="form-fehler" hidden></p>
+    ${FELDER.map(([titel, felder]) => `<div class="karte block"><h3>${titel}</h3>${felder.map(feld).join('')}</div>`).join('')}</form>`;
+  formularStand = formularWerte();
+  $('#abbrechen').onclick = () => { if (formularSchliessen()) { formularStand = formularWerte(); history.length > 1 ? history.back() : gehe('#/'); } };
+  $('#fall-form').onsubmit = e => {
+    e.preventDefault();
+    const w = Object.fromEntries(new FormData(e.target)); let gueltig = true;
+    const fehler = (name, text) => { const s = el.querySelector(`[data-fehler="${name}"]`); s.textContent = text; s.hidden = !text; if (text) gueltig = false; };
+    const betrag = name => { fehler(name, w[name].trim() && geldLesen(w[name]) == null ? 'Kein gültiger Betrag, z. B. 1.250,00' : ''); return w[name].trim() ? geldLesen(w[name]) : null; };
+    const forderungCent = betrag('forderung'), vergleichCent = betrag('vergleich');
+    fehler('kundeEmail', w.kundeEmail.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(w.kundeEmail.trim()) ? 'Die E-Mail-Adresse sieht unvollständig aus.' : '');
+    const leer = !w.kundeName.trim() && !w.kundeFirma.trim() && !w.beschreibung.trim();
+    $('#form-fehler').textContent = leer ? 'Bitte mindestens Name, Firma oder Schadensbeschreibung angeben.' : ''; $('#form-fehler').hidden = !leer;
+    if (leer || !gueltig) { (leer ? $('#form-fehler') : el.querySelector('.fehlertext:not([hidden])')).scrollIntoView({ block: 'center' }); return; }
+    const daten = {};
+    for (const [, felder] of FELDER) for (const [name, , art] of felder) {
+      if (art === 'geld') continue;
+      daten[name] = art === 'date' || name === 'wartetAuf' ? w[name] || null : typeof art === 'object' ? w[name] : w[name].trim();
+    }
+    Object.assign(daten, { forderungCent, vergleichCent });
+    formularStand = formularWerte();
+    // Das Formular in der Verlaufsliste des Browsers durch den Fall ersetzen: „Zurück“ führt zur Liste.
+    const id = alt ? (Aktionen.speichern(alt.id, daten), alt.id) : Aktionen.anlegen(daten);
+    history.replaceState(null, '', '#/fall/' + id); zeichne();
+  };
+}
+
+// ---------- Einstellungen ----------
+function zeichneEinstellungen() {
+  const e = S.einstellungen;
+  $('#detail').innerHTML = `<h2 class="gross" style="margin-bottom:12px">Einstellungen</h2>
+    <div class="karte block"><h3>Absender</h3><p class="leise" style="margin-bottom:8px">Erscheint als Grußformel in den Textvorlagen.</p>
+      ${[['firma', 'Firma'], ['bearbeiter', 'Bearbeiter/in'], ['funktion', 'Funktion']].map(([k, l]) => `<label class="feld">${l}<input data-einst="${k}" value="${esc(e[k])}"></label>`).join('')}</div>
+    <div class="karte block"><h3>Wiedervorlage</h3><p class="leise" style="margin-bottom:8px">Vorschlag für den ersten Termin eines neuen Falls und nach dem Nachhaken.</p>
+      <div class="chips">${[[3, '3 Tage'], [7, '1 Woche'], [14, '2 Wochen'], [30, '30 Tage']].map(([t, l]) => `<button class="chip" data-wv-tage="${t}" aria-pressed="${e.wiedervorlageTage === t}">${l}</button>`).join('')}</div></div>
+    <div class="karte block"><h3>Cloud</h3>
+      ${mitCloud() ? `<p class="leise">Die Fälle liegen in Google Drive (Ordner „Schadensfaelle“) und werden mit der Android-App abgeglichen.</p>
+        <p class="leise" style="overflow-wrap:anywhere;margin:6px 0">${esc(apiUrl())}</p>
+        <div class="zeile"><button class="knopf" id="jetzt">Jetzt abgleichen</button><button class="knopf" id="abmelden">Auf diesem Gerät abmelden</button></div>`
+      : `<p class="leise" style="margin-bottom:8px">Derzeit bleiben alle Fälle nur in diesem Browser. Mit der Adresse des Cloud-Skripts werden sie in Google Drive gespeichert und mit anderen Geräten geteilt.</p>
+        <label class="feld">Cloud-Adresse (…/exec)<input id="cloud-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(apiUrl())}"></label>
+        <button class="knopf voll" id="verbinden">Verbinden</button>`}</div>
+    <div class="karte block"><h3>Daten</h3><button class="knopf" id="csv">Fallliste für Excel exportieren (CSV)</button></div>
+    <p class="leise">Erinnerungen per Benachrichtigung gibt es in der Android-App. Hier stehen fällige Fälle immer oben.</p>`;
+}
+$('#detail').addEventListener('input', e => { const k = e.target.dataset.einst; if (k) { S.einstellungen[k] = e.target.value; speichere(); } });
+$('#detail').addEventListener('click', e => {
+  const tage = e.target.closest('[data-wv-tage]');
+  if (tage) { S.einstellungen.wiedervorlageTage = Number(tage.dataset.wvTage); speichere(); zeichneEinstellungen(); return; }
+  switch (e.target.id) {
+    case 'jetzt': abgleich(); break;
+    case 'abmelden': PIN = ''; try { localStorage.removeItem(PIN_SPEICHER); } catch {} toast('Abgemeldet. Beim nächsten Abgleich wird die PIN abgefragt.'); break;
+    case 'verbinden': {
+      const url = $('#cloud-url').value.trim();
+      if (!/^https?:\/\/.+/.test(url)) { toast('Bitte die vollständige Adresse eintragen (beginnt mit https://).'); break; }
+      S.apiUrl = url; S.nurLokal = false; speichere(); zeichne(); abgleich(); break;
+    }
+    case 'csv': {
+      if (!faelle().length) { toast('Es gibt noch keine Fälle zum Exportieren'); break; }
+      const zahl = {}; for (const a of alle('anlagen')) zahl[a.fallId] = (zahl[a.fallId] || 0) + 1;
+      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csvErstellen(faelle(), zahl)], { type: 'text/csv;charset=utf-8' })), download: `Schadensfaelle_${heute()}.csv` });
+      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); break;
+    }
+  }
+});
+
+// ============================== Start ==============================
+window.addEventListener('hashchange', zeichne);
+window.addEventListener('beforeunload', e => { if ($('#fall-form') && formularWerte() !== formularStand) e.preventDefault(); });
+window.addEventListener('online', () => abgleich());
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { zeichne(); pruefeStand(); } });
+setInterval(pruefeStand, 45000);
+zeichne();
+if (mitCloud()) abgleich();
+window.__appBereit = true;
+</script>
+</body>
+</html>
