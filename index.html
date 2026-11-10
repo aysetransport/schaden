@@ -150,7 +150,7 @@ const STATUS = {
 };
 const SCHADENSART = { WARE: 'Beschädigung der Ware', GEBAEUDE: 'Schaden an Gebäude / Einrichtung', VERLUST: 'Verlust / Fehlmenge',
   VERZUG: 'Lieferverzug', FAHRZEUG: 'Fahrzeug- / Verkehrsschaden', SONSTIGES: 'Sonstiges' };
-const PARTNER = { ANSPRUCHSTELLER: 'Anspruchsteller', AUFTRAGGEBER: 'Auftraggeber', VERSICHERUNG: 'Versicherung', FAHRER: 'Fahrer',
+const PARTNER = { ANSPRUCHSTELLER: 'Geschädigter', AUFTRAGGEBER: 'Auftraggeber', VERSICHERUNG: 'Versicherung', FAHRER: 'Fahrer',
   GUTACHTER: 'Gutachter / Werkstatt', INTERN: 'Intern' };
 const VERLAUF = { ANGELEGT: ['Fall angelegt', '🚚'], NOTIZ: ['Notiz', '✎'], ANRUF: ['Telefonat', '☎'], EMAIL: ['E-Mail', '✉'], NACHRICHT: ['Nachricht', '💬'],
   BRIEF: ['Schreiben', '📄'], STATUS: ['Statusänderung', '⚑'], WIEDERVORLAGE: ['Wiedervorlage', '⏱'], ANLAGE: ['Anlage', '📎'] };
@@ -209,7 +209,7 @@ const FILTER = { FAELLIG: 'Fällig', OFFEN: 'Offen', ABGESCHLOSSEN: 'Abgeschloss
 function filtereUndSortiere(faelle, filter, suchtext) {
   const begriffe = suchtext.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const passt = f => {
-    const heu = [f.fallnummer, f.kundeName, f.kundeFirma, f.kundeTelefon, f.kundeEmail, f.kundenAktenzeichen, f.auftraggeber, f.auftragsReferenz,
+    const heu = [f.fallnummer, f.kundeName, f.kundeFirma, f.kundeTelefon, f.kundeEmail, f.kundenAktenzeichen, f.auftraggeber, f.auftraggeberKontakt, f.auftraggeberTelefon, f.auftraggeberEmail, f.auftragsReferenz,
       f.tour, f.fahrzeug, f.fahrer, f.beifahrer1, f.beifahrer2, f.schadensort, f.beschreibung, f.versicherungsNummer, status(f).label].join('\n').toLowerCase();
     return begriffe.every(b => heu.includes(b));
   };
@@ -227,18 +227,34 @@ function kennzahlen(faelle) {
   return { faellig: offene.filter(f => faelligkeit(f).faellig).length, offen: offene.length, forderung: offene.reduce((s, f) => s + (f.forderungCent || 0), 0) };
 }
 
-const VORLAGEN = {
-  EINGANGSBESTAETIGUNG: ['Eingangsbestätigung', 'Bestätigt nur den Eingang der Meldung', true],
-  UNTERLAGEN_ANFORDERN: ['Unterlagen anfordern', 'Fotos, Kaufbeleg und Lieferschein nachfordern', true],
-  ERINNERUNG: ['Erinnerung', 'Nachhaken, wenn eine Rückmeldung aussteht', true],
-  ZWISCHENBESCHEID: ['Zwischenbescheid', 'Mitteilen, dass die Prüfung noch läuft', true],
-  SACHSTANDSANFRAGE: ['Sachstandsanfrage', 'Stand bei Versicherung oder Auftraggeber erfragen', false],
+/** An wen sich eine Nachricht richtet; jeder bekommt nur die Angaben, die ihn betreffen. */
+const EMPFAENGER = {
+  GESCHAEDIGTER: { label: 'Geschädigter', ueberschrift: 'An den Geschädigten', email: f => (f.kundeEmail || '').trim(), telefon: f => (f.kundeTelefon || '').trim(), name: f => f.kundeName },
+  AUFTRAGGEBER: { label: 'Auftraggeber', ueberschrift: 'An den Auftraggeber', email: f => (f.auftraggeberEmail || '').trim(), telefon: f => (f.auftraggeberTelefon || '').trim(), name: f => f.auftraggeberKontakt },
+  DRITTE: { label: 'Versicherung / Dritte', ueberschrift: 'An Versicherung oder Dritte', email: () => '', telefon: () => '', name: () => '' },
 };
-/** Kurze, haftungsneutrale Nachrichten – Wortlaut identisch zur Android-App. */
+const VORLAGEN = {
+  EINGANGSBESTAETIGUNG: ['Eingangsbestätigung', 'Bestätigt nur den Eingang der Meldung', 'GESCHAEDIGTER'],
+  UNTERLAGEN_ANFORDERN: ['Unterlagen anfordern', 'Fotos, Kaufbeleg und Lieferschein nachfordern', 'GESCHAEDIGTER'],
+  ERINNERUNG: ['Erinnerung', 'Nachhaken, wenn eine Rückmeldung aussteht', 'GESCHAEDIGTER'],
+  ZWISCHENBESCHEID: ['Zwischenbescheid', 'Mitteilen, dass die Prüfung noch läuft', 'GESCHAEDIGTER'],
+  SCHADENSMITTEILUNG: ['Schadensmitteilung', 'Auftraggeber über den gemeldeten Schaden informieren', 'AUFTRAGGEBER'],
+  AUFTRAGSUNTERLAGEN: ['Auftragsunterlagen anfordern', 'Lieferschein und Angaben zur Ware erbitten', 'AUFTRAGGEBER'],
+  SACHSTAND_AUFTRAGGEBER: ['Sachstand mitteilen', 'Auftraggeber über den Stand informieren', 'AUFTRAGGEBER'],
+  ABSCHLUSS_AUFTRAGGEBER: ['Abschluss mitteilen', 'Auftraggeber über den Abschluss informieren', 'AUFTRAGGEBER'],
+  SACHSTANDSANFRAGE: ['Sachstandsanfrage', 'Stand bei der Versicherung erfragen', 'DRITTE'],
+};
+/**
+ * Kurze, haftungsneutrale Nachrichten – Wortlaut identisch zur Android-App. Der Auftraggeber erfährt
+ * Name des Geschädigten und Art des Schadens, aber keine Kontaktdaten und keine Forderung.
+ */
 function vorlageText(art, f, absender) {
-  const [titel, , anAnspruchsteller] = VORLAGEN[art];
+  const [titel, , empfaenger] = VORLAGEN[art];
   const vorfall = f.schadensdatum ? `zum Vorfall vom ${datumText(f.schadensdatum)}` : 'zu dem gemeldeten Vorfall';
   const frist = datumText(plusTage(heute(), 14));
+  const auftragsBezug = [f.auftragsReferenz && 'Auftrag: ' + f.auftragsReferenz.trim(), f.schadensdatum && 'Lieferung vom: ' + datumText(f.schadensdatum),
+    (f.kundeName || f.kundeFirma) && 'Empfänger der Lieferung: ' + [f.kundeName, f.kundeFirma].filter(Boolean).join(', '),
+    'Schadensart: ' + (SCHADENSART[f.schadensart] || SCHADENSART.SONSTIGES), f.beschreibung && f.beschreibung.trim() && 'Gemeldeter Schaden: ' + f.beschreibung.trim()].filter(Boolean).join('\n');
   const absaetze = {
     EINGANGSBESTAETIGUNG: [`wir bestätigen den Eingang Ihrer Schadensmeldung ${vorfall}.`,
       'Wir prüfen den Sachverhalt und melden uns unaufgefordert bei Ihnen, sobald die Prüfung abgeschlossen ist.',
@@ -250,35 +266,48 @@ function vorlageText(art, f, absender) {
       `Bitte melden Sie sich bis zum ${frist} bei uns, damit wir den Vorgang weiter bearbeiten können.`],
     ZWISCHENBESCHEID: [`die Prüfung Ihrer Schadensmeldung ${vorfall} dauert noch an.`,
       `Wir melden uns voraussichtlich bis zum ${frist} wieder bei Ihnen. Sollten sich in der Zwischenzeit neue Informationen ergeben, teilen Sie uns diese gern mit.`],
+    SCHADENSMITTEILUNG: ['wir möchten Sie darüber informieren, dass uns zu einer Lieferung aus Ihrem Auftrag eine Schadensmeldung vorliegt:', auftragsBezug,
+      'Wir prüfen den Sachverhalt und halten Sie über den weiteren Verlauf auf dem Laufenden. Eine Aussage zur Haftung ist mit dieser Mitteilung nicht verbunden.'],
+    AUFTRAGSUNTERLAGEN: ['für die Prüfung des folgenden Schadensfalls aus Ihrem Auftrag bitten wir um Unterstützung:', auftragsBezug,
+      'Bitte senden Sie uns, soweit vorhanden:\n– Lieferschein bzw. Auftragsbestätigung\n– Angaben zur gelieferten Ware (Artikel, Zustand bei Übergabe an uns)\n– Hinweise, die Ihnen der Kunde zu dem Schaden gegeben hat',
+      `Für eine Rückmeldung bis zum ${frist} wären wir dankbar.`],
+    SACHSTAND_AUFTRAGGEBER: ['zum folgenden Schadensfall aus Ihrem Auftrag möchten wir Sie über den aktuellen Stand informieren:', auftragsBezug,
+      `Stand der Bearbeitung: ${status(f).label}.`, 'Wir melden uns, sobald es Neuigkeiten gibt.'],
+    ABSCHLUSS_AUFTRAGGEBER: ['der folgende Schadensfall aus Ihrem Auftrag ist abgeschlossen:', auftragsBezug,
+      `Stand: ${status(f).label}. Von unserer Seite sind keine weiteren Schritte erforderlich.`, 'Vielen Dank für Ihre Unterstützung.'],
     SACHSTANDSANFRAGE: ['wir bitten um Mitteilung des aktuellen Bearbeitungsstands zu folgendem Schadensfall:',
-      [(f.kundeName || f.kundeFirma) && 'Anspruchsteller: ' + [f.kundeName, f.kundeFirma].filter(Boolean).join(', '),
+      [(f.kundeName || f.kundeFirma) && 'Geschädigter: ' + [f.kundeName, f.kundeFirma].filter(Boolean).join(', '),
         f.schadensdatum && 'Schadensdatum: ' + datumText(f.schadensdatum), f.versicherungsNummer && 'Schadennummer: ' + f.versicherungsNummer.trim(),
         f.auftragsReferenz && 'Auftrag: ' + f.auftragsReferenz.trim(), f.tour && 'Tour: ' + f.tour.trim()].filter(Boolean).join('\n') || 'Vorgang ' + f.fallnummer,
       `Für eine Rückmeldung bis zum ${frist} wären wir dankbar.`],
   }[art];
-  const anrede = anAnspruchsteller && f.kundeName ? `Guten Tag ${f.kundeName.trim()},` : 'Sehr geehrte Damen und Herren,';
+  const ansprechpartner = (EMPFAENGER[empfaenger].name(f) || '').trim();
+  const anrede = ansprechpartner ? `Guten Tag ${ansprechpartner},` : 'Sehr geehrte Damen und Herren,';
   let gruss = 'Mit freundlichen Grüßen';
   if (absender.bearbeiter) gruss += '\n\ni.A. ' + absender.bearbeiter.trim();
   if (absender.funktion) gruss += '\n' + absender.funktion.trim();
   if (absender.firma) gruss += '\n' + absender.firma.trim();
 
-  const bezug = f.meldedatum || f.schadensdatum;
-  const was = art === 'SACHSTANDSANFRAGE' ? 'Sachstandsanfrage Schadensfall' + (f.schadensdatum ? ' vom ' + datumText(f.schadensdatum) : '')
-    : 'Ihre Schadensmeldung' + (bezug ? ' vom ' + datumText(bezug) : '');
-  const fremd = art === 'SACHSTANDSANFRAGE' ? f.versicherungsNummer || f.kundenAktenzeichen : f.kundenAktenzeichen;
-  const betreff = [was, titel, fremd && 'Ihr Zeichen ' + fremd.trim(), f.fallnummer && 'unser Vorgang ' + f.fallnummer].filter(Boolean).join(' – ');
-  return { betreff, text: anrede + '\n\n' + absaetze.join('\n\n') + '\n\n' + gruss, anAnspruchsteller };
+  const vom = d => (d ? ' vom ' + datumText(d) : '');
+  const was = { GESCHAEDIGTER: 'Ihre Schadensmeldung' + vom(f.meldedatum || f.schadensdatum), AUFTRAGGEBER: 'Schadensfall' + vom(f.schadensdatum),
+    DRITTE: 'Sachstandsanfrage Schadensfall' + vom(f.schadensdatum) }[empfaenger];
+  const zeichen = { GESCHAEDIGTER: f.kundenAktenzeichen && 'Ihr Zeichen ' + f.kundenAktenzeichen.trim(), AUFTRAGGEBER: f.auftragsReferenz && 'Ihr Auftrag ' + f.auftragsReferenz.trim(),
+    DRITTE: (f.versicherungsNummer || f.kundenAktenzeichen) && 'Ihr Zeichen ' + (f.versicherungsNummer || f.kundenAktenzeichen).trim() }[empfaenger];
+  const betreff = [was, art === 'SACHSTANDSANFRAGE' ? '' : titel, zeichen, f.fallnummer && 'unser Vorgang ' + f.fallnummer].filter(Boolean).join(' – ');
+  return { betreff, text: anrede + '\n\n' + absaetze.join('\n\n') + '\n\n' + gruss, empfaenger };
 }
 function zusammenfassung(f, anlagenAnzahl) {
   const oder = t => (t && String(t).trim()) || 'unbekannt';
   const besatzung = [f.fahrer && 'Fahrer: ' + f.fahrer.trim(), beifahrer(f) && 'Beifahrer: ' + beifahrer(f)].filter(Boolean).join(', ');
   const tour = [f.tour, f.fahrzeug].filter(Boolean).join(' / ') + (besatzung ? (f.tour || f.fahrzeug ? ' ' : '') + `(${besatzung})` : '');
   const auftrag = [f.auftraggeber, f.auftragsReferenz].filter(Boolean).join(' · ');
-  const z = [`Schadensfall ${f.fallnummer}`, `Status: ${status(f).label}`, `Kunde/Absender: ${oder([f.kundeName, f.kundeFirma].filter(Boolean).join(', '))}`,
-    `Kontakt: ${oder([f.kundeTelefon, f.kundeEmail].filter(Boolean).join(' · '))}`];
-  if (f.kundenAktenzeichen) z.push(`Zeichen des Kunden: ${f.kundenAktenzeichen.trim()}`);
+  const z = [`Schadensfall ${f.fallnummer}`, `Status: ${status(f).label}`, `Geschädigter: ${oder([f.kundeName, f.kundeFirma].filter(Boolean).join(', '))}`,
+    `Kontakt Geschädigter: ${oder([f.kundeTelefon, f.kundeEmail].filter(Boolean).join(' · '))}`];
+  if (f.kundenAktenzeichen) z.push(`Zeichen des Geschädigten: ${f.kundenAktenzeichen.trim()}`);
   z.push(`Schadensdatum: ${f.schadensdatum ? datumText(f.schadensdatum) : 'unbekannt'}`, `Tour/Fahrzeug: ${oder(tour)}`);
   if (auftrag) z.push(`Auftraggeber/Auftrag: ${auftrag}`);
+  const agKontakt = [f.auftraggeberKontakt, f.auftraggeberTelefon, f.auftraggeberEmail].filter(Boolean).join(' · ');
+  if (agKontakt) z.push(`Kontakt Auftraggeber: ${agKontakt}`);
   if (f.schadensort) z.push(`Schadensort: ${f.schadensort.trim()}`);
   z.push(`Schaden: ${SCHADENSART[f.schadensart] || SCHADENSART.SONSTIGES} – ${oder(f.beschreibung)}`, `Schadenshöhe: ${f.forderungCent != null ? geld(f.forderungCent) : 'unbekannt'}`);
   if (f.vergleichCent != null) z.push(`Vergleich/Regulierung: ${geld(f.vergleichCent)}`);
@@ -288,8 +317,8 @@ function zusammenfassung(f, anlagenAnzahl) {
   if (status(f).offen && f.wiedervorlageAm) z.push(`Wiedervorlage: ${datumText(f.wiedervorlageAm)}` + (f.wartetAuf ? ` (wartet auf ${PARTNER[f.wartetAuf]})` : '') + (f.wiedervorlageNotiz ? ` – ${f.wiedervorlageNotiz.trim()}` : ''));
   return z.join('\n');
 }
-const CSV_KOPF = ['Fall-Nr.', 'Status', 'Tour', 'Fahrzeug', 'Fahrer', 'Beifahrer 1', 'Beifahrer 2', 'Schadensdatum', 'Gemeldet am', 'Kunde', 'Firma', 'Telefon', 'E-Mail', 'Anschrift', 'Zeichen des Kunden',
-  'Auftraggeber', 'Auftrags-Nr.', 'Schadensart', 'Schadensbeschreibung', 'Schadensort', 'Forderung (EUR)', 'Vergleich (EUR)', 'Zahlungsfrist', 'Schadennr. Versicherung',
+const CSV_KOPF = ['Fall-Nr.', 'Status', 'Tour', 'Fahrzeug', 'Fahrer', 'Beifahrer 1', 'Beifahrer 2', 'Schadensdatum', 'Gemeldet am', 'Geschädigter', 'Firma Geschädigter', 'Telefon Geschädigter', 'E-Mail Geschädigter', 'Anschrift Geschädigter', 'Zeichen des Geschädigten',
+  'Auftraggeber', 'Ansprechpartner Auftraggeber', 'Telefon Auftraggeber', 'E-Mail Auftraggeber', 'Auftrags-Nr.', 'Schadensart', 'Schadensbeschreibung', 'Schadensort', 'Forderung (EUR)', 'Vergleich (EUR)', 'Zahlungsfrist', 'Schadennr. Versicherung',
   'Wartet auf', 'Wiedervorlage', 'Nächster Schritt', 'Anlagen', 'Angelegt am', 'Geändert am'];
 function csvZelle(wert) {
   wert = String(wert ?? '');
@@ -301,7 +330,7 @@ function csvErstellen(faelle, anlagenJeFall) {
   const tagVon = iso => (iso ? datumText(isoTag(new Date(iso))) : '');
   const zeilen = [...faelle].sort((a, b) => String(a.fallnummer).localeCompare(String(b.fallnummer))).map(f => [f.fallnummer, status(f).label, f.tour, f.fahrzeug, f.fahrer, f.beifahrer1, f.beifahrer2,
     datumText(f.schadensdatum), datumText(f.meldedatum), f.kundeName, f.kundeFirma, f.kundeTelefon, f.kundeEmail, f.kundeAnschrift, f.kundenAktenzeichen, f.auftraggeber,
-    f.auftragsReferenz, SCHADENSART[f.schadensart] || '', f.beschreibung, f.schadensort, f.forderungCent != null ? geldOhneSymbol(f.forderungCent) : '',
+    f.auftraggeberKontakt, f.auftraggeberTelefon, f.auftraggeberEmail, f.auftragsReferenz, SCHADENSART[f.schadensart] || '', f.beschreibung, f.schadensort, f.forderungCent != null ? geldOhneSymbol(f.forderungCent) : '',
     f.vergleichCent != null ? geldOhneSymbol(f.vergleichCent) : '', datumText(f.zahlungsfrist), f.versicherungsNummer, f.wartetAuf ? PARTNER[f.wartetAuf] : '',
     datumText(f.wiedervorlageAm), f.wiedervorlageNotiz, anlagenJeFall[f.id] || 0, tagVon(f.erstelltAm), tagVon(f.geaendertAm)]);
   return '﻿' + [CSV_KOPF, ...zeilen].map(z => z.map(csvZelle).join(';')).join('\r\n') + '\r\n';
@@ -309,7 +338,7 @@ function csvErstellen(faelle, anlagenJeFall) {
 
 // ============================== Daten im Browser ==============================
 const SPEICHER = 'schadensfaelle-v1', PIN_SPEICHER = 'schadensfaelle-pin';
-const LEER = () => ({ faelle: {}, verlauf: {}, anlagen: {}, seit: 0, kennung: '', apiUrl: '', nurLokal: false,
+const LEER = () => ({ faelle: {}, verlauf: {}, anlagen: {}, auftraggeber: {}, seit: 0, kennung: '', apiUrl: '', nurLokal: false,
   einstellungen: { firma: '', bearbeiter: '', funktion: '', wiedervorlageTage: 7 } });
 let S = LEER();
 try { S = Object.assign(LEER(), JSON.parse(localStorage.getItem(SPEICHER) || '{}')); } catch { /* beschädigter Stand: neu beginnen, die Cloud liefert nach */ }
@@ -342,9 +371,25 @@ function fallMerken(f) {
 }
 function nachAenderung() { speichere(); zeichne(); planeAbgleich(); }
 
+/** Ein bisher unbekannter Auftraggeber aus einem Fall kommt automatisch in die Liste. */
+function merkeAuftraggeber(f) {
+  const name = (f.auftraggeber || '').trim();
+  if (!name || alle('auftraggeber').some(e => e.name.trim().toLowerCase() === name.toLowerCase())) return;
+  merke('auftraggeber', { id: uuid(), name, kontakt: (f.auftraggeberKontakt || '').trim(), telefon: (f.auftraggeberTelefon || '').trim(),
+    email: (f.auftraggeberEmail || '').trim(), geaendertAm: jetztIso() });
+}
+const auftraggeberListe = () => alle('auftraggeber').sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }));
+function auftraggeberAuswahl() {
+  const liste = auftraggeberListe();
+  if (!liste.length) return '<p class="leise" style="margin-bottom:8px">Noch keine gespeicherten Auftraggeber – neue kommen beim Speichern automatisch in die Liste.</p>';
+  return `<label class="feld">Aus Liste wählen<select id="ag-auswahl"><option value="">– Auftraggeber wählen –</option>${liste.map(e =>
+    `<option value="${e.id}">${esc(e.name)}${e.kontakt ? ' · ' + esc(e.kontakt) : ''}</option>`).join('')}</select></label>`;
+}
+
 const Aktionen = {
   anlegen(entwurf) {
     const jetzt = jetztIso();
+    merkeAuftraggeber(entwurf);
     const f = fallMerken({ ...entwurf, id: uuid(), fallnummer: naechsteFallnummer(faelle()), erstelltAm: jetzt });
     vermerke(f.id, 'ANGELEGT', `Fall ${f.fallnummer} angelegt`);
     nachAenderung(); return f.id;
@@ -352,6 +397,7 @@ const Aktionen = {
   speichern(id, neu) {
     const alt = S.faelle[id]; if (!alt) return;
     const f = fallMerken({ ...alt, ...neu, id, fallnummer: alt.fallnummer, erstelltAm: alt.erstelltAm });
+    merkeAuftraggeber(f);
     if (alt.status !== f.status) vermerke(id, 'STATUS', `Status: ${status(alt).label} → ${status(f).label}`);
     if (status(f).offen && alt.wiedervorlageAm !== f.wiedervorlageAm) vermerke(id, 'WIEDERVORLAGE', wvText(f.wiedervorlageAm, f.wartetAuf, f.wiedervorlageNotiz));
     nachAenderung();
@@ -395,6 +441,11 @@ const Aktionen = {
     entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id);
     vermerke(a.fallId, 'ANLAGE', `Anlage entfernt: ${a.anzeigename}`); nachAenderung();
   },
+  auftraggeberSpeichern(e) {
+    merke('auftraggeber', { id: e.id || uuid(), name: e.name.trim(), kontakt: e.kontakt.trim(), telefon: e.telefon.trim(), email: e.email.trim(), geaendertAm: jetztIso() });
+    nachAenderung();
+  },
+  auftraggeberLoeschen(e) { entferne('auftraggeber', e, { geaendertAm: jetztIso() }); nachAenderung(); },
   fallLoeschen(id) {
     const f = S.faelle[id]; if (!f) return;
     // Verlauf und Anlagen entfernt der Server zusammen mit dem Fall; lokal verschwinden sie sofort.
@@ -457,6 +508,10 @@ async function api(fn, ...args) {
   if (j.error) throw new Error(j.error);
   return j.ok;
 }
+const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber'];
+const CLOUD_API = 2;
+const VERALTET = 'Das Cloud-Skript ist veraltet – bitte die neue Code.gs bereitstellen.';
+const offeneAnzahl = () => TABELLEN.reduce((n, t) => n + offene(t).length, 0);
 const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
 const ohneLokales = d => Object.fromEntries(Object.entries(d).filter(([k]) => !k.startsWith('_')));
 const offene = tabelle => Object.values(S[tabelle]).filter(d => d._dirty);
@@ -469,20 +524,24 @@ async function abgleich() {
   if (SYNC.laeuft) { SYNC.nochmal = true; return; }
   SYNC.laeuft = true; SYNC.nochmal = false; zeichneSync();
   try {
-    const gesendet = { faelle: offene('faelle'), verlauf: offene('verlauf'), anlagen: offene('anlagen') };
+    // Ein veraltetes Cloud-Skript würde unbekannte Felder verwerfen – dann lieber gar nicht abgleichen.
+    const st = await api('status');
+    if (!(st.api >= CLOUD_API)) throw new Error(VERALTET);
+    const gesendet = { faelle: offene('faelle'), verlauf: offene('verlauf'), anlagen: offene('anlagen'), auftraggeber: offene('auftraggeber') };
     const marken = new Map(Object.values(gesendet).flat().map(d => [d.id, d._n]));
     const r = await api('sync', PIN, { seit: S.seit, kennung: S.kennung,
-      faelle: gesendet.faelle.map(ohneLokales), verlauf: gesendet.verlauf.map(ohneLokales), anlagen: gesendet.anlagen.map(ohneLokales) });
+      faelle: gesendet.faelle.map(ohneLokales), verlauf: gesendet.verlauf.map(ohneLokales), anlagen: gesendet.anlagen.map(ohneLokales),
+      auftraggeber: gesendet.auftraggeber.map(ohneLokales) });
 
     let neuesVomServer = false;
-    for (const tabelle of ['faelle', 'verlauf', 'anlagen']) {
+    for (const tabelle of TABELLEN) {
       // Gesendetes gilt als angekommen, sofern es seit dem Absenden nicht erneut geändert wurde.
       for (const d of gesendet[tabelle]) {
         const lokal = S[tabelle][d.id];
         if (!lokal || lokal._n !== marken.get(d.id)) continue;
         if (lokal.geloescht) delete S[tabelle][d.id]; else lokal._dirty = false;
       }
-      for (const fern of r[tabelle]) {
+      for (const fern of r[tabelle] || []) {
         const lokal = S[tabelle][fern.id];
         if (lokal && lokal._dirty) continue; // inzwischen lokal geändert – geht beim nächsten Abgleich hoch
         if (fern.geloescht) {
@@ -495,7 +554,7 @@ async function abgleich() {
     }
     if (S.kennung && r.kennung !== S.kennung) {
       // Der Bestand in der Cloud wurde neu angelegt: alles von diesem Gerät erneut hochladen.
-      for (const tabelle of ['faelle', 'verlauf', 'anlagen']) for (const d of Object.values(S[tabelle])) { d._dirty = true; if (tabelle === 'anlagen') d.vorhanden = false; }
+      for (const tabelle of TABELLEN) for (const d of Object.values(S[tabelle])) { d._dirty = true; if (tabelle === 'anlagen') d.vorhanden = false; }
       S.seit = 0; SYNC.nochmal = true;
     } else S.seit = r.rev;
     S.kennung = r.kennung;
@@ -523,11 +582,11 @@ async function abgleich() {
 async function pruefeStand() {
   if (!mitCloud() || !PIN || SYNC.laeuft || document.hidden) return;
   try { const r = await api('stand', PIN); if (r.rev !== S.seit || r.kennung !== S.kennung) abgleich(); else if (SYNC.fehler === 'offline') { SYNC.fehler = ''; zeichneSync(); } }
-  catch { if (offene('faelle').length + offene('verlauf').length + offene('anlagen').length) { SYNC.fehler = 'offline'; zeichneSync(); } }
+  catch { if (offeneAnzahl()) { SYNC.fehler = 'offline'; zeichneSync(); } }
 }
 function zeichneSync() {
   const el = $('#sync');
-  const wartend = offene('faelle').length + offene('verlauf').length + offene('anlagen').length;
+  const wartend = offeneAnzahl();
   let text, farbe = 'grau';
   if (!mitCloud()) text = 'Nur auf diesem Gerät';
   else if (!PIN) { text = 'Anmeldung nötig'; farbe = 'gelb'; }
@@ -675,14 +734,15 @@ function zeichneDetail(r = route()) {
           <button class="knopf" data-akt="termin">${f.wiedervorlageAm ? 'Termin ändern' : 'Termin setzen'}</button></div>`}
     </div>
     <div class="kontakt">
-      <button class="knopf tonal" data-akt="anrufen" ${f.kundeTelefon ? '' : 'disabled'}>☎ Anrufen</button>
+      <button class="knopf tonal" data-akt="anrufen" ${f.kundeTelefon || f.auftraggeberTelefon ? '' : 'disabled'}>☎ Anrufen</button>
       <button class="knopf tonal" data-akt="email">✉ E-Mail</button>
       <button class="knopf tonal" data-akt="nachricht">💬 Nachricht</button>
     </div>
     <div class="karte block">
       ${block('Schaden', [['Beschreibung', f.beschreibung], ['Schadensort', f.schadensort], ['Gemeldet am', datumText(f.meldedatum)]], 'Noch keine Beschreibung erfasst.')}
-      ${block('Transportauftrag', [['Auftraggeber', f.auftraggeber], ['Auftrags-Nr.', f.auftragsReferenz], ['Tour', f.tour], ['Fahrzeug', f.fahrzeug], ['Fahrer', f.fahrer], ['Beifahrer', beifahrer(f)]], 'Keine Angaben zum Auftrag.')}
-      ${block('Anspruchsteller', [['Name', f.kundeName], ['Firma', f.kundeFirma], ['Telefon', f.kundeTelefon], ['E-Mail', f.kundeEmail], ['Anschrift', f.kundeAnschrift], ['Zeichen', f.kundenAktenzeichen]], 'Keine Kontaktdaten erfasst.')}
+      ${block('Geschädigter', [['Name', f.kundeName], ['Firma', f.kundeFirma], ['Telefon', f.kundeTelefon], ['E-Mail', f.kundeEmail], ['Anschrift', f.kundeAnschrift], ['Zeichen', f.kundenAktenzeichen]], 'Keine Kontaktdaten erfasst.')}
+      ${block('Auftraggeber', [['Firma', f.auftraggeber], ['Ansprechpartner', f.auftraggeberKontakt], ['Telefon', f.auftraggeberTelefon], ['E-Mail', f.auftraggeberEmail], ['Auftrags-Nr.', f.auftragsReferenz]], 'Kein Auftraggeber erfasst.')}
+      ${block('Transport', [['Tour', f.tour], ['Fahrzeug', f.fahrzeug], ['Fahrer', f.fahrer], ['Beifahrer', beifahrer(f)]], 'Keine Angaben zum Transport.')}
       ${block('Regulierung', [['Vergleich / Regulierung', f.vergleichCent != null ? geld(f.vergleichCent) : ''], ['Zahlungsfrist', datumText(f.zahlungsfrist)], ['Schadennr. Versicherung', f.versicherungsNummer]], '')}
     </div>
     <div class="karte block">
@@ -726,7 +786,7 @@ $('#detail').addEventListener('click', async e => {
   if (verlaufWeg) { const v = S.verlauf[verlaufWeg.dataset.verlaufWeg]; bestaetige('Eintrag löschen?', `Der Verlaufseintrag vom ${zeitText(v.zeitpunkt)} wird entfernt.`, 'Löschen', () => Aktionen.verlaufLoeschen(v)); return; }
   if (!akt || !f) return;
   ({ bearbeiten: () => gehe('#/bearbeiten/' + f.id), status: () => statusDialog(f), nachgehakt: () => wiedervorlageDialog(f, true), termin: () => wiedervorlageDialog(f, false),
-    anrufen: () => { location.href = 'tel:' + f.kundeTelefon.replace(/[^\d+]/g, ''); }, email: () => vorlagenDialog(f, 'email'), nachricht: () => vorlagenDialog(f, 'nachricht'), mehr: () => mehrDialog(f) })[akt.dataset.akt]();
+    anrufen: () => anrufDialog(f), email: () => vorlagenDialog(f, 'email'), nachricht: () => vorlagenDialog(f, 'nachricht'), mehr: () => mehrDialog(f) })[akt.dataset.akt]();
 });
 
 // ---------- Dialoge ----------
@@ -778,17 +838,32 @@ function statusDialog(f) {
   form.onsubmit = e => { e.preventDefault(); $('#dialog').close(); Aktionen.status(f.id, form.status.value, $('#status-notiz').value); };
 }
 function vorlagenDialog(f, art) {
+  const gruppen = Object.entries(EMPFAENGER).map(([e, info]) => {
+    const fehlt = art === 'email' && e !== 'DRITTE' && !info.email(f) ? ' – keine E-Mail-Adresse hinterlegt' : '';
+    return `<h3>${info.ueberschrift}${fehlt}</h3>` + Object.entries(VORLAGEN).filter(([, v]) => v[2] === e)
+      .map(([wert, [titel, beschreibung]]) => `<button class="vorlage" data-vorlage="${wert}"><b>${titel}</b><br><span class="leise">${beschreibung}</span></button>`).join('');
+  }).join('');
   dialog(`<h2>${art === 'email' ? 'E-Mail vorbereiten' : 'Nachricht vorbereiten'}</h2><p class="leise">Der Text wird vorbereitet und kann vor dem Senden angepasst werden.</p>
-    ${Object.entries(VORLAGEN).map(([wert, [titel, beschreibung]]) => `<button class="vorlage" data-vorlage="${wert}"><b>${titel}</b><br><span class="leise">${beschreibung}</span></button>`).join('')}
-    <div class="dialog-knoepfe"><button class="knopf text" data-zu>Abbrechen</button></div>`).onclick = async e => {
+    ${gruppen}<div class="dialog-knoepfe"><button class="knopf text" data-zu>Abbrechen</button></div>`).onclick = async e => {
     const v = e.target.closest('[data-vorlage]'); if (!v) return;
     $('#dialog').onclick = null; $('#dialog').close();
-    const n = vorlageText(v.dataset.vorlage, f, S.einstellungen), titel = VORLAGEN[v.dataset.vorlage][0];
+    const n = vorlageText(v.dataset.vorlage, f, S.einstellungen), titel = VORLAGEN[v.dataset.vorlage][0], an = EMPFAENGER[n.empfaenger];
     if (art === 'email') {
-      const an = n.anAnspruchsteller ? encodeURIComponent(f.kundeEmail.trim()).replace(/%40/g, '@') : '';
-      oeffne(`mailto:${an}?subject=${encodeURIComponent(n.betreff)}&body=${encodeURIComponent(n.text)}`);
-      Aktionen.notiz(f.id, 'EMAIL', `E-Mail vorbereitet: ${titel}`);
-    } else if (await teile(n.betreff, n.text)) Aktionen.notiz(f.id, 'NACHRICHT', `Nachricht vorbereitet: ${titel}`);
+      oeffne(`mailto:${encodeURIComponent(an.email(f)).replace(/%40/g, '@')}?subject=${encodeURIComponent(n.betreff)}&body=${encodeURIComponent(n.text)}`);
+      Aktionen.notiz(f.id, 'EMAIL', `E-Mail an ${an.label} vorbereitet: ${titel}`);
+    } else if (await teile(n.betreff, n.text)) Aktionen.notiz(f.id, 'NACHRICHT', `Nachricht an ${an.label} vorbereitet: ${titel}`);
+  };
+}
+/** Wen anrufen? Fragt nur nach, wenn Geschädigter und Auftraggeber eine Nummer haben. */
+function anrufDialog(f) {
+  const waehle = nummer => oeffne('tel:' + nummer.replace(/[^\d+]/g, ''));
+  const mitNummer = ['GESCHAEDIGTER', 'AUFTRAGGEBER'].filter(e => EMPFAENGER[e].telefon(f));
+  if (mitNummer.length < 2) { if (mitNummer.length) waehle(EMPFAENGER[mitNummer[0]].telefon(f)); return; }
+  dialog(`<h2>Wen anrufen?</h2>${mitNummer.map(e => { const info = EMPFAENGER[e]; const name = e === 'GESCHAEDIGTER' ? f.kundeName || f.kundeFirma : f.auftraggeberKontakt || f.auftraggeber;
+    return `<button class="vorlage" data-anruf="${e}"><b>${info.label}${name ? ' · ' + esc(name) : ''}</b><br><span class="leise">${esc(info.telefon(f))}</span></button>`; }).join('')}
+    <div class="dialog-knoepfe"><button class="knopf text" data-zu>Abbrechen</button></div>`).onclick = e => {
+    const b = e.target.closest('[data-anruf]'); if (!b) return;
+    $('#dialog').onclick = null; $('#dialog').close(); waehle(EMPFAENGER[b.dataset.anruf].telefon(f));
   };
 }
 /** Öffnet Mail- oder Telefon-App, ohne die Seite zu verlassen. */
@@ -810,9 +885,10 @@ function mehrDialog(f) {
 
 // ---------- Formular ----------
 const FELDER = [
-  ['Anspruchsteller', [['kundeName', 'Name'], ['kundeFirma', 'Firma'], ['kundeTelefon', 'Telefon', 'tel'], ['kundeEmail', 'E-Mail', 'email'], ['kundeAnschrift', 'Anschrift', 'lang'], ['kundenAktenzeichen', 'Zeichen / Aktenzeichen des Kunden']]],
+  ['Geschädigter', [['kundeName', 'Name'], ['kundeFirma', 'Firma'], ['kundeTelefon', 'Telefon', 'tel'], ['kundeEmail', 'E-Mail', 'email'], ['kundeAnschrift', 'Anschrift', 'lang'], ['kundenAktenzeichen', 'Zeichen / Aktenzeichen des Kunden']]],
   ['Schaden', [['schadensdatum', 'Schadensdatum', 'date'], ['meldedatum', 'Gemeldet am', 'date'], ['schadensart', 'Schadensart', SCHADENSART], ['beschreibung', 'Was ist passiert?', 'lang'], ['schadensort', 'Schadensort / Lieferadresse'], ['forderung', 'Geforderter Betrag (€)', 'geld']]],
-  ['Transportauftrag', [['auftraggeber', 'Auftraggeber'], ['auftragsReferenz', 'Auftrags- / Lieferschein-Nr.'], ['tour', 'Tour'], ['fahrzeug', 'Fahrzeug / Kennzeichen'], ['fahrer', 'Fahrer'], ['beifahrer1', 'Beifahrer 1'], ['beifahrer2', 'Beifahrer 2']]],
+  ['Auftraggeber', [['auftraggeber', 'Firma'], ['auftraggeberKontakt', 'Ansprechpartner'], ['auftraggeberTelefon', 'Telefon', 'tel'], ['auftraggeberEmail', 'E-Mail', 'email'], ['auftragsReferenz', 'Auftrags- / Lieferschein-Nr.']]],
+  ['Transport', [['tour', 'Tour'], ['fahrzeug', 'Fahrzeug / Kennzeichen'], ['fahrer', 'Fahrer'], ['beifahrer1', 'Beifahrer 1'], ['beifahrer2', 'Beifahrer 2']]],
   ['Bearbeitung', [['status', 'Status', Object.fromEntries(Object.entries(STATUS).map(([k, s]) => [k, s.label]))], ['wiedervorlageAm', 'Wiedervorlage am', 'date'], ['wartetAuf', 'Wartet auf', { '': '–', ...PARTNER }], ['wiedervorlageNotiz', 'Nächster Schritt']]],
   ['Regulierung', [['vergleich', 'Vergleichs- / Regulierungsbetrag (€)', 'geld'], ['zahlungsfrist', 'Zahlungsfrist', 'date'], ['versicherungsNummer', 'Schadennummer der Versicherung']]],
 ];
@@ -840,8 +916,15 @@ function zeichneFormular(r) {
     <div class="zeile eng" style="margin-bottom:12px"><h2 class="gross fuell">${alt ? 'Fall bearbeiten' : 'Neuer Schadensfall'}</h2>
       <button type="button" class="knopf text" id="abbrechen">Abbrechen</button><button class="knopf voll">Speichern</button></div>
     <p class="fehlertext" id="form-fehler" hidden></p>
-    ${FELDER.map(([titel, felder]) => `<div class="karte block"><h3>${titel}</h3>${felder.map(feld).join('')}</div>`).join('')}</form>`;
+    ${FELDER.map(([titel, felder]) => `<div class="karte block"><h3>${titel}</h3>${titel === 'Auftraggeber' ? auftraggeberAuswahl() : ''}${felder.map(feld).join('')}</div>`).join('')}</form>`;
   formularStand = formularWerte();
+  const auswahl = $('#ag-auswahl');
+  if (auswahl) auswahl.onchange = () => {
+    const e = S.auftraggeber[auswahl.value]; if (!e) return;
+    const setze = (name, wert) => { $(`#fall-form [name="${name}"]`).value = wert || ''; };
+    setze('auftraggeber', e.name); setze('auftraggeberKontakt', e.kontakt); setze('auftraggeberTelefon', e.telefon); setze('auftraggeberEmail', e.email);
+    auswahl.value = '';
+  };
   $('#abbrechen').onclick = () => { if (formularSchliessen()) { formularStand = formularWerte(); history.length > 1 ? history.back() : gehe('#/'); } };
   $('#fall-form').onsubmit = e => {
     e.preventDefault();
@@ -849,7 +932,9 @@ function zeichneFormular(r) {
     const fehler = (name, text) => { const s = el.querySelector(`[data-fehler="${name}"]`); s.textContent = text; s.hidden = !text; if (text) gueltig = false; };
     const betrag = name => { fehler(name, w[name].trim() && geldLesen(w[name]) == null ? 'Kein gültiger Betrag, z. B. 1.250,00' : ''); return w[name].trim() ? geldLesen(w[name]) : null; };
     const forderungCent = betrag('forderung'), vergleichCent = betrag('vergleich');
-    fehler('kundeEmail', w.kundeEmail.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(w.kundeEmail.trim()) ? 'Die E-Mail-Adresse sieht unvollständig aus.' : '');
+    for (const feldname of ['kundeEmail', 'auftraggeberEmail']) {
+      fehler(feldname, w[feldname].trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(w[feldname].trim()) ? 'Die E-Mail-Adresse sieht unvollständig aus.' : '');
+    }
     const leer = !w.kundeName.trim() && !w.kundeFirma.trim() && !w.beschreibung.trim();
     $('#form-fehler').textContent = leer ? 'Bitte mindestens Name, Firma oder Schadensbeschreibung angeben.' : ''; $('#form-fehler').hidden = !leer;
     if (leer || !gueltig) { (leer ? $('#form-fehler') : el.querySelector('.fehlertext:not([hidden])')).scrollIntoView({ block: 'center' }); return; }
@@ -881,11 +966,16 @@ function zeichneEinstellungen() {
       : `<p class="leise" style="margin-bottom:8px">Derzeit bleiben alle Fälle nur in diesem Browser. Mit der Adresse des Cloud-Skripts werden sie in Google Drive gespeichert und mit anderen Geräten geteilt.</p>
         <label class="feld">Cloud-Adresse (…/exec)<input id="cloud-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(apiUrl())}"></label>
         <button class="knopf voll" id="verbinden">Verbinden</button>`}</div>
+    <div class="karte block"><h3>Auftraggeber</h3><p class="leise" style="margin-bottom:8px">Diese Auftraggeber lassen sich im Fall-Formular auswählen. Neue aus Fällen kommen automatisch hinzu.</p>
+      ${auftraggeberListe().map(e => `<button class="vorlage" data-ag="${e.id}"><b>${esc(e.name)}</b><br><span class="leise">${esc([e.kontakt, e.telefon, e.email].filter(Boolean).join(' · ') || 'keine Kontaktdaten')}</span></button>`).join('')}
+      <button class="knopf" id="ag-neu" style="margin-top:8px">＋ Neuer Auftraggeber</button></div>
     <div class="karte block"><h3>Daten</h3><button class="knopf" id="csv">Fallliste für Excel exportieren (CSV)</button></div>
     <p class="leise">Erinnerungen per Benachrichtigung gibt es in der Android-App. Hier stehen fällige Fälle immer oben.</p>`;
 }
 $('#detail').addEventListener('input', e => { const k = e.target.dataset.einst; if (k) { S.einstellungen[k] = e.target.value; speichere(); } });
 $('#detail').addEventListener('click', e => {
+  const ag = e.target.closest('[data-ag]');
+  if (ag || e.target.id === 'ag-neu') { auftraggeberDialog(ag ? S.auftraggeber[ag.dataset.ag] : null); return; }
   const tage = e.target.closest('[data-wv-tage]');
   if (tage) { S.einstellungen.wiedervorlageTage = Number(tage.dataset.wvTage); speichere(); zeichneEinstellungen(); return; }
   switch (e.target.id) {
@@ -904,6 +994,26 @@ $('#detail').addEventListener('click', e => {
     }
   }
 });
+
+function auftraggeberDialog(e) {
+  const neu = !e; e = e || { name: '', kontakt: '', telefon: '', email: '' };
+  dialog(`<form method="dialog" id="ag-form"><h2>${neu ? 'Neuer Auftraggeber' : 'Auftraggeber bearbeiten'}</h2>
+    <label class="feld">Firma<input name="name" required value="${esc(e.name)}"></label>
+    <label class="feld">Ansprechpartner<input name="kontakt" value="${esc(e.kontakt)}"></label>
+    <label class="feld">Telefon<input name="telefon" type="tel" value="${esc(e.telefon)}"></label>
+    <label class="feld">E-Mail<input name="email" type="email" value="${esc(e.email)}"><span class="fehlertext" id="ag-fehler" hidden>Die E-Mail-Adresse sieht unvollständig aus.</span></label>
+    ${neu ? '' : '<p class="leise">Änderungen gelten für neue Fälle; bereits erfasste Fälle behalten ihre Angaben.</p>'}
+    <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="ag-loeschen">Löschen</button>'}<span class="fuell"></span>
+      <button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
+  $('#ag-form').onsubmit = ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries(new FormData(ev.target));
+    if (!w.name.trim()) return;
+    if (w.email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(w.email.trim())) { $('#ag-fehler').hidden = false; return; }
+    $('#dialog').close(); Aktionen.auftraggeberSpeichern({ ...w, id: e.id });
+  };
+  if (!neu) $('#ag-loeschen').onclick = () => bestaetige(`„${e.name}“ löschen?`, 'Der Auftraggeber verschwindet aus der Auswahlliste. Bereits erfasste Fälle bleiben unverändert.', 'Löschen', () => Aktionen.auftraggeberLoeschen(e));
+}
 
 // ============================== Start ==============================
 window.addEventListener('hashchange', zeichne);
