@@ -6,7 +6,7 @@
 <title>Schadensfälle</title>
 <script>
 // Adresse des Cloud-Skripts (…/exec). Bleibt sie leer, fragt die App beim ersten Start danach.
-window.API_URL = "";
+window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwhDnWP7p9XeoIz8NisZR7NApIj-Xfgd_lP5j8KjPE11OFbQuA/exec";
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 <link rel="manifest" href="manifest.webmanifest">
@@ -314,7 +314,7 @@ const LEER = () => ({ faelle: {}, verlauf: {}, anlagen: {}, seit: 0, kennung: ''
 let S = LEER();
 try { S = Object.assign(LEER(), JSON.parse(localStorage.getItem(SPEICHER) || '{}')); } catch { /* beschädigter Stand: neu beginnen, die Cloud liefert nach */ }
 let PIN = ''; try { PIN = localStorage.getItem(PIN_SPEICHER) || ''; } catch {}
-const apiUrl = () => window.API_URL || S.apiUrl;
+const apiUrl = () => S.apiUrl || window.API_URL; // eine auf dem Gerät eingetragene Adresse geht vor
 const mitCloud = () => !!apiUrl() && !S.nurLokal;
 
 function speichere() {
