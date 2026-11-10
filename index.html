@@ -7,7 +7,7 @@
 <script>
 // Adresse des Cloud-Skripts (…/exec). Bleibt sie leer, fragt die App beim ersten Start danach.
 window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwhDnWP7p9XeoIz8NisZR7NApIj-Xfgd_lP5j8KjPE11OFbQuA/exec";
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -756,7 +756,8 @@ function zeichneDetail(r = route()) {
     <form class="zeile eng" id="notiz-form"><input class="suche fuell" style="margin:0;border-radius:8px" id="notiz" placeholder="Notiz hinzufügen …" aria-label="Notiz" value="${esc(ANSICHT.notiz)}">
       <button class="knopf tonal">Speichern</button></form>
     <ul class="verlauf">${verlaufVon(f.id).map(v => `<li><span class="rund">${(VERLAUF[v.typ] || VERLAUF.NOTIZ)[1]}</span><div class="fuell">
-      <div class="leise">${esc((VERLAUF[v.typ] || VERLAUF.NOTIZ)[0])} · ${zeitText(v.zeitpunkt)}</div><div class="inhalt">${esc(v.text)}</div></div>
+      <div class="leise">${esc((VERLAUF[v.typ] || VERLAUF.NOTIZ)[0])} · ${zeitText(v.zeitpunkt)}</div><div class="inhalt">${esc(v.text)}</div>
+      ${MAIL.konto && v.typ === 'EMAIL_EINGANG' && mailZuVerlauf(v.id) ? `<button class="knopf text" data-antworten="${v.id}" style="padding-left:0">Antworten</button>` : ''}</div>
       <button class="symbol" data-verlauf-weg="${v.id}" aria-label="Eintrag löschen">✕</button></li>`).join('')}</ul>`;
   if (notizFokus) { const n = $('#notiz'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
   for (const a of anl.filter(a => a.mimeType.startsWith('image/'))) {
@@ -779,14 +780,21 @@ $('#detail').addEventListener('click', async e => {
   if (anlageWeg) { const a = S.anlagen[anlageWeg.dataset.anlageWeg]; bestaetige('Anlage entfernen?', `„${a.anzeigename}“ wird aus dem Fall gelöscht.`, 'Entfernen', () => Aktionen.anlageLoeschen(a)); return; }
   if (anlage) {
     const a = S.anlagen[anlage.dataset.anlage];
-    try { const u = await Dateien.adresse(a); if (u) window.open(u, '_blank'); else toast('Die Datei wurde noch nicht in die Cloud übertragen.'); }
+    try {
+      const u = await Dateien.adresse(a);
+      if (!u) toast('Die Datei wurde noch nicht in die Cloud übertragen.');
+      else if (window.desktop) await window.desktop.oeffneDatei(a.anzeigename, new Uint8Array(await (await Dateien.hole(a.id)).arrayBuffer()));
+      else window.open(u, '_blank');
+    }
     catch { toast('Die Datei konnte nicht geladen werden.'); }
     return;
   }
+  const antworten = e.target.closest('[data-antworten]');
+  if (antworten) { mailSchreiben(S.faelle[route().id], { antwortAufVerlauf: antworten.dataset.antworten }); return; }
   if (verlaufWeg) { const v = S.verlauf[verlaufWeg.dataset.verlaufWeg]; bestaetige('Eintrag löschen?', `Der Verlaufseintrag vom ${zeitText(v.zeitpunkt)} wird entfernt.`, 'Löschen', () => Aktionen.verlaufLoeschen(v)); return; }
   if (!akt || !f) return;
   ({ bearbeiten: () => gehe('#/bearbeiten/' + f.id), status: () => statusDialog(f), nachgehakt: () => wiedervorlageDialog(f, true), termin: () => wiedervorlageDialog(f, false),
-    anrufen: () => anrufDialog(f), email: () => vorlagenDialog(f, 'email'), nachricht: () => vorlagenDialog(f, 'nachricht'), mehr: () => mehrDialog(f) })[akt.dataset.akt]();
+    anrufen: () => anrufDialog(f), email: () => (MAIL.konto ? mailVorlagen(f) : vorlagenDialog(f, 'email')), nachricht: () => vorlagenDialog(f, 'nachricht'), mehr: () => mehrDialog(f) })[akt.dataset.akt]();
 });
 
 // ---------- Dialoge ----------
@@ -867,7 +875,11 @@ function anrufDialog(f) {
   };
 }
 /** Öffnet Mail- oder Telefon-App, ohne die Seite zu verlassen. */
-function oeffne(adresse) { window.__geoeffnet = adresse; const a = document.createElement('a'); a.href = adresse; a.click(); }
+function oeffne(adresse) {
+  window.__geoeffnet = adresse;
+  if (window.desktop) { window.desktop.oeffneExtern(adresse).catch(() => toast('Kein Programm für diese Aktion gefunden.')); return; }
+  const a = document.createElement('a'); a.href = adresse; a.click();
+}
 /** Teilt Text über das Gerät oder legt ihn – am PC – in die Zwischenablage. */
 async function teile(titel, text) {
   try {
@@ -876,9 +888,10 @@ async function teile(titel, text) {
   } catch (e) { if (e && e.name === 'AbortError') return false; toast('Der Text konnte nicht geteilt werden.'); return false; }
 }
 function mehrDialog(f) {
-  dialog(`<h2>Fall ${esc(f.fallnummer)}</h2><button class="vorlage" id="teilen"><b>Zusammenfassung teilen</b><br><span class="leise">Kompakter Textblock für Notizen oder die Falltabelle</span></button>
+  dialog(`<h2>Fall ${esc(f.fallnummer)}</h2>${MAIL.konto ? '<button class="vorlage" id="abrufen"><b>Postfach abrufen</b><br><span class="leise">Neue E-Mails zu den Fällen holen</span></button>' : ''}<button class="vorlage" id="teilen"><b>Zusammenfassung teilen</b><br><span class="leise">Kompakter Textblock für Notizen oder die Falltabelle</span></button>
     <button class="vorlage" id="loeschen"><b style="color:var(--fehler)">Fall löschen</b><br><span class="leise">Mit Verlauf und allen Anlagen – auf allen Geräten</span></button>
     <div class="dialog-knoepfe"><button class="knopf text" data-zu>Schließen</button></div>`);
+  if (MAIL.konto) $('#abrufen').onclick = () => { $('#dialog').close(); postfachAbrufen(true); };
   $('#teilen').onclick = () => { $('#dialog').close(); teile('Schadensfall ' + f.fallnummer, zusammenfassung(f, anlagenVon(f.id).length)); };
   $('#loeschen').onclick = () => bestaetige(`Fall ${f.fallnummer} löschen?`, 'Der Fall wird mit Verlauf und allen Anlagen endgültig gelöscht.', 'Löschen', () => { Aktionen.fallLoeschen(f.id); gehe('#/'); });
 }
@@ -966,6 +979,7 @@ function zeichneEinstellungen() {
       : `<p class="leise" style="margin-bottom:8px">Derzeit bleiben alle Fälle nur in diesem Browser. Mit der Adresse des Cloud-Skripts werden sie in Google Drive gespeichert und mit anderen Geräten geteilt.</p>
         <label class="feld">Cloud-Adresse (…/exec)<input id="cloud-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(apiUrl())}"></label>
         <button class="knopf voll" id="verbinden">Verbinden</button>`}</div>
+    ${window.desktop ? mailEinstellungen() : ''}
     <div class="karte block"><h3>Auftraggeber</h3><p class="leise" style="margin-bottom:8px">Diese Auftraggeber lassen sich im Fall-Formular auswählen. Neue aus Fällen kommen automatisch hinzu.</p>
       ${auftraggeberListe().map(e => `<button class="vorlage" data-ag="${e.id}"><b>${esc(e.name)}</b><br><span class="leise">${esc([e.kontakt, e.telefon, e.email].filter(Boolean).join(' · ') || 'keine Kontaktdaten')}</span></button>`).join('')}
       <button class="knopf" id="ag-neu" style="margin-top:8px">＋ Neuer Auftraggeber</button></div>
@@ -979,6 +993,10 @@ $('#detail').addEventListener('click', e => {
   const tage = e.target.closest('[data-wv-tage]');
   if (tage) { S.einstellungen.wiedervorlageTage = Number(tage.dataset.wvTage); speichere(); zeichneEinstellungen(); return; }
   switch (e.target.id) {
+    case 'mail-einrichten': case 'mail-aendern': mailKontoDialog(); break;
+    case 'mail-abrufen': postfachAbrufen(true); break;
+    case 'mail-entfernen': bestaetige('E-Mail-Konto entfernen?', 'Konto und Passwort werden von diesem Rechner entfernt. Bereits zugeordnete Mails bleiben im Verlauf.', 'Entfernen',
+      async () => { await window.desktop.mail.trennen(); MAIL.konto = null; zeichne(); toast('E-Mail-Konto entfernt'); }); break;
     case 'jetzt': abgleich(); break;
     case 'abmelden': PIN = ''; try { localStorage.removeItem(PIN_SPEICHER); } catch {} toast('Abgemeldet. Beim nächsten Abgleich wird die PIN abgefragt.'); break;
     case 'verbinden': {
@@ -1015,6 +1033,200 @@ function auftraggeberDialog(e) {
   if (!neu) $('#ag-loeschen').onclick = () => bestaetige(`„${e.name}“ löschen?`, 'Der Auftraggeber verschwindet aus der Auswahlliste. Bereits erfasste Fälle bleiben unverändert.', 'Löschen', () => Aktionen.auftraggeberLoeschen(e));
 }
 
+// ============================== E-Mail (nur Windows-App) ==============================
+// Die Windows-App spricht über ihren Hauptprozess direkt per IMAP/SMTP mit dem Postfach (wie die
+// Android-App). Zuordnung zu den Fällen: Fallnummer im Betreff, Antwortbezug oder ein Absender, der
+// bei genau einem offenen Fall als Geschädigter oder Auftraggeber hinterlegt ist.
+const MAIL = { konto: null, anbieter: {}, laeuft: false, timer: 0 };
+const FALLNUMMER = /\[Fall (\d{4}-\d+)]/;
+const mitFallnummer = (betreff, nr) => (FALLNUMMER.test(betreff) ? betreff : `${String(betreff).trim()} [Fall ${nr}]`.trim());
+const mails = () => (S.mails = S.mails || {});
+const mailZuVerlauf = verlaufId => Object.entries(mails()).map(([id, m]) => ({ messageId: id, ...m })).find(m => m.verlaufId === verlaufId);
+const blobAusBase64 = (b64, typ) => new Blob([Uint8Array.from(atob(b64), z => z.charCodeAt(0))], { type: typ });
+
+/** Mail im Verlauf ablegen (von dort wandert sie in die Cloud) und für „Antworten“ merken. */
+function vermerkeMail(f, mail, text, eingehend) {
+  const v = merke('verlauf', { id: uuid(), fallId: f.id, zeitpunkt: mail.zeitpunkt || jetztIso(), typ: eingehend ? 'EMAIL_EINGANG' : 'EMAIL_AUSGANG', text: text.slice(0, 15000) });
+  mails()[mail.messageId] = { fallId: f.id, verlaufId: v.id, eingehend, von: mail.von, betreff: mail.betreff, text: (mail.text || '').slice(0, 15000), zeitpunkt: v.zeitpunkt };
+  const neu = { ...S.faelle[f.id] };
+  // Eine Antwort soll nicht untergehen: Wiedervorlage rückt auf heute.
+  if (eingehend && status(neu).offen && (!neu.wiedervorlageAm || neu.wiedervorlageAm > heute())) Object.assign(neu, { wiedervorlageAm: heute(), wiedervorlageNotiz: 'Neue E-Mail beantworten' });
+  fallMerken(neu);
+}
+
+function ordneZu(m) {
+  const nr = (m.betreff.match(FALLNUMMER) || [])[1];
+  const perNummer = nr && faelle().find(f => f.fallnummer === nr);
+  if (perNummer) return perNummer;
+  for (const bezug of m.antwortAuf) { const alt = mails()[bezug]; if (alt && S.faelle[alt.fallId] && !S.faelle[alt.fallId].geloescht) return S.faelle[alt.fallId]; }
+  const passend = faelle().filter(f => status(f).offen && [f.kundeEmail, f.auftraggeberEmail].some(a => (a || '').trim().toLowerCase() === m.von));
+  return passend.length === 1 ? passend[0] : null;
+}
+
+async function postfachAbrufen(sichtbar = false) {
+  if (!MAIL.konto || MAIL.laeuft) return [];
+  MAIL.laeuft = true;
+  if (sichtbar) toast('Postfach wird abgerufen …');
+  try {
+    const stand = S.mailStand || {};
+    const r = await window.desktop.mail.hole({ letzteUid: stand.letzteUid || 0, uidValidity: stand.uidValidity || 0 });
+    const neu = [];
+    for (const m of r.mails.sort((a, b) => a.zeitpunkt.localeCompare(b.zeitpunkt))) {
+      if (m.von === MAIL.konto.adresse.toLowerCase() || mails()[m.messageId]) continue;
+      const f = ordneZu(m); if (!f) continue;
+      for (const a of m.anhaenge) await Aktionen.anlageHinzufuegen(f.id, new File([blobAusBase64(a.base64, a.mimeType)], a.name, { type: a.mimeType }));
+      const absender = m.vonName ? `${m.vonName} <${m.von}>` : m.von;
+      const anh = m.anhaenge.length ? '\nAnhänge (zum Fall genommen): ' + m.anhaenge.map(a => a.name).join(', ') : '';
+      vermerkeMail(f, m, `Von: ${absender}\nBetreff: ${m.betreff}${anh}\n\n${m.text}`, true);
+      neu.push({ f, absender, betreff: m.betreff });
+    }
+    S.mailStand = { letzteUid: r.letzteUid, uidValidity: r.uidValidity, letzterAbruf: Date.now(), fehler: '' };
+    nachAenderung();
+    if (neu.length) {
+      const titel = neu.length === 1 ? `Neue E-Mail zu Fall ${neu[0].f.fallnummer}` : `${neu.length} neue E-Mails zu Schadensfällen`;
+      window.desktop.benachrichtige(titel, neu.map(n => `${n.f.fallnummer} · ${n.absender}: ${n.betreff}`).join('\n'), neu.length === 1 ? '#/fall/' + neu[0].f.id : '#/').catch(() => {});
+    }
+    if (sichtbar) toast(neu.length ? `${neu.length} neue E-Mail(s) den Fällen zugeordnet` : 'Keine neuen E-Mails zu Fällen');
+    return neu;
+  } catch (e) {
+    S.mailStand = { ...(S.mailStand || {}), fehler: e.message }; speichere();
+    if (sichtbar) toast(e.message, 6000);
+    if (route().art === 'einstellungen') zeichne();
+    return [];
+  } finally { MAIL.laeuft = false; }
+}
+
+function mailVorlagen(f) {
+  const gruppen = Object.entries(EMPFAENGER).map(([e, info]) => {
+    const fehlt = e !== 'DRITTE' && !info.email(f) ? ' – keine E-Mail-Adresse hinterlegt' : '';
+    return `<h3>${info.ueberschrift}${fehlt}</h3><button class="vorlage" data-leer="${e}"><b>Ohne Vorlage</b><br><span class="leise">Nur Anrede und Grußformel</span></button>` +
+      Object.entries(VORLAGEN).filter(([, v]) => v[2] === e).map(([wert, [titel, beschreibung]]) => `<button class="vorlage" data-vorlage="${wert}"><b>${titel}</b><br><span class="leise">${beschreibung}</span></button>`).join('');
+  }).join('');
+  dialog(`<h2>E-Mail schreiben</h2>${gruppen}<div class="dialog-knoepfe"><button class="knopf text" data-zu>Abbrechen</button></div>`).onclick = e => {
+    const v = e.target.closest('[data-vorlage]'), l = e.target.closest('[data-leer]'); if (!v && !l) return;
+    $('#dialog').onclick = null;
+    mailSchreiben(f, v ? { vorlage: v.dataset.vorlage } : { empfaenger: l.dataset.leer });
+  };
+}
+
+/** Rahmen ohne Vorlage: Anrede an den Empfänger und Grußformel. */
+function ohneVorlage(e, f) {
+  const vorlage = vorlageText('SACHSTANDSANFRAGE', f, S.einstellungen).text;
+  const gruss = vorlage.slice(vorlage.lastIndexOf('Mit freundlichen Grüßen'));
+  const name = (EMPFAENGER[e].name(f) || '').trim();
+  const vom = d => (d ? ' vom ' + datumText(d) : '');
+  const was = e === 'GESCHAEDIGTER' ? 'Ihre Schadensmeldung' + vom(f.meldedatum || f.schadensdatum) : 'Schadensfall' + vom(f.schadensdatum);
+  return { betreff: was, text: `${name ? `Guten Tag ${name},` : 'Sehr geehrte Damen und Herren,'}\n\n\n\n${gruss}` };
+}
+
+function mailSchreiben(f, { vorlage, empfaenger, antwortAufVerlauf } = {}) {
+  let an = '', betreff = '', text = '', antwortAuf = '';
+  const alt = antwortAufVerlauf && mailZuVerlauf(antwortAufVerlauf);
+  if (alt) {
+    antwortAuf = alt.messageId; an = alt.von;
+    betreff = /^(re|aw):/i.test(alt.betreff) ? alt.betreff : 'Re: ' + alt.betreff;
+    const e = ['GESCHAEDIGTER', 'AUFTRAGGEBER'].find(x => EMPFAENGER[x].email(f).toLowerCase() === alt.von) || 'DRITTE';
+    text = ohneVorlage(e, f).text + `\n\nAm ${zeitText(alt.zeitpunkt)} schrieb ${alt.von}:\n` + alt.text.split('\n').map(z => '> ' + z).join('\n');
+  } else if (vorlage) {
+    const n = vorlageText(vorlage, f, S.einstellungen); an = EMPFAENGER[n.empfaenger].email(f); betreff = n.betreff; text = n.text;
+  } else {
+    const e = empfaenger || 'GESCHAEDIGTER', n = ohneVorlage(e, f); an = EMPFAENGER[e].email(f); betreff = n.betreff; text = n.text;
+  }
+  // „[Fall …]“ ersetzt beim Versand aus der App den Zusatz „unser Vorgang …“.
+  betreff = mitFallnummer(betreff.replace(` – unser Vorgang ${f.fallnummer}`, ''), f.fallnummer);
+  const anl = anlagenVon(f.id);
+  dialog(`<form method="dialog" id="mail-form"><h2>E-Mail · Fall ${esc(f.fallnummer)}</h2>
+    <p class="fehlertext" id="mail-fehler" hidden></p>
+    <label class="feld">An<input name="an" value="${esc(an)}"></label>
+    <label class="feld">Betreff<input name="betreff" value="${esc(betreff)}"><span class="leise">Die Fallnummer im Betreff ordnet Antworten automatisch diesem Fall zu.</span></label>
+    <label class="feld">Nachricht<textarea name="text" style="min-height:260px">${esc(text)}</textarea></label>
+    ${anl.length ? `<h3>Anlagen des Falls mitschicken</h3>${anl.map(a => `<label class="auswahl"><input type="checkbox" name="anlage" value="${a.id}"> ${esc(a.anzeigename)}</label>`).join('')}` : ''}
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll" id="mail-senden">Senden</button></div></form>`);
+  $('#mail-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const w = new FormData(ev.target), fehler = $('#mail-fehler');
+    const zeige = t => { fehler.textContent = t; fehler.hidden = false; };
+    const adressen = String(w.get('an')).split(/[,;]/).map(x => x.trim()).filter(Boolean);
+    if (!adressen.length || adressen.some(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) { zeige('Bitte eine gültige Empfängeradresse eintragen.'); return; }
+    const gewaehlt = w.getAll('anlage').map(id => S.anlagen[id]).filter(Boolean);
+    if (gewaehlt.reduce((n, a) => n + (a.groesseBytes || 0), 0) > 20 * 1024 * 1024) { zeige('Die Anhänge sind zusammen größer als 20 MB – das nehmen viele Postfächer nicht an.'); return; }
+    const knopf = $('#mail-senden'); knopf.disabled = true; knopf.textContent = 'Sendet …';
+    try {
+      const anhaenge = [];
+      for (const a of gewaehlt) {
+        await Dateien.adresse(a); // lädt bei Bedarf aus der Cloud
+        const blob = await Dateien.hole(a.id); if (!blob) throw new Error(`„${a.anzeigename}“ liegt nicht auf diesem Rechner.`);
+        anhaenge.push({ name: a.anzeigename, mimeType: a.mimeType, base64: await alsBase64(blob) });
+      }
+      const entwurf = { an: adressen.join(', '), betreff: String(w.get('betreff')), text: String(w.get('text')), antwortAuf, anhaenge };
+      const messageId = await window.desktop.mail.sende(entwurf);
+      const anh = anhaenge.length ? '\nAnhänge: ' + anhaenge.map(a => a.name).join(', ') : '';
+      vermerkeMail(S.faelle[f.id], { messageId, von: MAIL.konto.adresse, betreff: entwurf.betreff, text: entwurf.text, zeitpunkt: jetztIso() },
+        `An: ${entwurf.an}\nBetreff: ${entwurf.betreff}${anh}\n\n${entwurf.text}`, false);
+      $('#dialog').close(); nachAenderung(); toast('E-Mail gesendet');
+    } catch (e) {
+      zeige(e.message || 'Die E-Mail konnte nicht gesendet werden.'); knopf.disabled = false; knopf.textContent = 'Senden';
+    }
+  };
+}
+
+function mailEinstellungen() {
+  const k = MAIL.konto, st = S.mailStand || {};
+  if (!k) return `<div class="karte block"><h3>E-Mail</h3><p class="leise" style="margin-bottom:8px">Mit deinem Postfach schreibst und empfängst du die Mails zu den Fällen direkt in der App. Antworten werden über die Fallnummer im Betreff automatisch dem Fall zugeordnet.</p>
+    <button class="knopf voll" id="mail-einrichten">E-Mail-Konto einrichten</button></div>`;
+  const zustand = MAIL.laeuft ? 'Wird abgerufen …' : st.fehler ? `Letzter Abruf fehlgeschlagen: ${st.fehler}` : st.letzterAbruf ? `Zuletzt abgerufen ${zeitText(new Date(st.letzterAbruf).toISOString())}` : 'Noch nicht abgerufen';
+  return `<div class="karte block"><h3>E-Mail</h3><p>${esc(k.adresse)}</p><p class="${st.fehler ? 'fehlertext' : 'leise'}" style="margin:4px 0 8px">${esc(zustand)}</p>
+    <div class="zeile"><button class="knopf" id="mail-abrufen">Jetzt abrufen</button><button class="knopf" id="mail-aendern">Ändern</button><button class="knopf" id="mail-entfernen">Entfernen</button></div></div>`;
+}
+
+function mailKontoDialog() {
+  const k = MAIL.konto || {}, liste = { ...MAIL.anbieter, EIGENER: { label: 'Eigener Server' } };
+  let wahl = Object.keys(MAIL.anbieter).find(a => MAIL.anbieter[a].imapHost === k.imapHost) || (k.imapHost ? 'EIGENER' : 'IONOS');
+  const male = () => {
+    const eigen = wahl === 'EIGENER', a = MAIL.anbieter[wahl] || {};
+    const werte = $('#konto-form') ? Object.fromEntries(new FormData($('#konto-form'))) : { adresse: k.adresse || '', benutzer: k.benutzer && k.benutzer !== k.adresse ? k.benutzer : '' };
+    dialog(`<form method="dialog" id="konto-form"><h2>E-Mail-Konto</h2>
+      <div class="chips">${Object.entries(liste).map(([id, x]) => `<button type="button" class="chip" data-anbieter="${id}" aria-pressed="${id === wahl}">${esc(x.label)}</button>`).join('')}</div>
+      <label class="feld">E-Mail-Adresse<input name="adresse" type="email" required value="${esc(werte.adresse || '')}"></label>
+      <label class="feld">Passwort<input name="passwort" type="password" required autocomplete="current-password"></label>
+      <label class="feld">Benutzername (falls abweichend)<input name="benutzer" placeholder="meist die E-Mail-Adresse" value="${esc(werte.benutzer || '')}"></label>
+      ${eigen ? `<label class="feld">IMAP-Server<input name="imapHost" required value="${esc(werte.imapHost || k.imapHost || '')}"></label>
+        <label class="feld">IMAP-Port (SSL)<input name="imapPort" inputmode="numeric" value="${esc(werte.imapPort || k.imapPort || 993)}"></label>
+        <label class="feld">SMTP-Server<input name="smtpHost" required value="${esc(werte.smtpHost || k.smtpHost || '')}"></label>
+        <label class="feld">SMTP-Port<input name="smtpPort" inputmode="numeric" value="${esc(werte.smtpPort || k.smtpPort || 465)}"></label>
+        <label class="auswahl"><input type="checkbox" name="starttls" ${k.smtpSicherheit === 'STARTTLS' ? 'checked' : ''}> SMTP mit STARTTLS (sonst SSL)</label>`
+        : `<p class="leise">Server: ${esc(a.imapHost)} (IMAP) · ${esc(a.smtpHost)} (SMTP)</p>`}
+      <p class="leise">Das Passwort wird mit deinem Windows-Konto verschlüsselt und nur auf diesem Rechner gespeichert. Die App liest ausschließlich Mails, die zu einem Fall gehören, und verändert im Postfach nichts.</p>
+      <p class="fehlertext" id="konto-fehler" hidden></p>
+      <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll" id="konto-verbinden">Verbinden</button></div></form>`);
+    $('#konto-form').onclick = e => { const c = e.target.closest('[data-anbieter]'); if (c) { wahl = c.dataset.anbieter; male(); } };
+    $('#konto-form').onsubmit = async ev => {
+      ev.preventDefault();
+      const w = Object.fromEntries(new FormData(ev.target)), fehler = $('#konto-fehler'), knopf = $('#konto-verbinden');
+      const server = wahl === 'EIGENER'
+        ? { imapHost: w.imapHost.trim(), imapPort: Number(w.imapPort) || 993, imapSicherheit: 'SSL', smtpHost: w.smtpHost.trim(), smtpPort: Number(w.smtpPort) || 465, smtpSicherheit: w.starttls ? 'STARTTLS' : 'SSL' }
+        : (({ label, ...rest }) => rest)(MAIL.anbieter[wahl]);
+      const konfig = { adresse: w.adresse.trim(), benutzer: w.benutzer.trim() || w.adresse.trim(), name: S.einstellungen.firma || '', ...server };
+      knopf.disabled = true; knopf.textContent = 'Prüfe …'; fehler.hidden = true;
+      try {
+        MAIL.konto = await window.desktop.mail.einrichten(konfig, w.passwort);
+        if (MAIL.konto.adresse !== k.adresse) S.mailStand = {};
+        $('#dialog').close(); speichere(); zeichne(); toast('E-Mail-Konto verbunden'); postfachAbrufen();
+      } catch (e) { fehler.textContent = e.message; fehler.hidden = false; knopf.disabled = false; knopf.textContent = 'Verbinden'; }
+    };
+  };
+  male();
+}
+
+async function mailStart() {
+  if (!window.desktop) return;
+  try { MAIL.anbieter = await window.desktop.mail.anbieter(); MAIL.konto = await window.desktop.mail.konto(); } catch { return; }
+  window.desktop.beiZiel(ziel => gehe(ziel));
+  zeichne();
+  if (MAIL.konto) postfachAbrufen();
+  MAIL.timer = setInterval(() => postfachAbrufen(), 15 * 60 * 1000);
+}
+
 // ============================== Start ==============================
 window.addEventListener('hashchange', zeichne);
 window.addEventListener('beforeunload', e => { if ($('#fall-form') && formularWerte() !== formularStand) e.preventDefault(); });
@@ -1023,6 +1235,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { ze
 setInterval(pruefeStand, 45000);
 zeichne();
 if (mitCloud()) abgleich();
+mailStart();
 window.__appBereit = true;
 </script>
 </body>
