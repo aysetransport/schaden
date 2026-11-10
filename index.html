@@ -548,9 +548,9 @@ async function anmeldung(falsch = false) {
   catch { anmeldungOffen = false; SYNC.fehler = 'offline'; zeichneSync(); return; }
   const neu = !eingerichtet;
   dialog(`<form method="dialog" id="pin-form"><h2>${neu ? 'PIN festlegen' : 'PIN eingeben'}</h2>
-    <p class="leise">${neu ? 'Diese PIN schützt die Daten in der Cloud. Sie wird auf jedem Gerät einmal abgefragt (mindestens 6 Zeichen).' : 'Die PIN der Schadensfälle-Cloud.'}</p>
+    <p class="leise">${neu ? 'Diese PIN schützt die Daten in der Cloud. Sie wird auf jedem Gerät einmal abgefragt (mindestens 4 Zeichen).' : 'Die PIN der Schadensfälle-Cloud.'}</p>
     <p class="fehlertext" id="pin-fehler" ${falsch ? '' : 'hidden'}>Die PIN war falsch.</p>
-    <label class="feld">PIN<input id="pin1" type="password" autocomplete="${neu ? 'new-password' : 'current-password'}" required minlength="${neu ? 6 : 1}"></label>
+    <label class="feld">PIN<input id="pin1" type="password" autocomplete="${neu ? 'new-password' : 'current-password'}" required minlength="${neu ? 4 : 1}"></label>
     ${neu ? '<label class="feld">PIN wiederholen<input id="pin2" type="password" autocomplete="new-password" required></label>' : ''}
     <div class="dialog-knoepfe"><button class="knopf voll" value="ok">${neu ? 'Festlegen' : 'Anmelden'}</button></div></form>`, { schliessbar: false });
   $('#pin-form').onsubmit = async ereignis => {
