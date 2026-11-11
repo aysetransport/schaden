@@ -209,7 +209,7 @@ const FILTER = { FAELLIG: 'Fällig', OFFEN: 'Offen', ABGESCHLOSSEN: 'Abgeschloss
 function filtereUndSortiere(faelle, filter, suchtext) {
   const begriffe = suchtext.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const passt = f => {
-    const heu = [f.fallnummer, f.kundeName, f.kundeFirma, f.kundeTelefon, f.kundeEmail, f.kundenAktenzeichen, f.auftraggeber, f.auftraggeberKontakt, f.auftraggeberTelefon, f.auftraggeberEmail, f.auftragsReferenz,
+    const heu = [f.fallnummer, f.kundeName, f.kundeFirma, f.kundeTelefon, f.kundeEmail, f.kundenAktenzeichen, f.auftraggeber, f.auftraggeberKontakt, f.auftraggeberTelefon, f.auftraggeberEmail, f.auftraggeberZeichen, f.auftragsReferenz,
       f.tour, f.fahrzeug, f.fahrer, f.beifahrer1, f.beifahrer2, f.schadensort, f.beschreibung, f.versicherungsNummer, status(f).label].join('\n').toLowerCase();
     return begriffe.every(b => heu.includes(b));
   };
@@ -293,9 +293,67 @@ function vorlageText(art, f, absender) {
     DRITTE: 'Sachstandsanfrage Schadensfall' + vom(f.schadensdatum) }[empfaenger];
   const zeichen = { GESCHAEDIGTER: f.kundenAktenzeichen && 'Ihr Zeichen ' + f.kundenAktenzeichen.trim(), AUFTRAGGEBER: f.auftragsReferenz && 'Ihr Auftrag ' + f.auftragsReferenz.trim(),
     DRITTE: (f.versicherungsNummer || f.kundenAktenzeichen) && 'Ihr Zeichen ' + (f.versicherungsNummer || f.kundenAktenzeichen).trim() }[empfaenger];
-  const betreff = [was, art === 'SACHSTANDSANFRAGE' ? '' : titel, zeichen, f.fallnummer && 'unser Vorgang ' + f.fallnummer].filter(Boolean).join(' – ');
+  const betreff = [was, art === 'SACHSTANDSANFRAGE' ? '' : titel, zeichenDesAuftraggebers(empfaenger, f), zeichen, f.fallnummer && 'unser Vorgang ' + f.fallnummer].filter(Boolean).join(' – ');
   return { betreff, text: anrede + '\n\n' + absaetze.join('\n\n') + '\n\n' + gruss, empfaenger };
 }
+/** Das Zeichen des Auftraggebers steht in jedem Betreff: für ihn als „Ihr Zeichen“, für alle anderen als „Bezug“. */
+function zeichenDesAuftraggebers(empfaenger, f) {
+  const z = (f.auftraggeberZeichen || '').trim();
+  return z ? (empfaenger === 'AUFTRAGGEBER' ? 'Ihr Zeichen ' : 'Bezug ') + z : '';
+}
+/** Ergänzt das Zeichen (etwa in einer Antwort), falls es fehlt – vor der Fallnummer. */
+function mitZeichen(betreff, empfaenger, f) {
+  const zusatz = zeichenDesAuftraggebers(empfaenger, f);
+  if (!zusatz || betreff.includes(f.auftraggeberZeichen.trim())) return betreff;
+  const i = betreff.indexOf(' [Fall ');
+  return i < 0 ? `${betreff.trimEnd()} – ${zusatz}` : `${betreff.slice(0, i)} – ${zusatz}${betreff.slice(i)}`;
+}
+
+/**
+ * Bearbeitungsschritte für den Auftraggeber („E-Mail an den Geschädigten gesendet“, „Telefonat: …“) –
+ * gleiche Regeln wie in der Android-App: keine Adressen, keine Wiedervorlagen.
+ */
+const SCHRITT_ARTEN = ['ANRUF', 'EMAIL_AUSGANG', 'EMAIL_EINGANG', 'EMAIL', 'NACHRICHT', 'BRIEF', 'STATUS', 'NOTIZ', 'ANLAGE'];
+const SCHRITTE_VORAUSGEWAEHLT = SCHRITT_ARTEN.filter(t => t !== 'NOTIZ' && t !== 'ANLAGE');
+const SCHRITTE_SCHLUSS = 'Wir melden uns, sobald es Neuigkeiten gibt.';
+const schritteWaehlbar = verlauf => verlauf.filter(v => SCHRITT_ARTEN.includes(v.typ)).sort((a, b) => String(b.zeitpunkt).localeCompare(String(a.zeitpunkt)));
+function mailKopf(text, name) {
+  for (const z of String(text).split('\n')) { if (!z.trim()) break; if (z.startsWith(name + ':')) return z.slice(name.length + 1).trim(); }
+  return '';
+}
+function schritteVorauswahl(f, verlauf) {
+  const ag = (f.auftraggeberEmail || '').trim().toLowerCase();
+  const anAg = ag ? verlauf.filter(v => v.typ === 'EMAIL_AUSGANG' && (mailKopf(v.text, 'An') + ' ' + mailKopf(v.text, 'Bcc')).toLowerCase().includes(ag)).map(v => v.zeitpunkt).sort() : [];
+  const letzte = anAg[anAg.length - 1];
+  return new Set(verlauf.filter(v => SCHRITTE_VORAUSGEWAEHLT.includes(v.typ) && (!letzte || String(v.zeitpunkt) > letzte)).map(v => v.id));
+}
+function schrittText(v, f) {
+  const enthaelt = (adressen, mail) => !!(mail && mail.trim()) && adressen.toLowerCase().includes(mail.trim().toLowerCase());
+  const mitAnlagen = String(v.text).split('\n').some(z => z.startsWith('Anhänge')) ? ' (mit Anlagen)' : '';
+  if (v.typ === 'EMAIL_AUSGANG') {
+    const an = mailKopf(v.text, 'An');
+    return `E-Mail ${enthaelt(an, f.auftraggeberEmail) ? 'an Sie' : enthaelt(an, f.kundeEmail) ? 'an den Geschädigten' : 'an Dritte'} gesendet${mitAnlagen}`;
+  }
+  if (v.typ === 'EMAIL_EINGANG') {
+    const von = mailKopf(v.text, 'Von');
+    return `${enthaelt(von, f.auftraggeberEmail) ? 'Ihre E-Mail' : enthaelt(von, f.kundeEmail) ? 'E-Mail des Geschädigten' : 'E-Mail von Dritten'} erhalten${mitAnlagen}`;
+  }
+  if (v.typ === 'STATUS') return String(v.text).split('\n')[0].trim();
+  let inhalt = String(v.text).split('\n').map(z => z.trim()).filter(z => z && !z.startsWith('Wiedervorlage am') && z !== 'Keine Wiedervorlage geplant').join(' ');
+  if (inhalt.length > 300) inhalt = inhalt.slice(0, 299).trimEnd() + '…';
+  if (v.typ === 'ANRUF' && (!inhalt || inhalt === 'Nachgehakt')) return 'Telefonat geführt';
+  if (v.typ === 'ANLAGE') return inhalt || 'Anlage hinzugefügt';
+  const label = (VERLAUF[v.typ] || VERLAUF.NOTIZ)[0];
+  return !inhalt || inhalt === 'Nachgehakt' ? `${label}: nachgehakt` : `${label}: ${inhalt}`;
+}
+const schritteAlsText = (eintraege, f) => 'Bisherige Bearbeitung:\n' + [...eintraege].sort((a, b) => String(a.zeitpunkt).localeCompare(String(b.zeitpunkt)))
+  .map(v => `– ${datumText(isoTag(new Date(v.zeitpunkt)))}: ${schrittText(v, f)}`).join('\n');
+function schritteEinfuegen(text, absatz) {
+  let i = text.indexOf(SCHRITTE_SCHLUSS);
+  if (i < 0) i = text.lastIndexOf('Mit freundlichen Grüßen');
+  return i < 0 ? text.trimEnd() + '\n\n' + absatz : text.slice(0, i).trimEnd() + '\n\n' + absatz + '\n\n' + text.slice(i);
+}
+
 function zusammenfassung(f, anlagenAnzahl) {
   const oder = t => (t && String(t).trim()) || 'unbekannt';
   const besatzung = [f.fahrer && 'Fahrer: ' + f.fahrer.trim(), beifahrer(f) && 'Beifahrer: ' + beifahrer(f)].filter(Boolean).join(', ');
@@ -308,6 +366,7 @@ function zusammenfassung(f, anlagenAnzahl) {
   if (auftrag) z.push(`Auftraggeber/Auftrag: ${auftrag}`);
   const agKontakt = [f.auftraggeberKontakt, f.auftraggeberTelefon, f.auftraggeberEmail].filter(Boolean).join(' · ');
   if (agKontakt) z.push(`Kontakt Auftraggeber: ${agKontakt}`);
+  if (f.auftraggeberZeichen) z.push(`Zeichen des Auftraggebers: ${f.auftraggeberZeichen.trim()}`);
   if (f.schadensort) z.push(`Schadensort: ${f.schadensort.trim()}`);
   z.push(`Schaden: ${SCHADENSART[f.schadensart] || SCHADENSART.SONSTIGES} – ${oder(f.beschreibung)}`, `Schadenshöhe: ${f.forderungCent != null ? geld(f.forderungCent) : 'unbekannt'}`);
   if (f.vergleichCent != null) z.push(`Vergleich/Regulierung: ${geld(f.vergleichCent)}`);
@@ -318,7 +377,7 @@ function zusammenfassung(f, anlagenAnzahl) {
   return z.join('\n');
 }
 const CSV_KOPF = ['Fall-Nr.', 'Status', 'Tour', 'Fahrzeug', 'Fahrer', 'Beifahrer 1', 'Beifahrer 2', 'Schadensdatum', 'Gemeldet am', 'Geschädigter', 'Firma Geschädigter', 'Telefon Geschädigter', 'E-Mail Geschädigter', 'Anschrift Geschädigter', 'Zeichen des Geschädigten',
-  'Auftraggeber', 'Ansprechpartner Auftraggeber', 'Telefon Auftraggeber', 'E-Mail Auftraggeber', 'Auftrags-Nr.', 'Schadensart', 'Schadensbeschreibung', 'Schadensort', 'Forderung (EUR)', 'Vergleich (EUR)', 'Zahlungsfrist', 'Schadennr. Versicherung',
+  'Auftraggeber', 'Ansprechpartner Auftraggeber', 'Telefon Auftraggeber', 'E-Mail Auftraggeber', 'Zeichen Auftraggeber', 'Auftrags-Nr.', 'Schadensart', 'Schadensbeschreibung', 'Schadensort', 'Forderung (EUR)', 'Vergleich (EUR)', 'Zahlungsfrist', 'Schadennr. Versicherung',
   'Wartet auf', 'Wiedervorlage', 'Nächster Schritt', 'Anlagen', 'Angelegt am', 'Geändert am'];
 function csvZelle(wert) {
   wert = String(wert ?? '');
@@ -330,7 +389,7 @@ function csvErstellen(faelle, anlagenJeFall) {
   const tagVon = iso => (iso ? datumText(isoTag(new Date(iso))) : '');
   const zeilen = [...faelle].sort((a, b) => String(a.fallnummer).localeCompare(String(b.fallnummer))).map(f => [f.fallnummer, status(f).label, f.tour, f.fahrzeug, f.fahrer, f.beifahrer1, f.beifahrer2,
     datumText(f.schadensdatum), datumText(f.meldedatum), f.kundeName, f.kundeFirma, f.kundeTelefon, f.kundeEmail, f.kundeAnschrift, f.kundenAktenzeichen, f.auftraggeber,
-    f.auftraggeberKontakt, f.auftraggeberTelefon, f.auftraggeberEmail, f.auftragsReferenz, SCHADENSART[f.schadensart] || '', f.beschreibung, f.schadensort, f.forderungCent != null ? geldOhneSymbol(f.forderungCent) : '',
+    f.auftraggeberKontakt, f.auftraggeberTelefon, f.auftraggeberEmail, f.auftraggeberZeichen, f.auftragsReferenz, SCHADENSART[f.schadensart] || '', f.beschreibung, f.schadensort, f.forderungCent != null ? geldOhneSymbol(f.forderungCent) : '',
     f.vergleichCent != null ? geldOhneSymbol(f.vergleichCent) : '', datumText(f.zahlungsfrist), f.versicherungsNummer, f.wartetAuf ? PARTNER[f.wartetAuf] : '',
     datumText(f.wiedervorlageAm), f.wiedervorlageNotiz, anlagenJeFall[f.id] || 0, tagVon(f.erstelltAm), tagVon(f.geaendertAm)]);
   return '﻿' + [CSV_KOPF, ...zeilen].map(z => z.map(csvZelle).join(';')).join('\r\n') + '\r\n';
@@ -429,13 +488,14 @@ const Aktionen = {
   verlaufLoeschen(v) { entferne('verlauf', v, { fallId: v.fallId }); nachAenderung(); },
   async anlageHinzufuegen(fallId, datei) {
     const blob = await verkleinere(datei);
-    if (blob.size > 25 * 1024 * 1024) { toast(`„${datei.name}“ ist größer als 25 MB und wurde nicht übernommen`); return; }
+    if (blob.size > 25 * 1024 * 1024) { toast(`„${datei.name}“ ist größer als 25 MB und wurde nicht übernommen`); return null; }
     const name = blob === datei ? datei.name : datei.name.replace(/\.[^.]+$/, '') + '.jpg';
     const a = merke('anlagen', { id: uuid(), fallId, anzeigename: name, mimeType: blob.type || 'application/octet-stream', groesseBytes: blob.size,
       hinzugefuegtAm: jetztIso(), vorhanden: false });
     await Dateien.lege(a.id, blob);
     vermerke(fallId, 'ANLAGE', `Anlage hinzugefügt: ${name}`);
     nachAenderung();
+    return a;
   },
   anlageLoeschen(a) {
     entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id);
@@ -509,7 +569,7 @@ async function api(fn, ...args) {
   return j.ok;
 }
 const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber'];
-const CLOUD_API = 2;
+const CLOUD_API = 3;
 const VERALTET = 'Das Cloud-Skript ist veraltet – bitte die neue Code.gs bereitstellen.';
 const offeneAnzahl = () => TABELLEN.reduce((n, t) => n + offene(t).length, 0);
 const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
@@ -741,7 +801,7 @@ function zeichneDetail(r = route()) {
     <div class="karte block">
       ${block('Schaden', [['Beschreibung', f.beschreibung], ['Schadensort', f.schadensort], ['Gemeldet am', datumText(f.meldedatum)]], 'Noch keine Beschreibung erfasst.')}
       ${block('Geschädigter', [['Name', f.kundeName], ['Firma', f.kundeFirma], ['Telefon', f.kundeTelefon], ['E-Mail', f.kundeEmail], ['Anschrift', f.kundeAnschrift], ['Zeichen', f.kundenAktenzeichen]], 'Keine Kontaktdaten erfasst.')}
-      ${block('Auftraggeber', [['Firma', f.auftraggeber], ['Ansprechpartner', f.auftraggeberKontakt], ['Telefon', f.auftraggeberTelefon], ['E-Mail', f.auftraggeberEmail], ['Auftrags-Nr.', f.auftragsReferenz]], 'Kein Auftraggeber erfasst.')}
+      ${block('Auftraggeber', [['Firma', f.auftraggeber], ['Ansprechpartner', f.auftraggeberKontakt], ['Telefon', f.auftraggeberTelefon], ['E-Mail', f.auftraggeberEmail], ['Zeichen', f.auftraggeberZeichen], ['Auftrags-Nr.', f.auftragsReferenz]], 'Kein Auftraggeber erfasst.')}
       ${block('Transport', [['Tour', f.tour], ['Fahrzeug', f.fahrzeug], ['Fahrer', f.fahrer], ['Beifahrer', beifahrer(f)]], 'Keine Angaben zum Transport.')}
       ${block('Regulierung', [['Vergleich / Regulierung', f.vergleichCent != null ? geld(f.vergleichCent) : ''], ['Zahlungsfrist', datumText(f.zahlungsfrist)], ['Schadennr. Versicherung', f.versicherungsNummer]], '')}
     </div>
@@ -752,7 +812,8 @@ function zeichneDetail(r = route()) {
         <button class="symbol weg" data-anlage-weg="${a.id}" aria-label="Anlage ${esc(a.anzeigename)} entfernen">✕</button></div>`).join('')}</div>` : '<p class="leise">Noch keine Fotos oder Belege.</p>'}
       <label class="knopf" style="margin-top:8px">📎 Foto oder Datei hinzufügen<input type="file" id="datei" multiple hidden></label>
     </div>
-    <h3 style="font-size:16px;margin:16px 0 8px">Verlauf</h3>
+    <div class="zeile eng" style="margin:16px 0 8px"><h3 class="fuell" style="font-size:16px;margin:0">Verlauf</h3>
+      ${MAIL.konto && (f.auftraggeberEmail || '').trim() && verlaufVon(f.id).length ? '<button class="knopf text" data-akt="an-auftraggeber" id="an-auftraggeber">An Auftraggeber melden</button>' : ''}</div>
     <form class="zeile eng" id="notiz-form"><input class="suche fuell" style="margin:0;border-radius:8px" id="notiz" placeholder="Notiz hinzufügen …" aria-label="Notiz" value="${esc(ANSICHT.notiz)}">
       <button class="knopf tonal">Speichern</button></form>
     <ul class="verlauf">${verlaufVon(f.id).map(v => `<li><span class="rund">${(VERLAUF[v.typ] || VERLAUF.NOTIZ)[1]}</span><div class="fuell">
@@ -794,7 +855,8 @@ $('#detail').addEventListener('click', async e => {
   if (verlaufWeg) { const v = S.verlauf[verlaufWeg.dataset.verlaufWeg]; bestaetige('Eintrag löschen?', `Der Verlaufseintrag vom ${zeitText(v.zeitpunkt)} wird entfernt.`, 'Löschen', () => Aktionen.verlaufLoeschen(v)); return; }
   if (!akt || !f) return;
   ({ bearbeiten: () => gehe('#/bearbeiten/' + f.id), status: () => statusDialog(f), nachgehakt: () => wiedervorlageDialog(f, true), termin: () => wiedervorlageDialog(f, false),
-    anrufen: () => anrufDialog(f), email: () => (MAIL.konto ? mailVorlagen(f) : vorlagenDialog(f, 'email')), nachricht: () => vorlagenDialog(f, 'nachricht'), mehr: () => mehrDialog(f) })[akt.dataset.akt]();
+    anrufen: () => anrufDialog(f), email: () => (MAIL.konto ? mailVorlagen(f) : vorlagenDialog(f, 'email')), nachricht: () => vorlagenDialog(f, 'nachricht'), mehr: () => mehrDialog(f),
+    'an-auftraggeber': () => mailSchreiben(f, { vorlage: 'SACHSTAND_AUFTRAGGEBER' }) })[akt.dataset.akt]();
 });
 
 // ---------- Dialoge ----------
@@ -900,7 +962,7 @@ function mehrDialog(f) {
 const FELDER = [
   ['Geschädigter', [['kundeName', 'Name'], ['kundeFirma', 'Firma'], ['kundeTelefon', 'Telefon', 'tel'], ['kundeEmail', 'E-Mail', 'email'], ['kundeAnschrift', 'Anschrift', 'lang'], ['kundenAktenzeichen', 'Zeichen / Aktenzeichen des Kunden']]],
   ['Schaden', [['schadensdatum', 'Schadensdatum', 'date'], ['meldedatum', 'Gemeldet am', 'date'], ['schadensart', 'Schadensart', SCHADENSART], ['beschreibung', 'Was ist passiert?', 'lang'], ['schadensort', 'Schadensort / Lieferadresse'], ['forderung', 'Geforderter Betrag (€)', 'geld']]],
-  ['Auftraggeber', [['auftraggeber', 'Firma'], ['auftraggeberKontakt', 'Ansprechpartner'], ['auftraggeberTelefon', 'Telefon', 'tel'], ['auftraggeberEmail', 'E-Mail', 'email'], ['auftragsReferenz', 'Auftrags- / Lieferschein-Nr.']]],
+  ['Auftraggeber', [['auftraggeber', 'Firma'], ['auftraggeberKontakt', 'Ansprechpartner'], ['auftraggeberTelefon', 'Telefon', 'tel'], ['auftraggeberEmail', 'E-Mail', 'email'], ['auftraggeberZeichen', 'Zeichen des Auftraggebers (steht im Mailbetreff)'], ['auftragsReferenz', 'Auftrags- / Lieferschein-Nr.']]],
   ['Transport', [['tour', 'Tour'], ['fahrzeug', 'Fahrzeug / Kennzeichen'], ['fahrer', 'Fahrer'], ['beifahrer1', 'Beifahrer 1'], ['beifahrer2', 'Beifahrer 2']]],
   ['Bearbeitung', [['status', 'Status', Object.fromEntries(Object.entries(STATUS).map(([k, s]) => [k, s.label]))], ['wiedervorlageAm', 'Wiedervorlage am', 'date'], ['wartetAuf', 'Wartet auf', { '': '–', ...PARTNER }], ['wiedervorlageNotiz', 'Nächster Schritt']]],
   ['Regulierung', [['vergleich', 'Vergleichs- / Regulierungsbetrag (€)', 'geld'], ['zahlungsfrist', 'Zahlungsfrist', 'date'], ['versicherungsNummer', 'Schadennummer der Versicherung']]],
@@ -1116,32 +1178,61 @@ function ohneVorlage(e, f) {
   const name = (EMPFAENGER[e].name(f) || '').trim();
   const vom = d => (d ? ' vom ' + datumText(d) : '');
   const was = e === 'GESCHAEDIGTER' ? 'Ihre Schadensmeldung' + vom(f.meldedatum || f.schadensdatum) : 'Schadensfall' + vom(f.schadensdatum);
-  return { betreff: was, text: `${name ? `Guten Tag ${name},` : 'Sehr geehrte Damen und Herren,'}\n\n\n\n${gruss}` };
+  return { betreff: [was, zeichenDesAuftraggebers(e, f)].filter(Boolean).join(' – '), text: `${name ? `Guten Tag ${name},` : 'Sehr geehrte Damen und Herren,'}\n\n\n\n${gruss}` };
 }
 
 function mailSchreiben(f, { vorlage, empfaenger, antwortAufVerlauf } = {}) {
-  let an = '', betreff = '', text = '', antwortAuf = '';
+  let an = '', betreff = '', text = '', antwortAuf = '', art = empfaenger || 'GESCHAEDIGTER';
+  const verlauf = verlaufVon(f.id), schritte = schritteWaehlbar(verlauf), vorauswahl = schritteVorauswahl(f, verlauf);
   const alt = antwortAufVerlauf && mailZuVerlauf(antwortAufVerlauf);
   if (alt) {
     antwortAuf = alt.messageId; an = alt.von;
     betreff = /^(re|aw):/i.test(alt.betreff) ? alt.betreff : 'Re: ' + alt.betreff;
     const e = ['GESCHAEDIGTER', 'AUFTRAGGEBER'].find(x => EMPFAENGER[x].email(f).toLowerCase() === alt.von) || 'DRITTE';
+    art = e;
     text = ohneVorlage(e, f).text + `\n\nAm ${zeitText(alt.zeitpunkt)} schrieb ${alt.von}:\n` + alt.text.split('\n').map(z => '> ' + z).join('\n');
   } else if (vorlage) {
-    const n = vorlageText(vorlage, f, S.einstellungen); an = EMPFAENGER[n.empfaenger].email(f); betreff = n.betreff; text = n.text;
+    const n = vorlageText(vorlage, f, S.einstellungen); an = EMPFAENGER[n.empfaenger].email(f); betreff = n.betreff; text = n.text; art = n.empfaenger;
+    // Beim Sachstand gleich mitteilen, was seit der letzten Mail an den Auftraggeber passiert ist.
+    const neu = schritte.filter(v => vorauswahl.has(v.id));
+    if (vorlage === 'SACHSTAND_AUFTRAGGEBER' && neu.length) text = schritteEinfuegen(text, schritteAlsText(neu, f));
   } else {
     const e = empfaenger || 'GESCHAEDIGTER', n = ohneVorlage(e, f); an = EMPFAENGER[e].email(f); betreff = n.betreff; text = n.text;
   }
   // „[Fall …]“ ersetzt beim Versand aus der App den Zusatz „unser Vorgang …“.
-  betreff = mitFallnummer(betreff.replace(` – unser Vorgang ${f.fallnummer}`, ''), f.fallnummer);
+  betreff = mitZeichen(mitFallnummer(betreff.replace(` – unser Vorgang ${f.fallnummer}`, ''), f.fallnummer), art, f);
   const anl = anlagenVon(f.id);
+  const agMail = (f.auftraggeberEmail || '').trim();
+  const bccMoeglich = agMail && !an.toLowerCase().includes(agMail.toLowerCase());
+  const anlageZeile = (a, an = false) => `<label class="auswahl"><input type="checkbox" name="anlage" value="${a.id}"${an ? ' checked' : ''}> ${esc(a.anzeigename)}</label>`;
   dialog(`<form method="dialog" id="mail-form"><h2>E-Mail · Fall ${esc(f.fallnummer)}</h2>
     <p class="fehlertext" id="mail-fehler" hidden></p>
     <label class="feld">An<input name="an" value="${esc(an)}"></label>
     <label class="feld">Betreff<input name="betreff" value="${esc(betreff)}"><span class="leise">Die Fallnummer im Betreff ordnet Antworten automatisch diesem Fall zu.</span></label>
     <label class="feld">Nachricht<textarea name="text" style="min-height:260px">${esc(text)}</textarea></label>
-    ${anl.length ? `<h3>Anlagen des Falls mitschicken</h3>${anl.map(a => `<label class="auswahl"><input type="checkbox" name="anlage" value="${a.id}"> ${esc(a.anzeigename)}</label>`).join('')}` : ''}
+    ${schritte.length ? `<details id="mail-schritte"><summary class="knopf" style="display:inline-flex;margin-bottom:8px">Bearbeitungsschritte einfügen</summary>
+      <p class="leise">Vorausgewählt ist alles seit der letzten Mail an den Auftraggeber. Adressen und Wiedervorlagen werden nicht übernommen.</p>
+      ${schritte.map(v => `<label class="auswahl"><input type="checkbox" name="schritt" value="${v.id}"${vorauswahl.has(v.id) ? ' checked' : ''}> <span><span class="leise">${zeitText(v.zeitpunkt)}</span><br>${esc(schrittText(v, f))}</span></label>`).join('')}
+      <button type="button" class="knopf tonal" id="schritte-einfuegen" style="margin:6px 0 10px">Einfügen</button></details>` : ''}
+    ${bccMoeglich ? `<label class="auswahl" id="mail-bcc-zeile"><input type="checkbox" name="bcc" id="mail-bcc"> <span>Auftraggeber in BCC<br><span class="leise">${esc(agMail)}</span></span></label>` : ''}
+    <h3>Anhänge</h3><div id="mail-anlagen">${anl.map(a => anlageZeile(a)).join('')}</div>
+    <label class="knopf" style="margin-top:6px">📎 Datei vom Rechner anhängen<input type="file" id="mail-datei" multiple hidden></label>
+    <p class="leise">Neue Dateien werden auch beim Fall abgelegt.</p>
     <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll" id="mail-senden">Senden</button></div></form>`);
+  const knopfSchritte = $('#schritte-einfuegen');
+  if (knopfSchritte) knopfSchritte.onclick = () => {
+    const gewaehlt = [...document.querySelectorAll('#mail-form [name=schritt]:checked')].map(c => S.verlauf[c.value]).filter(Boolean);
+    if (!gewaehlt.length) return;
+    const feld = $('#mail-form [name=text]'); feld.value = schritteEinfuegen(feld.value, schritteAlsText(gewaehlt, f));
+    $('#mail-schritte').open = false;
+  };
+  $('#mail-datei').onchange = async ev => {
+    for (const datei of [...ev.target.files]) {
+      const a = await Aktionen.anlageHinzufuegen(f.id, datei);
+      if (a) $('#mail-anlagen').insertAdjacentHTML('beforeend', anlageZeile(a, true));
+    }
+    ev.target.value = '';
+  };
   $('#mail-form').onsubmit = async ev => {
     ev.preventDefault();
     const w = new FormData(ev.target), fehler = $('#mail-fehler');
@@ -1158,11 +1249,12 @@ function mailSchreiben(f, { vorlage, empfaenger, antwortAufVerlauf } = {}) {
         const blob = await Dateien.hole(a.id); if (!blob) throw new Error(`„${a.anzeigename}“ liegt nicht auf diesem Rechner.`);
         anhaenge.push({ name: a.anzeigename, mimeType: a.mimeType, base64: await alsBase64(blob) });
       }
-      const entwurf = { an: adressen.join(', '), betreff: String(w.get('betreff')), text: String(w.get('text')), antwortAuf, anhaenge };
+      const bcc = w.get('bcc') && !adressen.some(x => x.toLowerCase() === agMail.toLowerCase()) ? agMail : '';
+      const entwurf = { an: adressen.join(', '), bcc, betreff: String(w.get('betreff')), text: String(w.get('text')), antwortAuf, anhaenge };
       const messageId = await window.desktop.mail.sende(entwurf);
       const anh = anhaenge.length ? '\nAnhänge: ' + anhaenge.map(a => a.name).join(', ') : '';
       vermerkeMail(S.faelle[f.id], { messageId, von: MAIL.konto.adresse, betreff: entwurf.betreff, text: entwurf.text, zeitpunkt: jetztIso() },
-        `An: ${entwurf.an}\nBetreff: ${entwurf.betreff}${anh}\n\n${entwurf.text}`, false);
+        `An: ${entwurf.an}${bcc ? '\nBcc: ' + bcc : ''}\nBetreff: ${entwurf.betreff}${anh}\n\n${entwurf.text}`, false);
       $('#dialog').close(); nachAenderung(); toast('E-Mail gesendet');
     } catch (e) {
       zeige(e.message || 'Die E-Mail konnte nicht gesendet werden.'); knopf.disabled = false; knopf.textContent = 'Senden';
