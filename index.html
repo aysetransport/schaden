@@ -120,6 +120,10 @@ dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
 .termin{display:flex;align-items:center;gap:6px}
 .termin input{width:20px;height:20px;flex:none}
 .termin-symbol{width:20px;text-align:center;flex:none}
+.positionen{width:100%;border-collapse:collapse;margin:6px 0}.positionen th{text-align:left;font-size:12px;color:var(--leise);padding:2px 4px}
+.positionen td{padding:2px 4px}.positionen input{width:100%;padding:6px;border:1px solid var(--rand);border-radius:6px;background:transparent;color:inherit}
+.positionen td:nth-child(3){width:70px}.positionen td:nth-child(4){width:110px}.positionen td:nth-child(5){width:36px}
+.reiter{overflow-x:auto}.reiter-knopf{flex:1 0 auto;padding:10px 8px}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -405,8 +409,8 @@ function csvErstellen(faelle, anlagenJeFall) {
 
 // ============================== Daten im Browser ==============================
 const SPEICHER = 'schadensfaelle-v1', PIN_SPEICHER = 'schadensfaelle-pin';
-const CRM_TABELLEN = ['adressen', 'ansprechpartner', 'preise', 'aktivitaeten', 'aufgaben', 'dokumente'];
-const LEER = () => ({ faelle: {}, verlauf: {}, anlagen: {}, auftraggeber: {}, adressen: {}, ansprechpartner: {}, preise: {}, aktivitaeten: {}, aufgaben: {}, dokumente: {}, seit: 0, kennung: '', apiUrl: '', nurLokal: false,
+const CRM_TABELLEN = ['adressen', 'ansprechpartner', 'preise', 'aktivitaeten', 'aufgaben', 'dokumente', 'chancen', 'belege', 'fahrzeuge', 'fahrzeugeintraege'];
+const LEER = () => ({ faelle: {}, verlauf: {}, anlagen: {}, auftraggeber: {}, adressen: {}, ansprechpartner: {}, preise: {}, aktivitaeten: {}, aufgaben: {}, dokumente: {}, chancen: {}, belege: {}, fahrzeuge: {}, fahrzeugeintraege: {}, seit: 0, kennung: '', apiUrl: '', nurLokal: false,
   einstellungen: { firma: '', bearbeiter: '', funktion: '', wiedervorlageTage: 7 } });
 let S = LEER();
 try { S = Object.assign(LEER(), JSON.parse(localStorage.getItem(SPEICHER) || '{}')); } catch { /* beschädigter Stand: neu beginnen, die Cloud liefert nach */ }
@@ -438,6 +442,28 @@ function fallMerken(f) {
   return merke('faelle', f);
 }
 function nachAenderung() { speichere(); zeichne(); planeAbgleich(); }
+
+/**
+ * Mail-Texte in Kontakthistorie und Fallverlauf werden gekürzt: Alles wandert bei jedem Abgleich durch
+ * die eine Cloud-Datei – volle Mails (mit zitiertem Verlauf) machen den Abgleich sehr langsam.
+ * Die vollständige Mail bleibt im Postfach.
+ */
+const MAIL_TEXT_FIRMA = 2000, MAIL_TEXT_FALL = 6000;
+const GEKUERZT = '\n… (gekürzt – vollständig im Postfach)';
+const kuerze = (text, max) => (text.length <= max ? text : text.slice(0, max - GEKUERZT.length) + GEKUERZT);
+/** Einmalig: bereits gespeicherte, sehr lange Mail-Einträge kürzen (verkleinert die Cloud-Datei). */
+function langeMailsKuerzen() {
+  let geaendert = 0;
+  for (const a of Object.values(S.aktivitaeten || {})) {
+    if (a.geloescht || a.art !== 'EMAIL' || !a.text || a.text.length <= MAIL_TEXT_FIRMA) continue;
+    merke('aktivitaeten', { ...a, text: kuerze(a.text, MAIL_TEXT_FIRMA), geaendertAm: jetztIso() }); geaendert++;
+  }
+  for (const v of Object.values(S.verlauf || {})) {
+    if (v.geloescht || !/^EMAIL_/.test(v.typ || '') || !v.text || v.text.length <= MAIL_TEXT_FALL) continue;
+    merke('verlauf', { ...v, text: kuerze(v.text, MAIL_TEXT_FALL) }); geaendert++;
+  }
+  return geaendert;
+}
 
 const normal = t => String(t || '').trim().toLowerCase().replace(/\s+/g, ' ');
 const auftraggeberListe = () => alle('auftraggeber').sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }));
@@ -550,6 +576,18 @@ const Aktionen = {
     for (const fall of faelle().filter(x => x.auftraggeberUuid === e.id)) S.faelle[fall.id] = { ...fall, auftraggeberUuid: '' };
     entferne('auftraggeber', e, { geaendertAm: jetztIso() }); nachAenderung();
   },
+  /** Doppelt angelegte Firma [weg] in [ziel] überführen. */
+  firmenZusammenfuehren(weg, ziel) {
+    const jetzt = jetztIso();
+    for (const t of CRM_TABELLEN) for (const x of alle(t).filter(x => x.firmaId === weg.id)) merke(t, { ...x, firmaId: ziel.id, geaendertAm: jetzt });
+    for (const f of faelle().filter(f => gehoertZu(f, weg))) fallMerken({ ...f, auftraggeberUuid: ziel.id, auftraggeber: ziel.name });
+    for (const m of Object.values(mails())) if (m.firmaId === weg.id) m.firmaId = ziel.id;
+    const w = [...new Map([...schlagwortListe(ziel), ...schlagwortListe(weg)].map(x => [x.toLowerCase(), x])).values()].join(', ');
+    merke('auftraggeber', { ...ziel, rechtsform: ziel.rechtsform || weg.rechtsform || '', telefon: ziel.telefon || weg.telefon || '', email: ziel.email || weg.email || '',
+      website: ziel.website || weg.website || '', notizen: [ziel.notizen, weg.notizen].filter(Boolean).join('\n\n'), schlagworte: w, geaendertAm: jetzt });
+    entferne('auftraggeber', weg, { geaendertAm: jetzt });
+    nachAenderung();
+  },
   crmSpeichern(tabelle, e) { merke(tabelle, { ...e, id: e.id || uuid(), geaendertAm: jetztIso() }); nachAenderung(); },
   crmLoeschen(tabelle, e) { entferne(tabelle, e, { firmaId: e.firmaId, geaendertAm: jetztIso() }); nachAenderung(); },
   fallLoeschen(id) {
@@ -615,7 +653,7 @@ async function api(fn, ...args) {
   return j.ok;
 }
 const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber', ...CRM_TABELLEN];
-const CLOUD_API = 4;
+const CLOUD_API = 6;
 const VERALTET = 'Das Cloud-Skript ist veraltet – bitte die neue Code.gs bereitstellen.';
 const offeneAnzahl = () => TABELLEN.reduce((n, t) => n + offene(t).length, 0);
 const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
@@ -633,8 +671,12 @@ async function abgleich() {
   SYNC.laeuft = true; SYNC.nochmal = false; zeichneSync();
   try {
     // Ein veraltetes Cloud-Skript würde unbekannte Felder verwerfen – dann lieber gar nicht abgleichen.
-    const st = await api('status');
-    if (!(st.api >= CLOUD_API)) throw new Error(VERALTET);
+    // Jeder Aufruf beim Cloud-Skript kostet Sekunden – die Version genügt einmal pro Stunde.
+    if (!(SYNC.versionOk && SYNC.versionOk.url === apiUrl() && Date.now() - SYNC.versionOk.zeit < 3600000)) {
+      const st = await api('status');
+      if (!(st.api >= CLOUD_API)) { SYNC.versionOk = null; throw new Error(VERALTET); }
+      SYNC.versionOk = { url: apiUrl(), zeit: Date.now() };
+    }
     const gesendet = Object.fromEntries(TABELLEN.map(t => [t, offene(t)]));
     const marken = new Map(Object.values(gesendet).flat().map(d => [d.id, d._n]));
     const r = await api('sync', PIN, { seit: S.seit, kennung: S.kennung, ...Object.fromEntries(TABELLEN.map(t => [t, gesendet[t].map(ohneLokales)])) });
@@ -660,10 +702,13 @@ async function abgleich() {
       }
     }
     if (S.kennung && r.kennung !== S.kennung) {
-      // Der Bestand in der Cloud wurde neu angelegt: alles von diesem Gerät erneut hochladen.
+      // Der Bestand in der Cloud wurde neu angelegt: alles von diesem Gerät erneut hochladen –
+      // aber nicht endlos, falls die Cloud bei jedem Aufruf einen neuen Bestand meldet.
+      SYNC.neuAngelegt = (SYNC.neuAngelegt || 0) + 1;
+      if (SYNC.neuAngelegt > 2) throw new Error('Die Cloud legt ihren Bestand ständig neu an – bitte den Ordner „Schadensfaelle“ in Google Drive und die Code.gs prüfen.');
       for (const tabelle of TABELLEN) for (const d of Object.values(S[tabelle])) { d._dirty = true; if (tabelle === 'anlagen') d.vorhanden = false; }
       S.seit = 0; SYNC.nochmal = true;
-    } else S.seit = r.rev;
+    } else { S.seit = r.rev; SYNC.neuAngelegt = 0; }
     S.kennung = r.kennung;
     speichere();
 
@@ -697,7 +742,8 @@ function zeichneSync() {
   let text, farbe = 'grau';
   if (!mitCloud()) text = 'Nur auf diesem Gerät';
   else if (!PIN) { text = 'Anmeldung nötig'; farbe = 'gelb'; }
-  else if (SYNC.laeuft) text = 'Gleiche ab …';
+  // Reine Nachfrage im Hintergrund ohne eigene Änderungen: weiter „Cloud aktuell“ zeigen.
+  else if (SYNC.laeuft && (wartend || !SYNC.zuletzt)) text = 'Gleiche ab …';
   else if (SYNC.fehler === 'offline') { text = wartend ? `Offline · ${wartend} Änderung${wartend === 1 ? '' : 'en'} wartet` : 'Offline'; farbe = 'gelb'; }
   else if (SYNC.fehler) { text = SYNC.fehler; farbe = 'rot'; }
   else if (wartend || !SYNC.zuletzt) text = 'Speichere …';
@@ -708,17 +754,22 @@ function zeichneSync() {
 // ---------- Anmeldung ----------
 let anmeldungOffen = false;
 async function anmeldung(falsch = false) {
-  if (anmeldungOffen) return; anmeldungOffen = true;
+  // Nur einmal gleichzeitig – aber nie dauerhaft gesperrt, falls ein anderes Fenster das PIN-Fenster ersetzt hat.
+  if (anmeldungOffen || ($('#dialog').open && $('#pin-form'))) return; anmeldungOffen = true;
+  zeichneSync();
   let eingerichtet = true;
   try { eingerichtet = (await api('status')).eingerichtet; }
   catch { anmeldungOffen = false; SYNC.fehler = 'offline'; zeichneSync(); return; }
+  anmeldungOffen = false;
   const neu = !eingerichtet;
   dialog(`<form method="dialog" id="pin-form"><h2>${neu ? 'PIN festlegen' : 'PIN eingeben'}</h2>
     <p class="leise">${neu ? 'Diese PIN schützt die Daten in der Cloud. Sie wird auf jedem Gerät einmal abgefragt (mindestens 4 Zeichen).' : 'Die PIN der Schadensfälle-Cloud.'}</p>
     <p class="fehlertext" id="pin-fehler" ${falsch ? '' : 'hidden'}>Die PIN war falsch.</p>
     <label class="feld">PIN<input id="pin1" type="password" autocomplete="${neu ? 'new-password' : 'current-password'}" required minlength="${neu ? 4 : 1}"></label>
     ${neu ? '<label class="feld">PIN wiederholen<input id="pin2" type="password" autocomplete="new-password" required></label>' : ''}
-    <div class="dialog-knoepfe"><button class="knopf voll" value="ok">${neu ? 'Festlegen' : 'Anmelden'}</button></div></form>`, { schliessbar: false });
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" id="pin-spaeter">Später</button><button class="knopf voll" value="ok">${neu ? 'Festlegen' : 'Anmelden'}</button></div></form>`, { schliessbar: false });
+  $('#pin-spaeter').onclick = () => { $('#dialog').close(); zeichneSync(); };
+  setTimeout(() => $('#pin1') && $('#pin1').focus(), 50);
   $('#pin-form').onsubmit = async ereignis => {
     ereignis.preventDefault();
     const pin = $('#pin1').value, fehler = $('#pin-fehler');
@@ -728,7 +779,7 @@ async function anmeldung(falsch = false) {
       if (neu) await api('pinFestlegen', pin);
       await api('anmelden', pin);
       PIN = pin; try { localStorage.setItem(PIN_SPEICHER, PIN); } catch {}
-      anmeldungOffen = false; $('#dialog').close(); SYNC.fehler = ''; abgleich();
+      $('#dialog').close(); SYNC.fehler = ''; SYNC.versionOk = null; abgleich();
     } catch (e) {
       const m = String(e.message || e);
       zeige(m.includes('GESPERRT') ? m.replace(/^.*GESPERRT: /, '') : m.includes('falsch') ? 'Die PIN war falsch.' : e instanceof TypeError ? 'Keine Verbindung zur Cloud.' : m);
@@ -738,7 +789,7 @@ async function anmeldung(falsch = false) {
 
 // ============================== Oberfläche ==============================
 const ANSICHT = { filter: 'OFFEN', suche: '', notiz: '', bereich: 'firmen', firmenSuche: '', firmenStatus: '', firmaFuerNeuenFall: '' };
-try { const b = localStorage.getItem('crm-bereich'); if (b && ['firmen', 'faelle', 'termine', 'postfach'].includes(b)) ANSICHT.bereich = b; } catch {}
+try { const b = localStorage.getItem('crm-bereich'); if (b && ['uebersicht', 'firmen', 'faelle', 'termine', 'finanzen', 'fuhrpark', 'postfach'].includes(b)) ANSICHT.bereich = b; } catch {}
 function route() {
   const [, art = '', id = ''] = location.hash.split('/');
   return { art, id };
@@ -769,7 +820,8 @@ function zeichneListe(r = route()) {
   if (ANSICHT.bereich !== 'faelle') {
     const el = $('#liste'), fokus = document.activeElement && document.activeElement.id === 'firmen-suche';
     if (ANSICHT.bereich === 'postfach' && !MAIL.konto) ANSICHT.bereich = 'firmen';
-    el.innerHTML = bereichsReiter() + (ANSICHT.bereich === 'termine' ? zeichneTermine() : ANSICHT.bereich === 'postfach' ? zeichnePostfach(r) : zeichneFirmenliste(r));
+    const inhalt = { termine: () => zeichneTermine(), postfach: () => zeichnePostfach(r), finanzen: () => zeichneFinanzen(r), fuhrpark: () => zeichneFuhrpark(r), uebersicht: () => zeichneUebersicht() }[ANSICHT.bereich];
+    el.innerHTML = bereichsReiter() + (inhalt ? inhalt() : zeichneFirmenliste(r));
     if (fokus) { const s = $('#firmen-suche'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
     return;
   }
@@ -815,7 +867,7 @@ $('#liste').addEventListener('click', e => {
 });
 $('#zurueck').onclick = () => { if (!formularSchliessen()) return; gehe('#/'); };
 $('#einstellungen-knopf').onclick = () => gehe('#/einstellungen');
-$('#sync').onclick = () => (mitCloud() ? abgleich() : gehe('#/einstellungen'));
+$('#sync').onclick = () => (!mitCloud() ? gehe('#/einstellungen') : !PIN ? anmeldung() : abgleich());
 
 function zeichneDetail(r = route()) {
   const el = $('#detail');
@@ -823,7 +875,14 @@ function zeichneDetail(r = route()) {
   el.dataset.id = '';
   if (r.art === 'einstellungen') { zeichneEinstellungen(); return; }
   if (r.art === 'firma') { zeichneFirma(r.id); return; }
+  if (r.art === 'fahrzeug') { zeichneFahrzeug(r.id); return; }
   if (r.art === 'mail') { zeichneMail(decodeURIComponent(r.id)); return; }
+  if (r.art === 'beleg') {
+    // Nicht neu zeichnen, während im Formular getippt wird (z. B. bei einem Abgleich im Hintergrund).
+    const tippt = el.dataset.id === 'beleg' + r.id && document.activeElement && document.activeElement.closest('#beleg-form') && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+    if (!tippt) zeichneBeleg(r.id);
+    return;
+  }
   const f = r.art === 'fall' ? S.faelle[r.id] : null;
   if (!f || f.geloescht) {
     if (r.art === 'fall') { gehe('#/'); return; } // Fall wurde gelöscht (hier oder auf einem anderen Gerät)
@@ -1043,14 +1102,17 @@ function zeichneFormular(r) {
     if (art && typeof art === 'object') return `<label class="feld">${label}<select name="${name}">${Object.entries(art).map(([k, t]) => `<option value="${k}" ${String(f[name] ?? '') === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
     if (art === 'lang') return `<label class="feld">${label}<textarea name="${name}">${wert}</textarea></label>`;
     const typ = { date: 'type="date"', tel: 'type="tel"', email: 'type="email"', geld: 'inputmode="decimal"' }[art] || '';
-    return `<label class="feld">${label}<input name="${name}" ${typ} value="${wert}"><span class="fehlertext" data-fehler="${name}" hidden></span></label>`;
+    const liste = name === 'fahrzeug' && alle('fahrzeuge').length ? 'list="fahrzeug-liste"' : name === 'fahrer' && alle('fahrzeuge').some(z => z.fahrer) ? 'list="fahrer-liste"' : '';
+    return `<label class="feld">${label}<input name="${name}" ${typ} ${liste} value="${wert}"><span class="fehlertext" data-fehler="${name}" hidden></span></label>`;
   };
   const el = $('#detail'); el.dataset.id = r.art + r.id;
   el.innerHTML = `<form id="fall-form" novalidate>
     <div class="zeile eng" style="margin-bottom:12px"><h2 class="gross fuell">${alt ? 'Fall bearbeiten' : 'Neuer Schadensfall'}</h2>
       <button type="button" class="knopf text" id="abbrechen">Abbrechen</button><button class="knopf voll">Speichern</button></div>
     <p class="fehlertext" id="form-fehler" hidden></p>
-    ${FELDER.map(([titel, felder]) => `<div class="karte block"><h3>${titel}</h3>${titel === 'Auftraggeber' ? auftraggeberAuswahl() : ''}${felder.map(feld).join('')}</div>`).join('')}</form>`;
+    ${FELDER.map(([titel, felder]) => `<div class="karte block"><h3>${titel}</h3>${titel === 'Auftraggeber' ? auftraggeberAuswahl() : ''}${felder.map(feld).join('')}</div>`).join('')}
+    <datalist id="fahrzeug-liste">${fahrzeugListe().filter(z => z.status !== 'STILLGELEGT').map(z => `<option value="${esc(z.kennzeichen)}">${esc(z.bezeichnung || '')}</option>`).join('')}</datalist>
+    <datalist id="fahrer-liste">${[...new Set(alle('fahrzeuge').map(z => z.fahrer).filter(Boolean))].map(n => `<option value="${esc(n)}">`).join('')}</datalist></form>`;
   formularStand = formularWerte();
   const auswahl = $('#ag-auswahl');
   if (auswahl) auswahl.onchange = () => {
@@ -1110,13 +1172,23 @@ function zeichneEinstellungen() {
         <label class="feld">Cloud-Adresse (…/exec)<input id="cloud-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(apiUrl())}"></label>
         <button class="knopf voll" id="verbinden">Verbinden</button>`}</div>
     ${window.desktop ? mailEinstellungen() : ''}
+    <div class="karte block"><h3>Eigene Firmendaten für Angebote und Rechnungen</h3>
+      ${[['name', 'Firmenname'], ['strasse', 'Straße und Hausnummer'], ['plzOrt', 'PLZ und Ort'], ['telefon', 'Telefon'], ['email', 'E-Mail'], ['steuer', 'Steuernummer'], ['ustId', 'USt-IdNr.'],
+        ['bank', 'Bank'], ['iban', 'IBAN'], ['bic', 'BIC'], ['zahlungsziel', 'Zahlungsziel (Tage)'], ['mwst', 'MwSt.-Satz (%)'], ['fuss', 'Zusatz in der Fußzeile'],
+        ['startRechnung', 'Startnummer Rechnungen (z. B. 1001 → R' + new Date().getFullYear() + '-1001)'], ['startAngebot', 'Startnummer Angebote (z. B. 1 → A' + new Date().getFullYear() + '-0001)']]
+        .map(([k, l]) => `<label class="feld">${l}<input data-rechnung="${k}" value="${esc(rechnungsDaten()[k])}"></label>`).join('')}</div>
     <div class="karte block"><h3>CRM</h3><p class="leise" style="margin-bottom:8px">Die Sicherung des bisherigen Browser-CRM (JSON) einlesen. Firmen mit gleichem Namen werden zusammengeführt, nichts wird doppelt angelegt.</p>
       <div class="zeile"><label class="knopf" id="crm-import-knopf">Sicherung des Browser-CRM importieren<input type="file" id="crm-import" accept=".json,application/json" hidden></label>
-      <button class="knopf" id="crm-csv">CRM für Excel exportieren (5 CSV-Dateien)</button></div></div>
-    <div class="karte block"><h3>Daten</h3><button class="knopf" id="csv">Fallliste für Excel exportieren (CSV)</button></div>
+      <button class="knopf" id="crm-csv">CRM für Excel exportieren (6 CSV-Dateien)</button></div></div>
+    <div class="karte block"><h3>Daten</h3><button class="knopf" id="csv">Fallliste für Excel exportieren (CSV)</button>
+      <p class="leise" style="margin:10px 0 6px">Nach Tests: alle Angebote und Rechnungen samt erfasster Zahlungen entfernen – auf allen Geräten. Die Nummern beginnen danach wieder bei der Startnummer.</p>
+      <button class="knopf text gefahr" id="belege-leeren">Alle Angebote und Rechnungen löschen</button></div>
     <p class="leise">Erinnerungen per Benachrichtigung gibt es in der Android-App. Hier stehen fällige Fälle immer oben.</p>`;
 }
-$('#detail').addEventListener('input', e => { const k = e.target.dataset.einst; if (k) { S.einstellungen[k] = e.target.value; speichere(); } });
+$('#detail').addEventListener('input', e => {
+  const k = e.target.dataset.einst; if (k) { S.einstellungen[k] = e.target.value; speichere(); }
+  const r = e.target.dataset.rechnung; if (r) { S.einstellungen.rechnung = { ...rechnungsDaten(), [r]: e.target.value }; speichere(); }
+});
 $('#detail').addEventListener('change', async e => {
   if (e.target.id !== 'crm-import' || !e.target.files.length) return;
   try {
@@ -1140,11 +1212,18 @@ $('#detail').addEventListener('click', e => {
       }
     }
     case 'jetzt': abgleich(); break;
-    case 'abmelden': PIN = ''; try { localStorage.removeItem(PIN_SPEICHER); } catch {} toast('Abgemeldet. Beim nächsten Abgleich wird die PIN abgefragt.'); break;
+    case 'abmelden': PIN = ''; try { localStorage.removeItem(PIN_SPEICHER); } catch {} SYNC.fehler = ''; zeichneSync(); toast('Abgemeldet. Zum Anmelden oben auf „Anmeldung nötig“ tippen.'); break;
     case 'verbinden': {
       const url = $('#cloud-url').value.trim();
       if (!/^https?:\/\/.+/.test(url)) { toast('Bitte die vollständige Adresse eintragen (beginnt mit https://).'); break; }
       S.apiUrl = url; S.nurLokal = false; speichere(); zeichne(); abgleich(); break;
+    }
+    case 'belege-leeren': {
+      const n = alle('belege').length;
+      if (!n) { toast('Es gibt keine Angebote oder Rechnungen.'); break; }
+      bestaetige(`Alle ${n} Angebote und Rechnungen löschen?`, 'Sie verschwinden samt der erfassten Zahlungen auf allen Geräten. Das lässt sich nicht rückgängig machen.', 'Alle löschen',
+        () => { const z = BelegAktionen.alleLoeschen(); toast(`${z} Angebote und Rechnungen gelöscht`); });
+      break;
     }
     case 'crm-csv': {
       if (!alle('auftraggeber').length) { toast('Es gibt noch keine Firmen zum Exportieren'); break; }
@@ -1168,6 +1247,15 @@ $('#detail').addEventListener('click', e => {
 const FIRMEN_STATUS = { INTERESSENT: ['Interessent', 'violett'], AKTIV: ['Aktiv', 'gruen'], PAUSIERT: ['Pausiert', 'gelb'], EHEMALIG: ['Ehemalig', 'grau'] };
 const ADRESS_ART = { HAUPTSITZ: 'Hauptsitz', LAGER: 'Lager', FILIALE: 'Filiale', RECHNUNG: 'Rechnungsadresse', SONSTIGE: 'Sonstige' };
 const AKTIVITAET_ART = { ANRUF: 'Anruf', EMAIL: 'E-Mail', TREFFEN: 'Treffen', ANGEBOT: 'Angebot', SONSTIGES: 'Sonstiges' };
+const CHANCEN_PHASE = { ANFRAGE: ['Anfrage', true], ANGEBOT: ['Angebot', true], VERHANDLUNG: ['Verhandlung', true], GEWONNEN: ['Gewonnen', false], VERLOREN: ['Verloren', false] };
+const KONTAKT_PAUSE_TAGE = 60;
+const schlagwortListe = e => [...new Map(String(e.schlagworte || '').split(',').map(x => x.trim()).filter(Boolean).map(x => [x.toLowerCase(), x])).values()];
+const letzterKontakt = id => vonFirma('aktivitaeten', id).map(a => a.datum).sort().pop() || null;
+const langeKeinKontakt = e => (e.status || 'AKTIV') === 'AKTIV' && (!letzterKontakt(e.id) || letzterKontakt(e.id) < plusTage(heute(), -KONTAKT_PAUSE_TAGE));
+function preislisteText(e) {
+  return `Preise und Konditionen – ${firmaName(e)}\n` + vonFirma('preise', e.id).sort((a, b) => a.bezeichnung.localeCompare(b.bezeichnung, 'de')).map(p =>
+    `• ${p.bezeichnung}${p.betragCent != null ? ': ' + geld(p.betragCent) : ''}${p.einheit ? ' ' + p.einheit : ''}${p.gueltigAb ? ` (gültig ab ${datumText(p.gueltigAb)})` : ''}${p.notiz ? ' – ' + p.notiz : ''}`).join('\n');
+}
 const firmenStatus = e => FIRMEN_STATUS[e.status] || FIRMEN_STATUS.AKTIV;
 const firmaName = e => [e.name, e.rechtsform].filter(Boolean).join(' ');
 const vonFirma = (tabelle, id) => alle(tabelle).filter(x => x.firmaId === id);
@@ -1180,17 +1268,19 @@ function wiedervorlagen() {
     ...alle('aufgaben').filter(a => !a.erledigt && a.faelligAm).map(a => ({ art: 'aufgabe', datum: a.faelligAm, titel: a.text, zusatz: [S.auftraggeber[a.firmaId]?.name, a.kontakt].filter(Boolean).join(' · '), a })),
     ...faelle().filter(f => status(f).offen && f.wiedervorlageAm).map(f => ({ art: 'fall', datum: f.wiedervorlageAm, titel: `Fall ${f.fallnummer} · ${anzeigeName(f)}`,
       zusatz: [f.auftraggeber, f.wartetAuf && 'wartet auf ' + PARTNER[f.wartetAuf], f.wiedervorlageNotiz].filter(Boolean).join(' · '), f })),
+    ...fahrzeugTermine(),
   ].sort((a, b) => a.datum.localeCompare(b.datum) || a.titel.localeCompare(b.titel));
   return { ueberfaellig: termine.filter(x => x.datum < t), heute: termine.filter(x => x.datum === t), demnaechst: termine.filter(x => x.datum > t),
     ohneDatum: alle('aufgaben').filter(a => !a.erledigt && !a.faelligAm) };
 }
-const naechsterTermin = firma => { const w = wiedervorlagen(); return [...w.ueberfaellig, ...w.heute, ...w.demnaechst].find(x => (x.a ? x.a.firmaId === firma.id : gehoertZu(x.f, firma))); };
+const naechsterTermin = firma => { const w = wiedervorlagen(); return [...w.ueberfaellig, ...w.heute, ...w.demnaechst].find(x => (x.a ? x.a.firmaId === firma.id : x.f ? gehoertZu(x.f, firma) : false)); };
 
 /** Volltextsuche: Fundstelle oder null. */
 function firmaTreffer(e, such) {
   const p = t => String(t || '').toLowerCase().includes(such);
   if (p(e.name) || p(e.rechtsform)) return '';
   if (p(e.notizen)) return 'Notizen';
+  if (p(e.schlagworte)) return 'Schlagwort';
   if (p(e.email) || p(e.telefon) || p(e.website)) return 'Kontaktdaten';
   let x = vonFirma('ansprechpartner', e.id).find(k => [k.name, k.thema, k.telefon, k.email, k.notiz].some(p)); if (x) return 'Ansprechpartner: ' + x.name;
   x = vonFirma('adressen', e.id).find(a => [a.strasse, a.plz, a.ort, a.notiz].some(p)); if (x) return 'Adresse: ' + adresseText(x);
@@ -1201,7 +1291,7 @@ function firmaTreffer(e, such) {
   return null;
 }
 
-const BEREICHE = { firmen: 'Firmen', faelle: 'Schäden', termine: 'Termine', postfach: 'Postfach' };
+const BEREICHE = { uebersicht: 'Übersicht', firmen: 'Firmen', faelle: 'Schäden', termine: 'Termine', finanzen: 'Finanzen', fuhrpark: 'Fuhrpark', postfach: 'Postfach' };
 function bereichsReiter() {
   const w = wiedervorlagen(), faellig = w.ueberfaellig.length + w.heute.length;
   const offen = Object.values(mails()).filter(m => !istZugeordnet(m)).length;
@@ -1214,7 +1304,9 @@ function bereichsReiter() {
 
 function zeichneFirmenliste(r) {
   const such = ANSICHT.firmenSuche.trim().toLowerCase();
-  const zeilen = auftraggeberListe().filter(e => !ANSICHT.firmenStatus || e.status === ANSICHT.firmenStatus)
+  const zeilen = auftraggeberListe()
+    .filter(e => (ANSICHT.firmenStatus === 'PAUSE' ? langeKeinKontakt(e) : !ANSICHT.firmenStatus || e.status === ANSICHT.firmenStatus))
+    .filter(e => !ANSICHT.schlagwort || schlagwortListe(e).some(w => w.toLowerCase() === ANSICHT.schlagwort.toLowerCase()))
     .map(e => ({ e, treffer: such ? firmaTreffer(e, such) : '' })).filter(z => z.treffer !== null);
   const karten = zeilen.map(({ e, treffer }) => {
     const t = naechsterTermin(e), offen = faelle().filter(f => gehoertZu(f, e) && status(f).offen).length;
@@ -1222,7 +1314,8 @@ function zeichneFirmenliste(r) {
     return `<button class="karte klickbar ${r.art === 'firma' && r.id === e.id ? 'gewaehlt' : ''}" data-firma="${e.id}">
       <div class="zeile eng"><span class="titel fuell">${esc(firmaName(e))}</span><span class="marke ${firmenStatus(e)[1]}">${firmenStatus(e)[0]}</span></div>
       ${treffer ? `<div class="leise" style="color:var(--primaer)">${esc(treffer)}</div>` : ''}
-      ${offen || e.telefon ? `<div class="leise">${esc([offen && (offen === 1 ? '1 offener Schadensfall' : offen + ' offene Schadensfälle'), e.telefon].filter(Boolean).join(' · '))}</div>` : ''}
+      ${schlagwortListe(e).length ? `<div class="leise" style="color:var(--primaer)">${schlagwortListe(e).map(w => '#' + esc(w)).join('  ')}</div>` : ''}
+      ${offen || e.telefon || letzterKontakt(e.id) ? `<div class="leise">${esc([offen && (offen === 1 ? '1 offener Schadensfall' : offen + ' offene Schadensfälle'), letzterKontakt(e.id) && 'letzter Kontakt ' + datumText(letzterKontakt(e.id)), e.telefon].filter(Boolean).join(' · '))}</div>` : ''}
       ${t ? `<div class="leise" style="${t.datum <= heute() ? 'color:var(--rot-t)' : ''}">⏱ ${esc(tText)}: ${esc(t.titel)}</div>` : ''}</button>`;
   }).join('');
   const faelleTreffer = such ? filtereUndSortiere(faelle(), 'ALLE', such) : [];
@@ -1230,8 +1323,11 @@ function zeichneFirmenliste(r) {
     ? '<div class="leer">🏢<b>Noch keine Auftraggeber</b>Lege die erste Firma an oder importiere die Sicherung des Browser-CRM unter ⚙ → CRM. Auftraggeber aus Schadensfällen kommen automatisch dazu.</div>'
     : `<div class="leer"><b>Keine Treffer</b>${such ? `Zu „${esc(ANSICHT.firmenSuche.trim())}“ wurde nichts gefunden.` : 'In dieser Ansicht gibt es keine Firmen.'}</div>`;
   return `<input class="suche" id="firmen-suche" type="search" placeholder="Firma, Ansprechpartner, Notiz, Fall …" aria-label="Firmen durchsuchen" value="${esc(ANSICHT.firmenSuche)}">
-    <div class="chips" role="group" aria-label="Status"><button class="chip" data-firmen-status="" aria-pressed="${!ANSICHT.firmenStatus}">Alle</button>${Object.entries(FIRMEN_STATUS).map(([k, [l]]) =>
+    <div class="chips" role="group" aria-label="Status"><button class="chip" data-firmen-status="" aria-pressed="${!ANSICHT.firmenStatus}">Alle</button>
+      <button class="chip" data-firmen-status="PAUSE" aria-pressed="${ANSICHT.firmenStatus === 'PAUSE'}">Lange kein Kontakt</button>${Object.entries(FIRMEN_STATUS).map(([k, [l]]) =>
       `<button class="chip" data-firmen-status="${k}" aria-pressed="${ANSICHT.firmenStatus === k}">${l}</button>`).join('')}</div>
+    ${(() => { const w = [...new Map(auftraggeberListe().flatMap(schlagwortListe).map(x => [x.toLowerCase(), x])).values()].sort((a, b) => a.localeCompare(b, 'de'));
+      return w.length ? `<div class="chips" role="group" aria-label="Schlagworte">${w.map(x => `<button class="chip" data-schlagwort="${esc(x)}" aria-pressed="${(ANSICHT.schlagwort || '').toLowerCase() === x.toLowerCase()}"># ${esc(x)}</button>`).join('')}</div>` : ''; })()}
     <button class="knopf voll fab" data-neue-firma>＋ Neue Firma</button>
     <div id="firmen">${karten || (faelleTreffer.length ? '' : leer)}</div>
     ${faelleTreffer.length ? `<h3 class="abschnitt">Schadensfälle</h3>${faelleTreffer.map(f => `<button class="karte klickbar" data-fall="${f.id}"><div class="zeile eng"><span class="titel fuell">${esc(anzeigeName(f))}</span><span class="marke ${status(f).farbe}">${esc(status(f).label)}</span></div><div class="leise">${esc([f.fallnummer, f.auftraggeber].filter(Boolean).join(' · '))}</div></button>`).join('')}` : ''}`;
@@ -1240,12 +1336,14 @@ function zeichneFirmenliste(r) {
 function zeichneTermine() {
   const w = wiedervorlagen();
   const eintrag = x => x.art === 'aufgabe'
-    ? `<div class="termin"><input type="checkbox" data-erledigt="${x.a.id}" aria-label="Erledigt"><button class="vorlage fuell" data-firma="${x.a.firmaId}"><b>${esc(x.titel)}</b><br><span class="leise">${esc([x.datum !== heute() && datumText(x.datum), x.zusatz].filter(Boolean).join(' · '))}</span></button></div>`
+    ? `<div class="termin"><input type="checkbox" data-erledigt="${x.a.id}" aria-label="Erledigt"><button class="vorlage fuell" data-firma="${x.a.firmaId}"><b>${esc(x.titel)}</b><br><span class="leise">${esc([x.datum !== heute() && datumText(x.datum), x.zusatz].filter(Boolean).join(' · '))}</span></button>
+      <button class="knopf text" data-verschieben="${x.a.id}" data-tage="1">Morgen</button><button class="knopf text" data-verschieben="${x.a.id}" data-tage="7">+1 Woche</button></div>`
+    : x.z ? `<div class="termin"><span class="termin-symbol">🚐</span><button class="vorlage fuell" data-fahrzeug="${x.z.id}"><b>${esc(x.titel)}</b><br><span class="leise">${esc([x.datum !== heute() && datumText(x.datum), x.zusatz].filter(Boolean).join(' · '))}</span></button></div>`
     : `<div class="termin"><span class="termin-symbol">🚚</span><button class="vorlage fuell" data-fall="${x.f.id}"><b>${esc(x.titel)}</b><br><span class="leise">${esc([x.datum !== heute() && datumText(x.datum), x.zusatz].filter(Boolean).join(' · '))}</span></button></div>`;
   const gruppe = (titel, liste, farbe) => (liste.length ? `<h3 class="abschnitt" style="${farbe}">${titel} (${liste.length})</h3>${liste.map(eintrag).join('')}` : '');
   const ohne = w.ohneDatum.length ? `<h3 class="abschnitt">Ohne Datum</h3>${w.ohneDatum.map(a => eintrag({ art: 'aufgabe', datum: '', titel: a.text, zusatz: S.auftraggeber[a.firmaId]?.name || '', a })).join('')}` : '';
   const inhalt = gruppe('Überfällig', w.ueberfaellig, 'color:var(--rot-t)') + gruppe('Heute', w.heute, '') + gruppe('Demnächst', w.demnaechst, 'color:var(--leise)') + ohne;
-  return `<div id="termine">${inhalt || '<div class="leer">⏱<b>Nichts zu tun</b>Hier erscheinen Wiedervorlagen bei Firmen und die Wiedervorlagen der Schadensfälle.</div>'}</div>`;
+  return `<div class="zeile" style="margin-bottom:8px"><button class="knopf" data-ics>Termine als Kalenderdatei (.ics)</button></div><div id="termine">${inhalt || '<div class="leer">⏱<b>Nichts zu tun</b>Hier erscheinen Wiedervorlagen bei Firmen und die Wiedervorlagen der Schadensfälle.</div>'}</div>`;
 }
 
 /** Kontakthistorie: festgehaltene Kontakte und Mails aus den Fällen der Firma. */
@@ -1282,6 +1380,17 @@ function zeichneFirma(id) {
       ${/^https?:\/\//i.test(d.link || '') ? `<a class="symbol" href="${esc(d.link)}" target="_blank" rel="noopener" aria-label="${esc(d.titel)} öffnen">↗</a>` : ''}</div>`).join('');
   const faelleDerFirma = faelle().filter(f => gehoertZu(f, e)).sort((a, b) => String(b.geaendertAm).localeCompare(String(a.geaendertAm)))
     .map(f => `<button class="vorlage" data-fall="${f.id}"><div class="zeile eng"><b class="fuell">${esc(f.fallnummer)} · ${esc(anzeigeName(f))}</b><span class="marke ${status(f).farbe}">${esc(status(f).label)}</span></div></button>`).join('');
+  const chancen = vonFirma('chancen', id).sort((a, b) => Object.keys(CHANCEN_PHASE).indexOf(a.phase) - Object.keys(CHANCEN_PHASE).indexOf(b.phase))
+    .map(c => zeile('chancen', c, [c.titel, c.wertCent != null && geld(c.wertCent)].filter(Boolean).join(' · '),
+      [(CHANCEN_PHASE[c.phase] || CHANCEN_PHASE.ANFRAGE)[0], c.erwartetAm && 'Entscheidung bis ' + datumText(c.erwartetAm), c.notiz].filter(Boolean).join(' · '))).join('');
+  const fd = faelle().filter(f => gehoertZu(f, e)), ch = vonFirma('chancen', id);
+  const offeneCh = ch.filter(c => (CHANCEN_PHASE[c.phase] || CHANCEN_PHASE.ANFRAGE)[1]), summe = l => l.reduce((n, x) => n + (x || 0), 0);
+  const kennzahlen = [['Schadensfälle', `${fd.filter(f => status(f).offen).length} offen / ${fd.length}`],
+    summe(fd.filter(f => status(f).offen).map(f => f.forderungCent)) && ['Offene Forderungen', geld(summe(fd.filter(f => status(f).offen).map(f => f.forderungCent)))],
+    summe(fd.map(f => f.vergleichCent)) && ['Gezahlt / verglichen', geld(summe(fd.map(f => f.vergleichCent)))],
+    offeneCh.length && ['Offene Chancen', `${offeneCh.length} · ${geld(summe(offeneCh.map(c => c.wertCent)))}`],
+    summe(ch.filter(c => c.phase === 'GEWONNEN').map(c => c.wertCent)) && ['Gewonnen', geld(summe(ch.filter(c => c.phase === 'GEWONNEN').map(c => c.wertCent)))],
+    ['Letzter Kontakt', letzterKontakt(id) ? datumText(letzterKontakt(id)) : 'noch keiner']].filter(Boolean);
   el.dataset.id = 'firma' + id;
   el.innerHTML = `<div class="karte" id="stammdaten">
       <div class="zeile eng"><h2 class="gross fuell">${esc(firmaName(e))}</h2><span class="marke ${firmenStatus(e)[1]}">${firmenStatus(e)[0]}</span>
@@ -1290,36 +1399,45 @@ function zeichneFirma(id) {
       ${e.email ? `<p><button class="knopf text" style="padding:0" data-oeffne="mailto:${esc(e.email)}">✉ ${esc(e.email)}</button></p>` : ''}
       ${e.website ? `<p><a href="${esc(/^https?:/i.test(e.website) ? e.website : 'https://' + e.website)}" target="_blank" rel="noopener">🌐 ${esc(e.website)}</a></p>` : ''}
       ${e.notizen ? `<p class="leise" style="white-space:pre-wrap;margin-top:6px">${esc(e.notizen)}</p>` : ''}
-      ${!e.telefon && !e.email && !e.website && !e.notizen ? '<p class="leise">Telefon, E-Mail, Website und Notizen über ✎ eintragen.</p>' : ''}</div>
+      ${schlagwortListe(e).length ? `<p class="leise" style="color:var(--primaer)">${schlagwortListe(e).map(w => '#' + esc(w)).join('  ')}</p>` : ''}
+      ${!e.telefon && !e.email && !e.website && !e.notizen ? '<p class="leise">Telefon, E-Mail, Website und Notizen über ✎ eintragen.</p>' : ''}
+      ${MAIL.konto ? '<button class="knopf" style="margin-top:8px" data-oeffne="mailto:' + esc(e.email || '') + '">✉ E-Mail schreiben</button>' : ''}</div>
+    <div class="karte" id="kennzahlen"><dl>${kennzahlen.map(([l, w]) => `<dt>${esc(l)}</dt><dd>${esc(w)}</dd>`).join('')}</dl></div>
+    ${bereich('Verkaufschancen', 'chancen', chancen)}
     ${bereich('Ansprechpartner', 'ansprechpartner', kontakte)}
     ${bereich('Adressen', 'adressen', adressen)}
-    ${bereich('Preise und Konditionen', 'preise', preise)}
+    ${bereich('Preise und Konditionen', 'preise', preise + (preise ? '<button class="knopf text" data-preise-teilen>Preisliste kopieren</button>' : ''))}
     ${bereich('Wiedervorlagen', 'aufgaben', offen.map(aufgabeZeile).join('') + (erledigt.length ? `<details><summary class="leise" style="cursor:pointer;margin:6px 0">${erledigt.length} erledigt</summary>${erledigt.map(aufgabeZeile).join('')}</details>` : ''))}
     ${bereich('Kontakthistorie', 'aktivitaeten', historie, 'Kontakt festhalten')}
     ${bereich('Dokumente', 'dokumente', dokumente)}
+    ${bereich('Angebote und Rechnungen', 'belege', vonFirma('belege', id).sort((x, y) => String(y.datum).localeCompare(String(x.datum))).map(x => belegKarte(x)).join(''), 'Rechnung')}
     ${bereich('Schadensfälle', 'faelle', faelleDerFirma, 'Neuer Fall')}`;
 }
 
 // ---------- Dialoge für Firmen und Einträge ----------
 const CRM_FELDER = {
   auftraggeber: ['Firma', [['name', 'Firma', 'pflicht'], ['rechtsform', 'Rechtsform (z. B. GmbH)'], ['status', 'Status', Object.fromEntries(Object.entries(FIRMEN_STATUS).map(([k, [l]]) => [k, l]))],
-    ['telefon', 'Telefon', 'tel'], ['email', 'E-Mail', 'email'], ['website', 'Website'], ['notizen', 'Notizen', 'lang']]],
+    ['telefon', 'Telefon', 'tel'], ['email', 'E-Mail', 'email'], ['website', 'Website'], ['schlagworte', 'Schlagworte, durch Komma getrennt (z. B. Möbel, Elektro, Küchen)'],
+    ['kundennummer', 'Kundennummer'], ['ustId', 'USt-IdNr. der Firma'], ['zahlungszielTage', 'Zahlungsziel in Tagen (leer = Standard)'], ['notizen', 'Notizen', 'lang']]],
   ansprechpartner: ['Ansprechpartner', [['name', 'Name', 'pflicht'], ['thema', 'Zuständig für (Disposition, Abrechnung, Schäden, Geschäftsführung …)'], ['telefon', 'Telefon', 'tel'], ['email', 'E-Mail', 'email'], ['notiz', 'Notiz', 'lang']]],
   adressen: ['Adresse', [['art', 'Art', ADRESS_ART], ['strasse', 'Straße und Hausnummer'], ['plz', 'PLZ'], ['ort', 'Ort', 'pflicht'], ['notiz', 'Notiz (z. B. Rampe, Öffnungszeiten)', 'lang']]],
   preise: ['Preis', [['bezeichnung', 'Bezeichnung (Tourpauschale, Montage, Extra-km, Etage, Maut …)', 'pflicht'], ['betrag', 'Betrag in Euro', 'geld'], ['einheit', 'Einheit (pro Tour, pro km …)'], ['gueltigAb', 'Gültig ab', 'date'], ['notiz', 'Notiz', 'lang']]],
   aktivitaeten: ['Kontakt', [['datum', 'Datum', 'date'], ['art', 'Art', AKTIVITAET_ART], ['kontakt', 'Ansprechpartner'], ['text', 'Was wurde besprochen?', 'lang pflicht']]],
+  chancen: ['Verkaufschance', [['titel', 'Worum geht es? (z. B. Montage für neue Filiale)', 'pflicht'], ['phase', 'Phase', Object.fromEntries(Object.entries(CHANCEN_PHASE).map(([k, [l]]) => [k, l]))],
+    ['betrag', 'Geschätzter Wert in Euro (z. B. pro Jahr)', 'geld'], ['erwartetAm', 'Entscheidung erwartet bis', 'date'], ['notiz', 'Notiz', 'lang']]],
   aufgaben: ['Wiedervorlage', [['text', 'Was ist zu tun?', 'pflicht'], ['faelligAm', 'Fällig am', 'date'], ['kontakt', 'Ansprechpartner']]],
   dokumente: ['Dokument', [['titel', 'Titel (z. B. Rahmenvertrag 2026)', 'pflicht'], ['link', 'Link oder Pfad'], ['notiz', 'Notiz', 'lang']]],
 };
 const CRM_VORGABEN = {
   auftraggeber: () => ({ status: 'AKTIV' }), adressen: () => ({ art: 'HAUPTSITZ' }), aktivitaeten: () => ({ datum: heute(), art: 'ANRUF' }),
-  aufgaben: () => ({ faelligAm: plusTage(heute(), 7), erledigt: false }),
+  aufgaben: () => ({ faelligAm: plusTage(heute(), 7), erledigt: false }), chancen: () => ({ phase: 'ANFRAGE' }),
 };
 
 function crmDialog(tabelle, eintrag, firmaId, danach) {
   const neu = !eintrag;
   const [titel, felder] = CRM_FELDER[tabelle];
-  const e = eintrag ? { ...eintrag, betrag: eintrag.betragCent != null ? geldOhneSymbol(eintrag.betragCent) : '' } : { ...(CRM_VORGABEN[tabelle] || (() => ({})))() };
+  const centFeld = tabelle === 'chancen' ? 'wertCent' : 'betragCent';
+  const e = eintrag ? { ...eintrag, betrag: eintrag[centFeld] != null ? geldOhneSymbol(eintrag[centFeld]) : '' } : { ...(CRM_VORGABEN[tabelle] || (() => ({})))() };
   const namen = tabelle === 'aktivitaeten' || tabelle === 'aufgaben' ? kontakteVon(firmaId).map(k => k.name) : [];
   const feld = ([name, label, art = '']) => {
     const wert = esc(e[name] ?? ''), pflicht = typeof art === 'string' && art.includes('pflicht') ? 'required' : '';
@@ -1330,7 +1448,10 @@ function crmDialog(tabelle, eintrag, firmaId, danach) {
     return `<label class="feld">${label}<input name="${name}" ${typ} ${pflicht} ${liste} value="${wert}"><span class="fehlertext" data-fehler="${name}" hidden></span></label>`;
   };
   dialog(`<form method="dialog" id="crm-form"><h2>${neu ? (tabelle === 'aktivitaeten' ? 'Kontakt festhalten' : (tabelle === 'auftraggeber' ? 'Neue Firma' : 'Neu: ' + titel)) : titel}</h2>
-    ${felder.map(feld).join('')}${namen.length ? `<datalist id="crm-kontakte">${namen.map(n => `<option value="${esc(n)}">`).join('')}</datalist>` : ''}
+    ${felder.map(feld).join('')}${tabelle === 'aktivitaeten' && neu ? '<label class="feld">Wiedervorlage am (optional)<input name="folgeAm" type="date"></label><label class="feld">Was ist dann zu tun?<input name="folgeText"></label>' : ''}
+    ${tabelle === 'auftraggeber' && !neu && auftraggeberListe().length > 1 ? `<details><summary class="knopf text" style="display:inline-flex">Mit anderer Firma zusammenführen …</summary>
+      <label class="feld">In diese Firma überführen<select id="zusammen-ziel"><option value="">– Firma wählen –</option>${auftraggeberListe().filter(x => x.id !== eintrag.id).map(x => `<option value="${x.id}">${esc(firmaName(x))}</option>`).join('')}</select></label>
+      <button type="button" class="knopf" id="zusammen-los">Zusammenführen</button></details>` : ''}${namen.length ? `<datalist id="crm-kontakte">${namen.map(n => `<option value="${esc(n)}">`).join('')}</datalist>` : ''}
     <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="crm-loeschen">Löschen</button>'}<span class="fuell"></span>
       <button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
   $('#crm-form').onsubmit = ev => {
@@ -1340,14 +1461,24 @@ function crmDialog(tabelle, eintrag, firmaId, danach) {
     if ('email' in w && !zeige('email', w.email && !w.email.split(/[,;]/).every(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x.trim())) ? 'Die E-Mail-Adresse sieht unvollständig aus.' : '')) return;
     if ('betrag' in w) {
       if (!zeige('betrag', w.betrag && geldLesen(w.betrag) == null ? 'Bitte einen Betrag wie 89,50 eingeben.' : '')) return;
-      w.betragCent = w.betrag ? geldLesen(w.betrag) : null; delete w.betrag;
-      w.gueltigAb = w.gueltigAb || null;
+      w[centFeld] = w.betrag ? geldLesen(w.betrag) : null; delete w.betrag;
+      if (tabelle === 'preise') w.gueltigAb = w.gueltigAb || null;
     }
+    if ('erwartetAm' in w) w.erwartetAm = w.erwartetAm || null;
+    const folge = { am: w.folgeAm, text: w.folgeText }; delete w.folgeAm; delete w.folgeText;
     if ('faelligAm' in w) w.faelligAm = w.faelligAm || null;
     if (tabelle === 'aktivitaeten') w.datum = w.datum || heute();
     $('#dialog').close();
     if (tabelle === 'auftraggeber') { const id = Aktionen.firmaSpeichern({ ...(eintrag || {}), ...w, id: eintrag?.id }); if (danach) danach(id); return; }
-    Aktionen.crmSpeichern(tabelle, { ...(eintrag || { erledigt: false }), ...w, firmaId, id: eintrag?.id });
+    Aktionen.crmSpeichern(tabelle, { ...(eintrag || (tabelle === 'aufgaben' ? { erledigt: false } : {})), ...w, firmaId, id: eintrag?.id });
+    if (tabelle === 'aktivitaeten' && folge.am) {
+      Aktionen.crmSpeichern('aufgaben', { firmaId, faelligAm: folge.am, kontakt: w.kontakt || '', erledigt: false, text: folge.text || 'Nachfassen: ' + String(w.text).split('\n')[0].slice(0, 80) });
+    }
+  };
+  if ($('#zusammen-los')) $('#zusammen-los').onclick = () => {
+    const ziel = S.auftraggeber[$('#zusammen-ziel').value]; if (!ziel) return;
+    bestaetige(`In „${ziel.name}“ überführen?`, `Ansprechpartner, Adressen, Preise, Kontakthistorie, Wiedervorlagen, Chancen, Dokumente und Schadensfälle von „${eintrag.name}“ wandern zu „${ziel.name}“. „${eintrag.name}“ wird danach gelöscht.`, 'Zusammenführen',
+      () => { Aktionen.firmenZusammenfuehren(eintrag, ziel); gehe('#/firma/' + ziel.id); });
   };
   if (!neu) $('#crm-loeschen').onclick = () => (tabelle === 'auftraggeber'
     ? bestaetige(`„${eintrag.name}“ löschen?`, 'Mit Ansprechpartnern, Adressen, Preisen, Kontakthistorie und Dokumenten – auf allen Geräten. Schadensfälle bleiben erhalten.', 'Löschen', () => { Aktionen.firmaLoeschen(eintrag); gehe('#/'); })
@@ -1401,11 +1532,13 @@ function crmCsvDateien() {
   const nach = (a, b) => name(a.firmaId).localeCompare(name(b.firmaId), 'de');
   const sitz = id => { const l = vonFirma('adressen', id); return l.find(a => a.art === 'HAUPTSITZ') || l[0]; };
   return {
-    Firmen: tab(['Firma', 'Rechtsform', 'Status', 'Telefon', 'E-Mail', 'Website', 'Hauptsitz', 'Notizen'],
-      firmen.map(f => [f.name, f.rechtsform, firmenStatus(f)[0], f.telefon, f.email, f.website, sitz(f.id) ? adresseText(sitz(f.id)) : '', f.notizen])),
+    Firmen: tab(['Firma', 'Rechtsform', 'Status', 'Telefon', 'E-Mail', 'Website', 'Hauptsitz', 'Notizen', 'Schlagworte'],
+      firmen.map(f => [f.name, f.rechtsform, firmenStatus(f)[0], f.telefon, f.email, f.website, sitz(f.id) ? adresseText(sitz(f.id)) : '', f.notizen, f.schlagworte || ''])),
     Ansprechpartner: tab(['Firma', 'Name', 'Zuständigkeit', 'Telefon', 'E-Mail', 'Notiz'], alle('ansprechpartner').sort(nach).map(k => [name(k.firmaId), k.name, k.thema, k.telefon, k.email, k.notiz])),
     Preise: tab(['Firma', 'Bezeichnung', 'Betrag (EUR)', 'Einheit', 'Gültig ab', 'Notiz'], alle('preise').sort(nach).map(p => [name(p.firmaId), p.bezeichnung, p.betragCent != null ? geldOhneSymbol(p.betragCent) : '', p.einheit, datumText(p.gueltigAb), p.notiz])),
     Aktivitaeten: tab(['Datum', 'Firma', 'Art', 'Ansprechpartner', 'Text'], alle('aktivitaeten').sort((a, b) => b.datum.localeCompare(a.datum)).map(a => [datumText(a.datum), name(a.firmaId), AKTIVITAET_ART[a.art] || '', a.kontakt, a.text])),
+    Verkaufschancen: tab(['Firma', 'Verkaufschance', 'Phase', 'Wert (EUR)', 'Entscheidung bis', 'Notiz'], alle('chancen').sort(nach).map(c => [name(c.firmaId), c.titel,
+      (CHANCEN_PHASE[c.phase] || CHANCEN_PHASE.ANFRAGE)[0], c.wertCent != null ? geldOhneSymbol(c.wertCent) : '', datumText(c.erwartetAm), c.notiz])),
     Wiedervorlagen: tab(['Fällig am', 'Firma', 'Aufgabe', 'Ansprechpartner', 'Erledigt'], alle('aufgaben').sort((a, b) => (a.erledigt - b.erledigt) || String(a.faelligAm || '9').localeCompare(String(b.faelligAm || '9')))
       .map(a => [datumText(a.faelligAm), name(a.firmaId), a.text, a.kontakt, a.erledigt ? 'ja' : 'nein'])),
   };
@@ -1416,17 +1549,32 @@ $('#liste').addEventListener('click', e => {
   const b = e.target.closest('[data-bereich]'), st = e.target.closest('[data-firmen-status]'), firma = e.target.closest('[data-firma]'), erl = e.target.closest('[data-erledigt]');
   if (b) { ANSICHT.bereich = b.dataset.bereich; try { localStorage.setItem('crm-bereich', ANSICHT.bereich); } catch {} zeichneListe(); return; }
   if (st) { ANSICHT.firmenStatus = st.dataset.firmenStatus; zeichneListe(); return; }
+  const sw = e.target.closest('[data-schlagwort]');
+  if (sw) { ANSICHT.schlagwort = (ANSICHT.schlagwort || '').toLowerCase() === sw.dataset.schlagwort.toLowerCase() ? '' : sw.dataset.schlagwort; zeichneListe(); return; }
+  const versch = e.target.closest('[data-verschieben]');
+  if (versch) { const a = S.aufgaben[versch.dataset.verschieben]; if (a) Aktionen.crmSpeichern('aufgaben', { ...a, faelligAm: plusTage(heute(), Number(versch.dataset.tage)) }); return; }
   if (erl) { const a = S.aufgaben[erl.dataset.erledigt]; if (a) Aktionen.crmSpeichern('aufgaben', { ...a, erledigt: erl.checked }); return; }
   if (e.target.closest('[data-neue-firma]')) { crmDialog('auftraggeber', null, null, id => gehe('#/firma/' + id)); return; }
   if (firma && formularSchliessen()) { formularStand = $('#fall-form') ? formularWerte() : ''; gehe('#/firma/' + firma.dataset.firma); }
 });
-$('#liste').addEventListener('input', e => { if (e.target.id === 'firmen-suche') { ANSICHT.firmenSuche = e.target.value; zeichneListe(); } });
+$('#liste').addEventListener('input', e => {
+  if (e.target.id === 'firmen-suche') { ANSICHT.firmenSuche = e.target.value; zeichneListe(); }
+  if (e.target.id === 'postfach-suche') { ANSICHT.postfachSuche = e.target.value; zeichneListe(); const f = $('#postfach-suche'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
+});
 $('#detail').addEventListener('click', e => {
   const r = route(); if (r.art !== 'firma') return;
   const firma = S.auftraggeber[r.id]; if (!firma) return;
   const neu = e.target.closest('[data-crm-neu]'), x = e.target.closest('[data-crm]'), erl = e.target.closest('[data-erledigt]'), oeffnen = e.target.closest('[data-oeffne]'), fall = e.target.closest('[data-fall]');
   if (e.target.closest('[data-firma-bearbeiten]')) { crmDialog('auftraggeber', firma, null); return; }
-  if (neu) { if (neu.dataset.crmNeu === 'faelle') { ANSICHT.firmaFuerNeuenFall = firma.id; gehe('#/neu'); } else crmDialog(neu.dataset.crmNeu, null, firma.id); return; }
+  if (e.target.closest('[data-preise-teilen]')) { teile('Preise ' + firma.name, preislisteText(firma)); return; }
+  if (neu) {
+    if (neu.dataset.crmNeu === 'faelle') { ANSICHT.firmaFuerNeuenFall = firma.id; gehe('#/neu'); }
+    else if (neu.dataset.crmNeu === 'belege') gehe('#/beleg/' + BelegAktionen.neu('RECHNUNG', firma.id));
+    else crmDialog(neu.dataset.crmNeu, null, firma.id);
+    return;
+  }
+  const beleg = e.target.closest('[data-beleg]');
+  if (beleg) { gehe('#/beleg/' + beleg.dataset.beleg); return; }
   if (erl) { const a = S.aufgaben[erl.dataset.erledigt]; if (a) Aktionen.crmSpeichern('aufgaben', { ...a, erledigt: erl.checked }); return; }
   if (oeffnen) {
     const ziel = oeffnen.dataset.oeffne;
@@ -1436,6 +1584,674 @@ $('#detail').addEventListener('click', e => {
   if (x) { crmDialog(x.dataset.crm, S[x.dataset.crm][x.dataset.crmId], firma.id); return; }
   if (fall) gehe('#/fall/' + fall.dataset.fall);
 });
+
+// ============================== Angebote, Rechnungen, Zahlstatus ==============================
+// Belege (Tabelle „belege“): art ANGEBOT oder RECHNUNG, Positionen als JSON-Text, Beträge in Cent.
+const BELEG_ART = { ANGEBOT: ['Angebot', 'A'], RECHNUNG: ['Rechnung', 'R'] };
+const BELEG_STATUS = {
+  ENTWURF: ['Entwurf', 'grau'], OFFEN: ['Offen', 'blau'], TEILBEZAHLT: ['Teilbezahlt', 'gelb'], BEZAHLT: ['Bezahlt', 'gruen'], STORNIERT: ['Storniert', 'grau'],
+  ANGENOMMEN: ['Angenommen', 'gruen'], ABGELEHNT: ['Abgelehnt', 'rot'],
+};
+const MAHNSTUFEN = ['Zahlungserinnerung', '1. Mahnung', '2. Mahnung', 'Letzte Mahnung'];
+const rechnungsDaten = () => Object.assign({ name: '', strasse: '', plzOrt: '', telefon: '', email: '', steuer: '', ustId: '', iban: '', bic: '', bank: '',
+  zahlungsziel: 14, mwst: 19, fuss: '', startRechnung: 1, startAngebot: 1 }, S.einstellungen.rechnung || {});
+
+const positionen = b => { try { const p = JSON.parse(b.positionen || '[]'); return Array.isArray(p) ? p : []; } catch { return []; } };
+function belegSummen(b) {
+  const netto = positionen(b).reduce((n, p) => n + Math.round((Number(p.menge) || 0) * (Number(p.einzelCent) || 0)), 0);
+  const mwst = Math.round(netto * (Number(b.mwstProzent ?? 19) || 0) / 100);
+  return { netto, mwst, brutto: netto + mwst };
+}
+const offenCent = b => Math.max(0, belegSummen(b).brutto - (b.bezahltCent || 0));
+const istRechnungOffen = b => b.art === 'RECHNUNG' && ['OFFEN', 'TEILBEZAHLT'].includes(b.status);
+const istUeberfaellig = b => istRechnungOffen(b) && b.faelligAm && b.faelligAm < heute();
+function belegMarke(b) {
+  if (istUeberfaellig(b)) return ['Überfällig' + (b.mahnstufe ? ' · ' + MAHNSTUFEN[Math.min(b.mahnstufe, 4) - 1] : ''), 'rot'];
+  return BELEG_STATUS[b.status] || BELEG_STATUS.OFFEN;
+}
+/**
+ * Nächste freie Nummer, z. B. R2026-0007 (Rechnung) oder A2026-0003 (Angebot). Die Startnummer aus den
+ * Einstellungen gilt als Untergrenze – so lässt sich an einen bisherigen Nummernkreis anschließen.
+ */
+function naechsteBelegNummer(art, jahr = new Date().getFullYear()) {
+  const praefix = `${BELEG_ART[art][1]}${jahr}-`;
+  const start = Math.max(1, Math.floor(Number(rechnungsDaten()[art === 'RECHNUNG' ? 'startRechnung' : 'startAngebot']) || 1));
+  const hoechste = alle('belege').filter(b => b.art === art && String(b.nummer || '').startsWith(praefix))
+    .reduce((n, b) => Math.max(n, Number(String(b.nummer).slice(praefix.length)) || 0), start - 1);
+  return praefix + String(hoechste + 1).padStart(4, '0');
+}
+const zahlungsziel = firma => Number((firma && firma.zahlungszielTage) || rechnungsDaten().zahlungsziel) || 14;
+function rechnungsAdresse(firmaId) {
+  const l = vonFirma('adressen', firmaId);
+  return l.find(a => a.art === 'RECHNUNG') || l.find(a => a.art === 'HAUPTSITZ') || l[0] || null;
+}
+
+const BelegAktionen = {
+  neu(art, firmaId, extra = {}) {
+    const firma = S.auftraggeber[firmaId], rd = rechnungsDaten();
+    const b = merke('belege', { id: uuid(), firmaId, art, nummer: naechsteBelegNummer(art), datum: heute(),
+      faelligAm: art === 'RECHNUNG' ? plusTage(heute(), zahlungsziel(firma)) : plusTage(heute(), 30), status: 'ENTWURF', positionen: '[]',
+      mwstProzent: Number(rd.mwst) || 19, bezahltCent: 0, bezahltAm: null, mahnstufe: 0, bezug: '', notiz: '', fallId: '',
+      einleitung: art === 'RECHNUNG' ? 'für unsere Leistungen erlauben wir uns, wie folgt zu berechnen:' : 'vielen Dank für Ihre Anfrage. Gern bieten wir Ihnen an:',
+      schluss: art === 'RECHNUNG' ? `Bitte überweisen Sie den Betrag bis zum {FAELLIG} ohne Abzug.` : 'Das Angebot gilt 30 Tage. Wir freuen uns auf Ihren Auftrag.',
+      geaendertAm: jetztIso(), ...extra });
+    nachAenderung(); return b.id;
+  },
+  speichern(b) { merke('belege', { ...b, geaendertAm: jetztIso() }); nachAenderung(); },
+  zahlung(b, cent, am) {
+    const bezahlt = (b.bezahltCent || 0) + cent, voll = bezahlt >= belegSummen(b).brutto;
+    this.speichern({ ...b, bezahltCent: bezahlt, bezahltAm: am, status: voll ? 'BEZAHLT' : 'TEILBEZAHLT' });
+    Aktionen.crmSpeichern('aktivitaeten', { firmaId: b.firmaId, datum: am, art: 'SONSTIGES', kontakt: '', text: `Zahlung ${geld(cent)} zu ${b.nummer} erhalten${voll ? ' – vollständig bezahlt' : ''}` });
+  },
+  zuRechnung(angebot) {
+    const id = this.neu('RECHNUNG', angebot.firmaId, { positionen: angebot.positionen, mwstProzent: angebot.mwstProzent, bezug: angebot.id, fallId: angebot.fallId || '' });
+    this.speichern({ ...angebot, status: 'ANGENOMMEN' });
+    return id;
+  },
+  loeschen(b) { entferne('belege', b, { firmaId: b.firmaId, geaendertAm: jetztIso() }); nachAenderung(); },
+  /** Alle Angebote und Rechnungen samt der erfassten Zahlungen entfernen (z. B. nach Tests). @return Anzahl */
+  alleLoeschen() {
+    const belege = alle('belege'), nummern = new Set(belege.map(b => b.nummer));
+    for (const b of belege) entferne('belege', b, { firmaId: b.firmaId, geaendertAm: jetztIso() });
+    for (const a of alle('aktivitaeten').filter(a => /^Zahlung .* zu (\S+) erhalten/.test(a.text || '') && nummern.has(a.text.match(/ zu (\S+) erhalten/)[1]))) {
+      entferne('aktivitaeten', a, { firmaId: a.firmaId, geaendertAm: jetztIso() });
+    }
+    nachAenderung();
+    return belege.length;
+  },
+};
+
+/** A4-Seite für Druck und PDF (DIN-5008-ähnlich). */
+function belegHtml(b) {
+  const rd = rechnungsDaten(), firma = S.auftraggeber[b.firmaId] || { name: '' }, adr = rechnungsAdresse(b.firmaId), s = belegSummen(b);
+  const k = kontakteVon(b.firmaId).find(x => /abrechn|buchhalt|rechnung/i.test(x.thema || ''));
+  const ersetze = t => esc(String(t || '').replace('{FAELLIG}', datumText(b.faelligAm))).replace(/\n/g, '<br>');
+  const zeilen = positionen(b).map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.bez)}${p.einheit ? `<br><small>${esc(p.einheit)}</small>` : ''}</td>
+    <td class="r">${String(p.menge).replace('.', ',')}</td><td class="r">${geld(Number(p.einzelCent) || 0)}</td><td class="r">${geld(Math.round((Number(p.menge) || 0) * (Number(p.einzelCent) || 0)))}</td></tr>`).join('');
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</title><style>
+    @page{size:A4;margin:0}body{font:10.5pt/1.45 Arial,Helvetica,sans-serif;color:#111;margin:0}.seite{padding:20mm 20mm 30mm 25mm;position:relative;min-height:247mm}
+    .absender{font-size:7.5pt;border-bottom:1px solid #999;display:inline-block;margin-top:27mm}.empf{margin-top:3mm;height:30mm}
+    .info{position:absolute;top:50mm;right:20mm;font-size:9.5pt}.info td{padding:0 0 0 8px}h1{font-size:14pt;margin:18mm 0 6mm}
+    table.pos{width:100%;border-collapse:collapse;margin:6mm 0}table.pos th{text-align:left;border-bottom:1.5px solid #111;padding:4px}table.pos td{border-bottom:1px solid #ddd;padding:4px;vertical-align:top}
+    .r{text-align:right}.summe td{padding:2px 4px}.summe .b{font-weight:bold;border-top:1.5px solid #111}
+    .fuss{position:absolute;bottom:10mm;left:25mm;right:20mm;font-size:7.5pt;color:#444;border-top:1px solid #999;padding-top:2mm;display:flex;gap:10mm}
+    .kopf{position:absolute;top:12mm;right:20mm;text-align:right;font-weight:bold;font-size:13pt}</style></head><body><div class="seite">
+    <div class="kopf">${esc(rd.name || S.einstellungen.firma || '')}</div>
+    <div class="absender">${esc([rd.name || S.einstellungen.firma, rd.strasse, rd.plzOrt].filter(Boolean).join(' · '))}</div>
+    <div class="empf">${esc(firmaName(firma))}<br>${k ? 'z. Hd. ' + esc(k.name) + '<br>' : ''}${adr ? esc(adr.strasse) + '<br>' + esc([adr.plz, adr.ort].filter(Boolean).join(' ')) : ''}</div>
+    <table class="info"><tr><td>${esc(BELEG_ART[b.art][0])}-Nr.:</td><td>${esc(b.nummer)}</td></tr><tr><td>Datum:</td><td>${datumText(b.datum)}</td></tr>
+      ${firma.kundennummer ? `<tr><td>Kunden-Nr.:</td><td>${esc(firma.kundennummer)}</td></tr>` : ''}${firma.ustId ? `<tr><td>Ihre USt-IdNr.:</td><td>${esc(firma.ustId)}</td></tr>` : ''}
+      ${b.art === 'RECHNUNG' ? `<tr><td>Fällig am:</td><td>${datumText(b.faelligAm)}</td></tr>` : `<tr><td>Gültig bis:</td><td>${datumText(b.faelligAm)}</td></tr>`}</table>
+    <h1>${b.status === 'STORNIERT' ? 'Storno – ' : ''}${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</h1>
+    <p>${k ? `Guten Tag ${esc(k.name)},` : 'Sehr geehrte Damen und Herren,'}</p><p>${ersetze(b.einleitung)}</p>
+    <table class="pos"><tr><th>Pos.</th><th>Leistung</th><th class="r">Menge</th><th class="r">Einzelpreis</th><th class="r">Gesamt</th></tr>${zeilen}</table>
+    <table class="summe" style="margin-left:auto"><tr><td>Summe netto</td><td class="r">${geld(s.netto)}</td></tr><tr><td>zzgl. ${b.mwstProzent ?? 19} % MwSt.</td><td class="r">${geld(s.mwst)}</td></tr>
+      <tr class="b"><td class="b">Gesamtbetrag</td><td class="r b">${geld(s.brutto)}</td></tr>${b.bezahltCent ? `<tr><td>bereits bezahlt</td><td class="r">${geld(b.bezahltCent)}</td></tr><tr class="b"><td class="b">offen</td><td class="r b">${geld(offenCent(b))}</td></tr>` : ''}</table>
+    <p>${ersetze(b.schluss)}</p><p>Mit freundlichen Grüßen<br>${esc(S.einstellungen.bearbeiter || '')}${S.einstellungen.bearbeiter ? '<br>' : ''}${esc(rd.name || S.einstellungen.firma || '')}</p>
+    <div class="fuss"><div>${esc(rd.name || '')}<br>${esc(rd.strasse)}<br>${esc(rd.plzOrt)}</div><div>${rd.telefon ? 'Tel. ' + esc(rd.telefon) + '<br>' : ''}${esc(rd.email)}</div>
+      <div>${rd.steuer ? 'St.-Nr. ' + esc(rd.steuer) + '<br>' : ''}${rd.ustId ? 'USt-IdNr. ' + esc(rd.ustId) : ''}</div><div>${esc(rd.bank)}<br>${rd.iban ? 'IBAN ' + esc(rd.iban) : ''}<br>${rd.bic ? 'BIC ' + esc(rd.bic) : ''}</div>
+      ${rd.fuss ? `<div>${esc(rd.fuss)}</div>` : ''}</div></div></body></html>`;
+}
+const belegDateiname = b => `${BELEG_ART[b.art][0]}_${b.nummer}_${(S.auftraggeber[b.firmaId] || {}).name || ''}.pdf`.replace(/\s+/g, '_');
+async function belegPdf(b) {
+  if (!window.desktop || !window.desktop.pdf) throw new Error('PDF gibt es in der Windows-App. Im Browser bitte „Drucken“ → „Als PDF speichern“ nutzen.');
+  return window.desktop.pdf(belegHtml(b));
+}
+/** Druckt HTML über einen unsichtbaren Rahmen – kein neues Fenster, das ein Popup-Blocker (oder die Windows-App) sperren könnte. */
+function druckeHtml(html) {
+  const alt = $('#druckrahmen'); if (alt) alt.remove();
+  const r = document.createElement('iframe');
+  r.id = 'druckrahmen'; r.setAttribute('aria-hidden', 'true');
+  r.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+  r.onload = () => setTimeout(() => { try { r.contentWindow.focus(); r.contentWindow.print(); } catch { toast('Drucken ist hier nicht möglich – bitte „PDF“ verwenden.'); } }, 200);
+  r.srcdoc = html;
+  document.body.appendChild(r);
+}
+function belegDrucken(b) { druckeHtml(belegHtml(b)); }
+
+// ---------- Übersicht und Finanzen (Liste) ----------
+function finanzKennzahlen() {
+  const b = alle('belege'), rechnungen = b.filter(x => x.art === 'RECHNUNG' && x.status !== 'STORNIERT' && x.status !== 'ENTWURF');
+  const monat = heute().slice(0, 7), jahr = heute().slice(0, 4);
+  const umsatz = l => l.reduce((n, x) => n + belegSummen(x).netto, 0);
+  const proFirma = {};
+  for (const r of rechnungen.filter(x => String(x.datum).startsWith(jahr))) proFirma[r.firmaId] = (proFirma[r.firmaId] || 0) + belegSummen(r).netto;
+  return {
+    offen: rechnungen.filter(istRechnungOffen).reduce((n, x) => n + offenCent(x), 0),
+    offenAnzahl: rechnungen.filter(istRechnungOffen).length,
+    ueberfaellig: rechnungen.filter(istUeberfaellig).reduce((n, x) => n + offenCent(x), 0),
+    ueberfaelligAnzahl: rechnungen.filter(istUeberfaellig).length,
+    monat: umsatz(rechnungen.filter(x => String(x.datum).startsWith(monat))),
+    jahr: umsatz(rechnungen.filter(x => String(x.datum).startsWith(jahr))),
+    angebote: b.filter(x => x.art === 'ANGEBOT' && x.status === 'OFFEN').reduce((n, x) => n + belegSummen(x).netto, 0),
+    topFirmen: Object.entries(proFirma).sort((x, y) => y[1] - x[1]).slice(0, 5),
+  };
+}
+const BELEG_FILTER = { OFFEN: 'Offen', UEBERFAELLIG: 'Überfällig', BEZAHLT: 'Bezahlt', ANGEBOTE: 'Angebote', ENTWURF: 'Entwürfe', ALLE: 'Alle' };
+function belegKarte(b, r) {
+  const m = belegMarke(b), s = belegSummen(b);
+  return `<button class="karte klickbar ${r && r.art === 'beleg' && r.id === b.id ? 'gewaehlt' : ''}" data-beleg="${b.id}">
+    <div class="zeile eng"><span class="titel fuell">${esc(b.nummer)} · ${esc((S.auftraggeber[b.firmaId] || {}).name || '')}</span><span class="marke ${m[1]}">${esc(m[0])}</span></div>
+    <div class="zeile eng"><span class="leise fuell">${esc(BELEG_ART[b.art][0])} vom ${datumText(b.datum)}${istRechnungOffen(b) ? ' · fällig ' + datumText(b.faelligAm) : ''}</span>
+      <b>${geld(s.brutto)}</b></div>${istRechnungOffen(b) && b.bezahltCent ? `<div class="leise">offen ${geld(offenCent(b))}</div>` : ''}</button>`;
+}
+function zeichneFinanzen(r) {
+  const k = finanzKennzahlen(), f = ANSICHT.belegFilter || 'OFFEN', such = String(ANSICHT.belegSuche || '').trim().toLowerCase();
+  const liste = alle('belege').filter(b => {
+    if (such) return [b.nummer, (S.auftraggeber[b.firmaId] || {}).name, b.notiz, positionen(b).map(p => p.bez).join(' ')].join(' ').toLowerCase().includes(such);
+    return f === 'ALLE' ? true : f === 'ANGEBOTE' ? b.art === 'ANGEBOT' : f === 'ENTWURF' ? b.status === 'ENTWURF'
+      : f === 'BEZAHLT' ? b.status === 'BEZAHLT' : f === 'UEBERFAELLIG' ? istUeberfaellig(b) : istRechnungOffen(b);
+  }).sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || String(b.nummer).localeCompare(String(a.nummer)));
+  return `<div class="kennzahlen" style="grid-template-columns:1fr 1fr">
+      <button class="kennzahl" data-beleg-filter="OFFEN"><b>${geld(k.offen)}</b><span>Offen (${k.offenAnzahl} Rechnungen)</span></button>
+      <button class="kennzahl ${k.ueberfaelligAnzahl ? 'rot' : ''}" data-beleg-filter="UEBERFAELLIG"><b>${geld(k.ueberfaellig)}</b><span>Überfällig (${k.ueberfaelligAnzahl})</span></button>
+      <div class="kennzahl"><b>${geld(k.monat)}</b><span>Umsatz diesen Monat (netto)</span></div><div class="kennzahl"><b>${geld(k.jahr)}</b><span>Umsatz ${heute().slice(0, 4)} (netto)</span></div></div>
+    ${k.topFirmen.length ? `<div class="karte block"><h3>Umsatz je Firma ${heute().slice(0, 4)}</h3><dl>${k.topFirmen.map(([id, c]) => `<dt>${esc((S.auftraggeber[id] || {}).name || '–')}</dt><dd>${geld(c)}</dd>`).join('')}</dl></div>` : ''}
+    <div class="zeile" style="margin-bottom:8px"><button class="knopf voll" data-neuer-beleg="RECHNUNG">＋ Rechnung</button><button class="knopf" data-neuer-beleg="ANGEBOT">＋ Angebot</button>
+      <button class="knopf" data-belege-csv>CSV</button></div>
+    <input class="suche" id="beleg-suche" type="search" placeholder="Nummer, Firma, Leistung …" value="${esc(ANSICHT.belegSuche || '')}">
+    <div class="chips">${Object.entries(BELEG_FILTER).map(([x, l]) => `<button class="chip" data-beleg-filter="${x}" aria-pressed="${f === x && !such}">${l}</button>`).join('')}</div>
+    <div id="belege">${liste.map(b => belegKarte(b, r)).join('') || '<div class="leer"><b>Keine Belege in dieser Ansicht</b>Rechnungen und Angebote lassen sich hier oder in der Firma anlegen.</div>'}</div>`;
+}
+function zeichneUebersicht() {
+  const k = finanzKennzahlen(), w = wiedervorlagen(), kz = kennzahlen(faelle());
+  const chancen = alle('chancen').filter(c => (CHANCEN_PHASE[c.phase] || CHANCEN_PHASE.ANFRAGE)[1]);
+  const pause = auftraggeberListe().filter(langeKeinKontakt);
+  const kachel = (wert, label, ziel, rot) => `<button class="kennzahl ${rot ? 'rot' : ''}" data-gehe-bereich="${ziel}"><b>${wert}</b><span>${label}</span></button>`;
+  return `<div class="kennzahlen" style="grid-template-columns:1fr 1fr">
+    ${kachel(w.ueberfaellig.length + w.heute.length, 'Termine heute / überfällig', 'termine', w.ueberfaellig.length)}
+    ${kachel(Object.values(mails()).filter(m => !istZugeordnet(m)).length, 'Mails nicht zugeordnet', MAIL.konto ? 'postfach' : 'uebersicht')}
+    ${kachel(geld(k.offen), `Offene Rechnungen (${k.offenAnzahl})`, 'finanzen')}
+    ${kachel(geld(k.ueberfaellig), `Überfällig (${k.ueberfaelligAnzahl})`, 'finanzen', k.ueberfaelligAnzahl)}
+    ${kachel(geld(k.monat), 'Umsatz diesen Monat', 'finanzen')}
+    ${kachel(geld(k.jahr), 'Umsatz dieses Jahr', 'finanzen')}
+    ${kachel(`${chancen.length} · ${geld(chancen.reduce((n, c) => n + (c.wertCent || 0), 0))}`, 'Offene Verkaufschancen', 'firmen')}
+    ${kachel(geld(k.angebote), 'Offene Angebote (netto)', 'finanzen')}
+    ${kachel(kz.offen, 'Offene Schadensfälle', 'faelle', kz.faellig)}
+    ${kachel(pause.length, 'Firmen lange ohne Kontakt', 'firmen')}
+    ${kachel(fahrzeugTermine().length, `Fahrzeug-Fristen (${FRIST_VORLAUF} Tage)`, 'fuhrpark', fahrzeugTermine().some(x => x.datum < heute()))}</div>
+    ${w.ueberfaellig.length + w.heute.length ? `<h3 class="abschnitt">Heute zu tun</h3>${[...w.ueberfaellig, ...w.heute].slice(0, 8).map(x =>
+      `<button class="vorlage" ${x.a ? `data-firma="${x.a.firmaId}"` : x.z ? `data-fahrzeug="${x.z.id}"` : `data-fall="${x.f.id}"`}><b>${esc(x.titel)}</b><br><span class="leise">${esc([datumText(x.datum), x.zusatz].filter(Boolean).join(' · '))}</span></button>`).join('')}` : ''}
+    ${k.ueberfaelligAnzahl ? `<h3 class="abschnitt">Überfällige Rechnungen</h3>${alle('belege').filter(istUeberfaellig).map(b => belegKarte(b)).join('')}` : ''}`;
+}
+
+// ---------- Beleg bearbeiten (Detail) ----------
+function zeichneBeleg(id) {
+  const b = S.belege[id], el = $('#detail');
+  if (!b || b.geloescht) { gehe('#/'); return; }
+  const firma = S.auftraggeber[b.firmaId] || { name: '(Firma gelöscht)' }, s = belegSummen(b), m = belegMarke(b), pos = positionen(b);
+  const preise = vonFirma('preise', b.firmaId);
+  const rechnung = b.art === 'RECHNUNG', gesperrt = ['BEZAHLT', 'STORNIERT'].includes(b.status);
+  el.dataset.id = 'beleg' + id;
+  el.innerHTML = `<div class="karte"><div class="zeile eng"><h2 class="gross fuell">${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</h2><span class="marke ${m[1]}">${esc(m[0])}</span></div>
+      <p class="leise"><a href="#/firma/${b.firmaId}">${esc(firmaName(firma))}</a>${b.bezug && S.belege[b.bezug] ? ` · aus <a href="#/beleg/${b.bezug}">${esc(S.belege[b.bezug].nummer)}</a>` : ''}</p>
+      <div class="zeile" style="margin-top:8px">
+        <button class="knopf voll" data-beleg-akt="pdf">PDF speichern</button><button class="knopf" data-beleg-akt="drucken">Drucken</button>
+        ${MAIL.konto ? '<button class="knopf" data-beleg-akt="mail">Per E-Mail senden</button>' : ''}
+        ${rechnung && istRechnungOffen(b) ? '<button class="knopf" data-beleg-akt="zahlung">Zahlung erfassen</button>' : ''}
+        ${rechnung && istUeberfaellig(b) && MAIL.konto ? `<button class="knopf" data-beleg-akt="mahnung">${esc(MAHNSTUFEN[Math.min(b.mahnstufe || 0, 3)])} senden</button>` : ''}
+        ${!rechnung && !['ANGENOMMEN', 'ABGELEHNT'].includes(b.status) ? '<button class="knopf" data-beleg-akt="zurechnung">In Rechnung umwandeln</button><button class="knopf" data-beleg-akt="abgelehnt">Abgelehnt</button>' : ''}
+        ${b.status === 'ENTWURF' ? '<button class="knopf" data-beleg-akt="festschreiben">Als versendet markieren</button>' : ''}
+        ${rechnung && b.status !== 'STORNIERT' ? '<button class="knopf text gefahr" data-beleg-akt="storno">Stornieren</button>' : ''}
+        ${b.status === 'ENTWURF' ? '<button class="knopf text gefahr" data-beleg-akt="loeschen">Löschen</button>' : ''}</div></div>
+    <form id="beleg-form" class="karte block">
+      <div class="zeile"><label class="feld fuell">Datum<input type="date" name="datum" value="${esc(b.datum || '')}" ${gesperrt ? 'disabled' : ''}></label>
+        <label class="feld fuell">${rechnung ? 'Fällig am' : 'Gültig bis'}<input type="date" name="faelligAm" value="${esc(b.faelligAm || '')}" ${gesperrt ? 'disabled' : ''}></label>
+        <label class="feld" style="width:90px">MwSt. %<input name="mwstProzent" inputmode="numeric" value="${esc(b.mwstProzent ?? 19)}" ${gesperrt ? 'disabled' : ''}></label></div>
+      <label class="feld">Einleitung<textarea name="einleitung" ${gesperrt ? 'disabled' : ''}>${esc(b.einleitung || '')}</textarea></label>
+      <h3>Positionen</h3>
+      <table class="positionen"><tr><th>Leistung</th><th>Einheit</th><th>Menge</th><th>Einzelpreis €</th><th></th></tr>
+        ${pos.map((p, i) => `<tr data-pos="${i}"><td><input name="bez" value="${esc(p.bez)}" ${gesperrt ? 'disabled' : ''}></td><td><input name="einheit" value="${esc(p.einheit || '')}" ${gesperrt ? 'disabled' : ''}></td>
+          <td><input name="menge" inputmode="decimal" value="${esc(String(p.menge).replace('.', ','))}" ${gesperrt ? 'disabled' : ''}></td>
+          <td><input name="einzel" inputmode="decimal" value="${esc(geldOhneSymbol(Number(p.einzelCent) || 0))}" ${gesperrt ? 'disabled' : ''}></td>
+          <td>${gesperrt ? '' : `<button type="button" class="symbol" data-pos-weg="${i}" aria-label="Position entfernen">✕</button>`}</td></tr>`).join('')}</table>
+      ${gesperrt ? '' : `<div class="zeile"><button type="button" class="knopf" data-pos-neu>＋ Position</button>
+        ${preise.length ? `<select id="aus-preisliste"><option value="">＋ aus Preisliste …</option>${preise.map(p => `<option value="${p.id}">${esc(p.bezeichnung)} (${p.betragCent != null ? geld(p.betragCent) : '–'})</option>`).join('')}</select>` : ''}</div>`}
+      <dl style="margin-top:10px"><dt>Summe netto</dt><dd>${geld(s.netto)}</dd><dt>MwSt.</dt><dd>${geld(s.mwst)}</dd><dt><b>Gesamt</b></dt><dd><b>${geld(s.brutto)}</b></dd>
+        ${b.bezahltCent ? `<dt>Bezahlt${b.bezahltAm ? ' am ' + datumText(b.bezahltAm) : ''}</dt><dd>${geld(b.bezahltCent)}</dd><dt>Offen</dt><dd>${geld(offenCent(b))}</dd>` : ''}</dl>
+      <label class="feld">Schlusstext (${'{FAELLIG}'} = Fälligkeitsdatum)<textarea name="schluss" ${gesperrt ? 'disabled' : ''}>${esc(b.schluss || '')}</textarea></label>
+      <label class="feld">Interne Notiz<input name="notiz" value="${esc(b.notiz || '')}"></label>
+      ${gesperrt ? '' : '<div class="zeile"><button class="knopf voll" id="beleg-speichern">Speichern</button></div>'}</form>`;
+}
+/** Liest das Formular in den Beleg zurück. */
+function belegAusFormular(b) {
+  const form = $('#beleg-form'); if (!form) return b;
+  const w = Object.fromEntries(new FormData(form));
+  const pos = [...form.querySelectorAll('[data-pos]')].map(z => {
+    const v = n => z.querySelector(`[name=${n}]`).value;
+    return { bez: v('bez').trim(), einheit: v('einheit').trim(), menge: Number(String(v('menge')).replace(',', '.')) || 0, einzelCent: geldLesen(v('einzel')) ?? 0 };
+  });
+  return { ...b, datum: w.datum || b.datum, faelligAm: w.faelligAm || b.faelligAm, mwstProzent: Number(w.mwstProzent) || 0, einleitung: w.einleitung ?? b.einleitung,
+    schluss: w.schluss ?? b.schluss, notiz: w.notiz ?? b.notiz, positionen: JSON.stringify(pos) };
+}
+
+async function belegMail(b, art = 'beleg') {
+  if (!MAIL.konto) { toast('Kein E-Mail-Konto eingerichtet'); return; }
+  try {
+    const pdf = await belegPdf(b), firma = S.auftraggeber[b.firmaId] || {};
+    const k = kontakteVon(b.firmaId).find(x => /abrechn|buchhalt|rechnung/i.test(x.thema || '') && x.email);
+    const s = belegSummen(b);
+    const texte = art === 'mahnung'
+      ? [`${MAHNSTUFEN[Math.min(b.mahnstufe || 0, 3)]}: ${BELEG_ART[b.art][0]} ${b.nummer}`, `unsere Rechnung ${b.nummer} vom ${datumText(b.datum)} über ${geld(s.brutto)} war am ${datumText(b.faelligAm)} fällig. Offen sind noch ${geld(offenCent(b))}.\n\nSicher ist die Zahlung nur übersehen worden. Bitte überweisen Sie den offenen Betrag innerhalb von 7 Tagen. Sollte sich die Zahlung mit diesem Schreiben überschnitten haben, betrachten Sie es bitte als gegenstandslos.\n\nDie Rechnung finden Sie noch einmal im Anhang.`]
+      : [`${BELEG_ART[b.art][0]} ${b.nummer}`, `anbei erhalten Sie unser${b.art === 'RECHNUNG' ? 'e Rechnung' : ' Angebot'} ${b.nummer} über ${geld(s.brutto)}${b.art === 'RECHNUNG' ? `, zahlbar bis ${datumText(b.faelligAm)}` : ''}.`];
+    mailAnFirma({ firmaId: b.firmaId, an: (k && k.email) || firma.email || '', betreff: texte[0], inhalt: texte[1],
+      anhaenge: [{ name: belegDateiname(b), mimeType: 'application/pdf', base64: pdf }],
+      nachSenden: () => {
+        const neu = { ...S.belege[b.id] };
+        if (art === 'mahnung') neu.mahnstufe = (neu.mahnstufe || 0) + 1; else if (neu.status === 'ENTWURF') neu.status = 'OFFEN';
+        BelegAktionen.speichern(neu);
+      } });
+  } catch (e) { toast(e.message, 6000); }
+}
+
+function belegNeuDialog(art) {
+  const liste = auftraggeberListe();
+  if (!liste.length) { toast('Bitte zuerst eine Firma anlegen.'); return; }
+  dialog(`<form method="dialog" id="beleg-neu"><h2>Neue${art === 'RECHNUNG' ? ' Rechnung' : 's Angebot'}</h2>
+    <label class="feld">Firma<select name="firma">${liste.map(e => `<option value="${e.id}">${esc(firmaName(e))}</option>`).join('')}</select></label>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Anlegen</button></div></form>`);
+  $('#beleg-neu').onsubmit = ev => { ev.preventDefault(); const id = BelegAktionen.neu(art, new FormData(ev.target).get('firma')); $('#dialog').close(); gehe('#/beleg/' + id); };
+}
+function zahlungDialog(b) {
+  dialog(`<form method="dialog" id="zahlung-form"><h2>Zahlung zu ${esc(b.nummer)}</h2><p class="leise">Offen: ${geld(offenCent(b))}</p>
+    <label class="feld">Betrag (€)<input name="betrag" inputmode="decimal" value="${esc(geldOhneSymbol(offenCent(b)))}"><span class="fehlertext" id="zahlung-fehler" hidden>Bitte einen Betrag wie 89,50 eingeben.</span></label>
+    <label class="feld">Eingegangen am<input type="date" name="am" value="${heute()}"></label>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Erfassen</button></div></form>`);
+  $('#zahlung-form').onsubmit = ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries(new FormData(ev.target)), c = geldLesen(w.betrag);
+    if (!c) { $('#zahlung-fehler').hidden = false; return; }
+    $('#dialog').close(); BelegAktionen.zahlung(b, c, w.am || heute()); toast('Zahlung erfasst');
+  };
+}
+
+$('#detail').addEventListener('click', async e => {
+  const r = route(); if (r.art !== 'beleg') return;
+  const b = S.belege[r.id]; if (!b) return;
+  const akt = e.target.closest('[data-beleg-akt]'), weg = e.target.closest('[data-pos-weg]');
+  if (e.target.closest('[data-pos-neu]')) { const n = belegAusFormular(b); const p = positionen(n); p.push({ bez: '', einheit: '', menge: 1, einzelCent: 0 }); BelegAktionen.speichern({ ...n, positionen: JSON.stringify(p) }); return; }
+  if (weg) { const n = belegAusFormular(b); const p = positionen(n); p.splice(Number(weg.dataset.posWeg), 1); BelegAktionen.speichern({ ...n, positionen: JSON.stringify(p) }); return; }
+  if (!akt) return;
+  const aktuell = ['BEZAHLT', 'STORNIERT'].includes(b.status) ? b : belegAusFormular(b);
+  if (aktuell !== b) BelegAktionen.speichern(aktuell);
+  switch (akt.dataset.belegAkt) {
+    case 'pdf': try { const pfad = await window.desktop.speichere(belegDateiname(aktuell), await belegPdf(aktuell)); if (pfad) toast('Gespeichert: ' + pfad); }
+      catch (fehler) { if (!window.desktop) belegDrucken(aktuell); else toast(fehler.message); } break;
+    case 'drucken': belegDrucken(aktuell); break;
+    case 'mail': belegMail(aktuell); break;
+    case 'mahnung': belegMail(aktuell, 'mahnung'); break;
+    case 'zahlung': zahlungDialog(aktuell); break;
+    case 'zurechnung': gehe('#/beleg/' + BelegAktionen.zuRechnung(aktuell)); break;
+    case 'abgelehnt': BelegAktionen.speichern({ ...aktuell, status: 'ABGELEHNT' }); break;
+    case 'festschreiben': BelegAktionen.speichern({ ...aktuell, status: 'OFFEN' }); break;
+    case 'storno': bestaetige(`${aktuell.nummer} stornieren?`, 'Die Rechnung bleibt erhalten, zählt aber nicht mehr zum Umsatz und zu den offenen Posten.', 'Stornieren', () => BelegAktionen.speichern({ ...aktuell, status: 'STORNIERT' })); break;
+    case 'loeschen': bestaetige(`${aktuell.nummer} löschen?`, 'Der Entwurf wird gelöscht.', 'Löschen', () => { BelegAktionen.loeschen(aktuell); gehe('#/firma/' + aktuell.firmaId); }); break;
+  }
+});
+$('#detail').addEventListener('change', e => {
+  if (route().art !== 'beleg' || e.target.id !== 'aus-preisliste' || !e.target.value) return;
+  const b = belegAusFormular(S.belege[route().id]), p = S.preise[e.target.value];
+  const liste = positionen(b); liste.push({ bez: p.bezeichnung, einheit: p.einheit || '', menge: 1, einzelCent: p.betragCent || 0 });
+  BelegAktionen.speichern({ ...b, positionen: JSON.stringify(liste) });
+});
+$('#detail').addEventListener('submit', e => {
+  if (e.target.id !== 'beleg-form') return;
+  e.preventDefault(); BelegAktionen.speichern(belegAusFormular(S.belege[route().id])); toast('Gespeichert');
+});
+$('#liste').addEventListener('click', e => {
+  const bf = e.target.closest('[data-beleg-filter]'), b = e.target.closest('[data-beleg]'), neu = e.target.closest('[data-neuer-beleg]'), gb = e.target.closest('[data-gehe-bereich]');
+  if (bf) { ANSICHT.belegFilter = bf.dataset.belegFilter; ANSICHT.belegSuche = ''; zeichneListe(); return; }
+  if (neu) { belegNeuDialog(neu.dataset.neuerBeleg); return; }
+  if (gb) { ANSICHT.bereich = gb.dataset.geheBereich; zeichneListe(); return; }
+  if (e.target.closest('[data-belege-csv]')) { ladeHerunter(`Belege_${heute()}.csv`, belegeCsv()); return; }
+  if (e.target.closest('[data-ics]')) { ladeHerunter(`Termine_${heute()}.ics`, termineIcs(), 'text/calendar'); return; }
+  if (b && formularSchliessen()) gehe('#/beleg/' + b.dataset.beleg);
+});
+$('#liste').addEventListener('input', e => {
+  if (e.target.id === 'beleg-suche') { ANSICHT.belegSuche = e.target.value; zeichneListe(); const f = $('#beleg-suche'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
+});
+
+// ============================== Fuhrpark ==============================
+const FAHRZEUG_ART = { TRANSPORTER: 'Transporter', LKW: 'LKW', PKW: 'PKW', ANHAENGER: 'Anhänger', SONSTIGES: 'Sonstiges' };
+const FAHRZEUG_STATUS = { AKTIV: ['Im Einsatz', 'gruen'], WERKSTATT: ['In der Werkstatt', 'gelb'], RESERVE: ['Reserve', 'grau'], STILLGELEGT: ['Abgemeldet / verkauft', 'grau'] };
+const FRISTEN = [['huBis', 'HU (TÜV)'], ['spBis', 'SP (Sicherheitsprüfung)'], ['uvvBis', 'UVV-Prüfung'], ['tachoBis', 'Tachograph-Prüfung'], ['ladeBis', 'Ladebordwand-Prüfung'],
+  ['wartungBis', 'Wartung / Inspektion'], ['versicherungBis', 'Versicherung läuft ab'], ['leasingBis', 'Leasing / Finanzierung endet']];
+const FAHRZEUG_EINTRAG = { WARTUNG: ['Wartung / Inspektion', '🔧'], REPARATUR: ['Reparatur', '🛠'], REIFEN: ['Reifen', '⭕'], TANKEN: ['Tanken', '⛽'], PRUEFUNG: ['Prüfung (HU, SP, UVV …)', '✅'],
+  SCHADEN: ['Schaden', '⚠'], KM: ['Kilometerstand', '📍'], FAHRER: ['Fahrerwechsel / Übergabe', '👤'], KOSTEN: ['Sonstige Kosten (Steuer, Maut …)', '€'] };
+const FAHRZEUG_DOKUMENTE = ['Fahrzeugschein (Teil I)', 'Fahrzeugbrief (Teil II)', 'Versicherung', 'HU-/SP-Bericht', 'UVV-Prüfung', 'Leasing-/Kaufvertrag', 'Rechnung', 'Foto', 'Sonstiges'];
+/** Ab so vielen Tagen vorher erscheint eine Frist unter „Termine“. */
+const FRIST_VORLAUF = 30;
+const FAHRZEUG_FELDER = [
+  ['Fahrzeug', [['kennzeichen', 'Kennzeichen', 'pflicht'], ['bezeichnung', 'Interne Bezeichnung (z. B. Sprinter 3)'], ['art', 'Art', FAHRZEUG_ART],
+    ['status', 'Status', Object.fromEntries(Object.entries(FAHRZEUG_STATUS).map(([k, [l]]) => [k, l]))], ['fahrer', 'Fester Fahrer'], ['kmStand', 'Kilometerstand', 'zahl'], ['wartungKm', 'Nächste Wartung bei km', 'zahl']]],
+  ['Fristen', FRISTEN.map(([k, l]) => [k, l, 'date'])],
+  ['Fahrzeugschein (Zulassungsbescheinigung Teil I)', [['halter', 'Halter (C.1)'], ['marke', 'Marke (D.1)'], ['modell', 'Typ / Handelsbezeichnung (D.2/D.3)'], ['fin', 'Fahrzeug-Ident.-Nr. FIN (E)'],
+    ['erstzulassung', 'Erstzulassung (B)', 'date'], ['zgg', 'Zul. Gesamtmasse in kg (F.2)', 'zahl'], ['leergewicht', 'Leergewicht in kg (G)', 'zahl'], ['hsn', 'Herstellerschlüssel HSN (2.1)'], ['tsn', 'Typschlüssel TSN (2.2)'],
+    ['leistungKw', 'Leistung in kW (P.2)', 'zahl'], ['kraftstoff', 'Kraftstoff (P.3)'], ['schadstoffklasse', 'Schadstoff-/Emissionsklasse (14 / V.9)'], ['achsen', 'Achsen (L)', 'zahl'],
+    ['farbe', 'Farbe (R)'], ['teil2Nr', 'Nummer Zulassungsbescheinigung Teil II']]],
+  ['Versicherung und Finanzierung', [['versicherung', 'Versicherung'], ['versicherungsNr', 'Versicherungsschein-Nr.'], ['leasinggeber', 'Leasinggeber / Bank'], ['leasingRate', 'Monatliche Rate in Euro', 'geld'], ['notiz', 'Notizen', 'lang']]],
+];
+const ZAHL_FELDER = ['kmStand', 'wartungKm', 'zgg', 'leergewicht', 'leistungKw', 'achsen'];
+
+const fahrzeugListe = () => alle('fahrzeuge').sort((a, b) => (a.status === 'STILLGELEGT') - (b.status === 'STILLGELEGT') || String(a.kennzeichen).localeCompare(String(b.kennzeichen), 'de'));
+const fahrzeugName = z => [z.kennzeichen, z.bezeichnung || [z.marke, z.modell].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
+const fahrzeugStatus = z => FAHRZEUG_STATUS[z.status] || FAHRZEUG_STATUS.AKTIV;
+const eintraegeVon = id => alle('fahrzeugeintraege').filter(x => x.fahrzeugId === id).sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || (b.kmStand || 0) - (a.kmStand || 0));
+const kzNormal = t => String(t || '').toUpperCase().replace(/[^A-Z0-9ÄÖÜ]/g, '');
+/** Schadensfälle, in deren Feld „Fahrzeug / Kennzeichen“ dieses Kennzeichen steht. */
+const faelleVonFahrzeug = z => { const kz = kzNormal(z.kennzeichen); return kz ? faelle().filter(f => kzNormal(f.fahrzeug).includes(kz)) : []; };
+const zahlText = (n, einheit = '') => (n == null || n === '' ? '' : Number(n).toLocaleString('de-DE') + (einheit ? ' ' + einheit : ''));
+
+/** Alle Fristen eines Fahrzeugs (ohne abgemeldete Fahrzeuge), sortiert nach Datum. */
+function fristenVon(z) {
+  if (z.status === 'STILLGELEGT') return [];
+  return FRISTEN.filter(([k]) => z[k]).map(([k, l]) => ({ feld: k, label: l, datum: z[k], tage: Math.round((new Date(z[k]) - new Date(heute())) / 86400000) }))
+    .sort((a, b) => a.datum.localeCompare(b.datum));
+}
+const fristFarbe = f => (f.tage < 0 ? 'rot' : f.tage <= FRIST_VORLAUF ? 'gelb' : 'grau');
+const fristText = f => (f.tage < 0 ? `seit ${datumText(f.datum)} überfällig` : f.tage === 0 ? 'heute fällig' : f.tage <= FRIST_VORLAUF ? `in ${f.tage} Tag${f.tage === 1 ? '' : 'en'} (${datumText(f.datum)})` : datumText(f.datum));
+const wartungKmFaellig = z => z.status !== 'STILLGELEGT' && z.wartungKm != null && z.kmStand != null && z.kmStand >= z.wartungKm - 1000;
+/** Fristen, die in den nächsten FRIST_VORLAUF Tagen fällig sind (oder überfällig) – für Termine und Übersicht. */
+function fahrzeugTermine() {
+  const bis = plusTage(heute(), FRIST_VORLAUF);
+  return fahrzeugListe().flatMap(z => fristenVon(z).filter(f => f.datum <= bis).map(f => ({ art: 'fahrzeug', datum: f.datum, titel: `${f.label} · ${z.kennzeichen}`,
+    zusatz: [z.bezeichnung, z.fahrer].filter(Boolean).join(' · '), z })));
+}
+
+function fahrzeugKosten(z) {
+  const e = eintraegeVon(z.id), jahr = String(new Date().getFullYear());
+  const summe = l => l.reduce((n, x) => n + (x.betragCent || 0), 0);
+  const tanken = e.filter(x => x.art === 'TANKEN' && x.menge && x.kmStand).sort((a, b) => a.kmStand - b.kmStand);
+  // Durchschnittsverbrauch: getankte Liter nach der ersten Tankung ÷ gefahrene km dazwischen
+  let verbrauch = null;
+  if (tanken.length >= 2) {
+    const km = tanken[tanken.length - 1].kmStand - tanken[0].kmStand, liter = tanken.slice(1).reduce((n, x) => n + x.menge, 0) / 100;
+    if (km > 0) verbrauch = liter / km * 100;
+  }
+  const kmWerte = e.filter(x => x.kmStand).map(x => x.kmStand);
+  return { jahr: summe(e.filter(x => String(x.datum).startsWith(jahr))), gesamt: summe(e), tankenJahr: summe(e.filter(x => x.art === 'TANKEN' && String(x.datum).startsWith(jahr))),
+    werkstattJahr: summe(e.filter(x => ['WARTUNG', 'REPARATUR', 'REIFEN', 'PRUEFUNG'].includes(x.art) && String(x.datum).startsWith(jahr))), verbrauch,
+    proKm: kmWerte.length >= 2 && Math.max(...kmWerte) > Math.min(...kmWerte) ? summe(e) / (Math.max(...kmWerte) - Math.min(...kmWerte)) : null };
+}
+
+const FuhrparkAktionen = {
+  speichern(z) { const x = merke('fahrzeuge', { ...z, id: z.id || uuid(), firmaId: '', kennzeichen: String(z.kennzeichen || '').trim().toUpperCase(), geaendertAm: jetztIso() }); nachAenderung(); return x.id; },
+  loeschen(z) {
+    const jetzt = jetztIso();
+    for (const x of eintraegeVon(z.id)) entferne('fahrzeugeintraege', x, { firmaId: '', fahrzeugId: z.id, geaendertAm: jetzt });
+    for (const a of anlagenVon(z.id)) { entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id); }
+    entferne('fahrzeuge', z, { firmaId: '', geaendertAm: jetzt }); nachAenderung();
+  },
+  eintragSpeichern(x) {
+    merke('fahrzeugeintraege', { ...x, id: x.id || uuid(), firmaId: '', geaendertAm: jetztIso() });
+    // Ein höherer Kilometerstand im Eintrag wird ins Fahrzeug übernommen, ein Fahrerwechsel ebenso.
+    const z = S.fahrzeuge[x.fahrzeugId];
+    if (z && !z.geloescht) {
+      const neu = { ...z };
+      if (x.kmStand != null && (z.kmStand == null || x.kmStand > z.kmStand)) neu.kmStand = x.kmStand;
+      if (x.art === 'FAHRER' && x.werkstatt) neu.fahrer = x.werkstatt;
+      if (neu.kmStand !== z.kmStand || neu.fahrer !== z.fahrer) merke('fahrzeuge', { ...neu, geaendertAm: jetztIso() });
+    }
+    nachAenderung();
+  },
+  eintragLoeschen(x) { entferne('fahrzeugeintraege', x, { firmaId: '', fahrzeugId: x.fahrzeugId, geaendertAm: jetztIso() }); nachAenderung(); },
+  async dokument(fahrzeugId, art, datei) {
+    const blob = await verkleinere(datei);
+    if (blob.size > 25 * 1024 * 1024) { toast(`„${datei.name}“ ist größer als 25 MB und wurde nicht übernommen`); return; }
+    const name = `${art} – ` + (blob === datei ? datei.name : datei.name.replace(/\.[^.]+$/, '') + '.jpg');
+    const a = merke('anlagen', { id: uuid(), fallId: fahrzeugId, anzeigename: name, mimeType: blob.type || 'application/octet-stream', groesseBytes: blob.size, hinzugefuegtAm: jetztIso(), vorhanden: false });
+    await Dateien.lege(a.id, blob);
+    nachAenderung();
+  },
+};
+
+function zeichneFuhrpark(r) {
+  const such = (ANSICHT.fuhrparkSuche || '').trim().toLowerCase(), st = ANSICHT.fuhrparkStatus || '';
+  const liste = fahrzeugListe().filter(z => (st === 'FRIST' ? fristenVon(z).some(f => f.tage <= FRIST_VORLAUF) || wartungKmFaellig(z) : !st || z.status === st))
+    .filter(z => !such || [z.kennzeichen, z.bezeichnung, z.marke, z.modell, z.fahrer, z.fin, z.halter, z.notiz].some(t => String(t || '').toLowerCase().includes(such)));
+  const faellig = fahrzeugListe().filter(z => fristenVon(z).some(f => f.tage <= FRIST_VORLAUF) || wartungKmFaellig(z)).length;
+  const kosten = fahrzeugListe().reduce((n, z) => n + fahrzeugKosten(z).jahr, 0);
+  const karten = liste.map(z => {
+    const f = fristenVon(z)[0];
+    return `<button class="karte klickbar ${r && r.art === 'fahrzeug' && r.id === z.id ? 'gewaehlt' : ''}" data-fahrzeug="${z.id}">
+      <div class="zeile eng"><span class="titel fuell">${esc(z.kennzeichen || '(ohne Kennzeichen)')}</span><span class="marke ${fahrzeugStatus(z)[1]}">${esc(fahrzeugStatus(z)[0])}</span></div>
+      <div class="leise">${esc([FAHRZEUG_ART[z.art], z.bezeichnung || [z.marke, z.modell].filter(Boolean).join(' '), z.fahrer && 'Fahrer: ' + z.fahrer, z.kmStand != null && zahlText(z.kmStand, 'km')].filter(Boolean).join(' · '))}</div>
+      ${f ? `<div class="zeile eng" style="margin-top:6px"><span class="marke ${fristFarbe(f)}">⏱ ${esc(f.label)}: ${esc(fristText(f))}</span></div>` : ''}
+      ${wartungKmFaellig(z) ? `<div class="zeile eng" style="margin-top:4px"><span class="marke gelb">🔧 Wartung bei ${esc(zahlText(z.wartungKm, 'km'))}</span></div>` : ''}</button>`;
+  }).join('');
+  return `<div class="kennzahlen">
+      <button class="kennzahl" data-fuhrpark-status="AKTIV"><b>${fahrzeugListe().filter(z => z.status !== 'STILLGELEGT').length}</b><span>Fahrzeuge</span></button>
+      <button class="kennzahl ${faellig ? 'rot' : ''}" data-fuhrpark-status="FRIST"><b>${faellig}</b><span>Fristen in ${FRIST_VORLAUF} Tagen</span></button>
+      <button class="kennzahl" data-fuhrpark-status=""><b>${geld(kosten)}</b><span>Kosten dieses Jahr</span></button></div>
+    <input class="suche" id="fuhrpark-suche" type="search" placeholder="Kennzeichen, Fahrer, Marke, FIN …" aria-label="Fahrzeuge durchsuchen" value="${esc(ANSICHT.fuhrparkSuche || '')}">
+    <div class="chips" role="group" aria-label="Status"><button class="chip" data-fuhrpark-status="" aria-pressed="${!st}">Alle</button>
+      <button class="chip" data-fuhrpark-status="FRIST" aria-pressed="${st === 'FRIST'}">Frist fällig</button>${Object.entries(FAHRZEUG_STATUS).map(([k, [l]]) =>
+      `<button class="chip" data-fuhrpark-status="${k}" aria-pressed="${st === k}">${l}</button>`).join('')}</div>
+    <div class="zeile"><button class="knopf voll fab" data-neues-fahrzeug>＋ Neues Fahrzeug</button><button class="knopf" data-fuhrpark-csv>CSV</button>
+      <label class="knopf">Importieren<input type="file" id="fuhrpark-import" accept=".json,application/json" hidden></label></div>
+    <div id="fahrzeuge">${karten || `<div class="leer">🚐<b>${alle('fahrzeuge').length ? 'Keine Treffer' : 'Noch keine Fahrzeuge'}</b>${alle('fahrzeuge').length ? 'In dieser Ansicht gibt es keine Fahrzeuge.' : 'Lege deine Fahrzeuge an – mit Fahrzeugschein, TÜV-, SP- und UVV-Fristen, Werkstatt, Tanken und Kosten.'}</div>`}</div>`;
+}
+
+function zeichneFahrzeug(id) {
+  const z = S.fahrzeuge[id], el = $('#detail');
+  if (!z || z.geloescht) { gehe('#/'); return; }
+  const dl = paare => { const p = paare.filter(([, w]) => w != null && String(w).trim()); return p.length ? `<dl>${p.map(([l, w]) => `<dt>${l}</dt><dd>${esc(String(w))}</dd>`).join('')}</dl>` : ''; };
+  const k = fahrzeugKosten(z), fr = fristenVon(z), dok = anlagenVon(z.id), akte = eintraegeVon(z.id), schaeden = faelleVonFahrzeug(z);
+  el.innerHTML = `
+    <div class="karte">
+      <div class="zeile eng"><h2 class="gross fuell">${esc(z.kennzeichen)}</h2><button class="symbol" data-fz="bearbeiten" aria-label="Fahrzeug bearbeiten">✎</button></div>
+      <p class="leise">${esc([FAHRZEUG_ART[z.art], z.bezeichnung, [z.marke, z.modell].filter(Boolean).join(' ')].filter(Boolean).join(' · '))}</p>
+      <div class="zeile" style="margin-top:10px"><span class="marke ${fahrzeugStatus(z)[1]}">${esc(fahrzeugStatus(z)[0])}</span>
+        ${z.fahrer ? `<span class="leise">Fahrer: ${esc(z.fahrer)}</span>` : ''}<span class="fuell"></span>${z.kmStand != null ? `<b>${esc(zahlText(z.kmStand, 'km'))}</b>` : ''}</div>
+      <div class="zeile" style="margin-top:10px"><button class="knopf voll" data-fz="eintrag">＋ Eintrag (Werkstatt, Tanken, km …)</button>
+        <button class="knopf" data-fz="tanken">⛽ Tanken</button><button class="knopf" data-fz="km">📍 km-Stand</button></div>
+    </div>
+    <div class="karte block"><h3>Fristen</h3>
+      ${fr.length || wartungKmFaellig(z) ? `<div id="fristen">${fr.map(f => `<div class="zeile eng" style="margin:4px 0"><span class="fuell">${esc(f.label)}</span><span class="marke ${fristFarbe(f)}">${esc(fristText(f))}</span></div>`).join('')}
+        ${z.wartungKm != null ? `<div class="zeile eng" style="margin:4px 0"><span class="fuell">Wartung nach km</span><span class="marke ${wartungKmFaellig(z) ? 'gelb' : 'grau'}">bei ${esc(zahlText(z.wartungKm, 'km'))}</span></div>` : ''}</div>`
+        : '<p class="leise">Keine Fristen eingetragen – über ✎ HU, SP, UVV, Tacho und Wartung eintragen.</p>'}</div>
+    <div class="karte block"><h3>Kosten</h3>
+      <div class="kennzahlen" style="margin:0"><div class="kennzahl"><b>${geld(k.jahr)}</b><span>dieses Jahr</span></div><div class="kennzahl"><b>${geld(k.tankenJahr)}</b><span>Tanken (Jahr)</span></div>
+        <div class="kennzahl"><b>${geld(k.werkstattJahr)}</b><span>Werkstatt (Jahr)</span></div></div>
+      ${dl([['Kosten gesamt', geld(k.gesamt)], ['Kosten pro km', k.proKm != null ? geld(Math.round(k.proKm)) : ''], ['Ø Verbrauch', k.verbrauch != null ? k.verbrauch.toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' l / 100 km' : ''],
+        ['Leasing-/Kreditrate', z.leasingRateCent != null ? geld(z.leasingRateCent) + ' im Monat' : '']])}</div>
+    <div class="karte block"><h3>Fahrzeugschein</h3>
+      ${dl([['Halter', z.halter], ['Marke / Typ', [z.marke, z.modell].filter(Boolean).join(' ')], ['FIN', z.fin], ['Erstzulassung', datumText(z.erstzulassung)], ['HSN / TSN', [z.hsn, z.tsn].filter(Boolean).join(' / ')],
+        ['Zul. Gesamtmasse', zahlText(z.zgg, 'kg')], ['Leergewicht', zahlText(z.leergewicht, 'kg')], ['Leistung', z.leistungKw ? `${zahlText(z.leistungKw, 'kW')} (${Math.round(z.leistungKw * 1.35962)} PS)` : ''],
+        ['Kraftstoff', z.kraftstoff], ['Schadstoffklasse', z.schadstoffklasse], ['Achsen', zahlText(z.achsen)], ['Farbe', z.farbe], ['Nr. Teil II', z.teil2Nr]]) || '<p class="leise">Noch keine Angaben aus dem Fahrzeugschein.</p>'}
+      ${dl([['Versicherung', [z.versicherung, z.versicherungsNr].filter(Boolean).join(' · ')], ['Leasing / Bank', z.leasinggeber], ['Notizen', z.notiz]])}</div>
+    <div class="karte block"><h3>Dokumente${dok.length ? ` (${dok.length})` : ''}</h3>
+      ${dok.length ? `<div class="anlagen">${dok.map(a => `<div class="anlage"><button class="anlage" data-fz-dok="${a.id}" title="${esc(a.anzeigename)}">
+        <div class="bild" data-bild="${a.id}">${a.mimeType.startsWith('image/') ? '🖼' : '📄'}</div><span>${esc(a.anzeigename)}</span></button>
+        <button class="symbol weg" data-fz-dok-weg="${a.id}" aria-label="Dokument ${esc(a.anzeigename)} entfernen">✕</button></div>`).join('')}</div>` : '<p class="leise">Fahrzeugschein, Fahrzeugbrief, Versicherung, Prüfberichte … als Foto oder PDF ablegen.</p>'}
+      <div class="zeile" style="margin-top:8px"><select id="fz-dok-art" aria-label="Art des Dokuments">${FAHRZEUG_DOKUMENTE.map(d => `<option>${esc(d)}</option>`).join('')}</select>
+        <label class="knopf">📎 Datei oder Foto hinzufügen<input type="file" id="fz-datei" multiple hidden></label></div></div>
+    <div class="karte block"><h3>Fahrzeugakte${akte.length ? ` (${akte.length})` : ''}</h3>
+      ${akte.length ? `<ul class="verlauf" id="fahrzeugakte">${akte.map(x => `<li><span class="rund">${(FAHRZEUG_EINTRAG[x.art] || FAHRZEUG_EINTRAG.KOSTEN)[1]}</span>
+        <button class="vorlage fuell" data-fz-eintrag="${x.id}" style="margin:0"><span class="leise">${esc([(FAHRZEUG_EINTRAG[x.art] || FAHRZEUG_EINTRAG.KOSTEN)[0], datumText(x.datum), x.kmStand != null && zahlText(x.kmStand, 'km')].filter(Boolean).join(' · '))}</span><br>
+        <b>${esc([x.betragCent != null && geld(x.betragCent), x.menge && (x.menge / 100).toLocaleString('de-DE') + ' l', x.werkstatt].filter(Boolean).join(' · '))}</b>${x.text ? `<br><span style="white-space:pre-wrap">${esc(x.text)}</span>` : ''}</button></li>`).join('')}</ul>`
+        : '<p class="leise">Noch keine Einträge. Hier landen Werkstatt, Reifen, Tanken, Prüfungen, Schäden und Fahrerwechsel.</p>'}</div>
+    <div class="karte block"><h3>Schadensfälle mit diesem Fahrzeug${schaeden.length ? ` (${schaeden.length})` : ''}</h3>
+      ${schaeden.length ? schaeden.map(f => `<button class="vorlage" data-fall-oeffnen="${f.id}"><b>${esc(anzeigeName(f))}</b><br><span class="leise">${esc([f.fallnummer, status(f).label, f.schadensdatum && datumText(f.schadensdatum), f.fahrer].filter(Boolean).join(' · '))}</span></button>`).join('')
+        : '<p class="leise">Keine Fälle, in denen dieses Kennzeichen eingetragen ist.</p>'}</div>
+    <div class="zeile" style="margin:12px 0"><button class="knopf text gefahr" data-fz="loeschen">Fahrzeug löschen</button></div>`;
+  for (const a of dok.filter(a => a.mimeType.startsWith('image/'))) {
+    Dateien.adresse(a).then(u => { const ziel = el.querySelector(`[data-bild="${a.id}"]`); if (u && ziel) ziel.innerHTML = `<img src="${u}" alt="">`; }).catch(() => {});
+  }
+}
+
+/** Formular für ein Fahrzeug (Stammdaten, Fristen, Fahrzeugschein, Versicherung). */
+function fahrzeugDialog(z) {
+  const neu = !z, e = z ? { ...z, leasingRate: z.leasingRateCent != null ? geldOhneSymbol(z.leasingRateCent) : '' } : { art: 'TRANSPORTER', status: 'AKTIV' };
+  const feld = ([name, label, art = '']) => {
+    const wert = esc(e[name] ?? '');
+    if (typeof art === 'object') return `<label class="feld">${label}<select name="${name}">${Object.entries(art).map(([k, t]) => `<option value="${k}" ${String(e[name] ?? '') === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
+    if (art.includes('lang')) return `<label class="feld">${label}<textarea name="${name}">${wert}</textarea></label>`;
+    const typ = art.includes('date') ? 'type="date"' : art.includes('zahl') ? 'inputmode="numeric"' : art.includes('geld') ? 'inputmode="decimal"' : '';
+    return `<label class="feld">${label}<input name="${name}" ${typ} ${art.includes('pflicht') ? 'required' : ''} value="${wert}"><span class="fehlertext" data-fehler="${name}" hidden></span></label>`;
+  };
+  dialog(`<form method="dialog" id="fahrzeug-form"><h2>${neu ? 'Neues Fahrzeug' : 'Fahrzeug bearbeiten'}</h2>
+    ${FAHRZEUG_FELDER.map(([titel, felder], i) => `<h3>${titel}</h3>${i === 2 ? '<p class="leise">Die Angaben stehen im Fahrzeugschein – die Buchstaben in Klammern zeigen das Feld.</p>' : ''}${felder.map(feld).join('')}`).join('')}
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
+  $('#fahrzeug-form').onsubmit = ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries([...new FormData(ev.target)].map(([k, v]) => [k, String(v).trim()]));
+    const zeige = (name, text) => { const s = $(`#fahrzeug-form [data-fehler="${name}"]`); if (s) { s.textContent = text; s.hidden = !text; } return !text; };
+    for (const n of ZAHL_FELDER) {
+      const roh = w[n].replace(/[.\s]/g, '').replace(',', '.');
+      if (!zeige(n, roh && !(Number(roh) >= 0) ? 'Bitte eine Zahl eingeben.' : '')) return;
+      w[n] = roh ? Math.round(Number(roh)) : null;
+    }
+    if (!zeige('leasingRate', w.leasingRate && geldLesen(w.leasingRate) == null ? 'Bitte einen Betrag wie 499,00 eingeben.' : '')) return;
+    w.leasingRateCent = w.leasingRate ? geldLesen(w.leasingRate) : null; delete w.leasingRate;
+    for (const [k] of FRISTEN) w[k] = w[k] || null;
+    w.erstzulassung = w.erstzulassung || null;
+    $('#dialog').close();
+    const id = FuhrparkAktionen.speichern({ ...(z || {}), ...w });
+    if (neu) gehe('#/fahrzeug/' + id);
+  };
+}
+
+/** Eintrag in der Fahrzeugakte. */
+function fahrzeugEintragDialog(z, x, vorgabeArt = 'WARTUNG') {
+  const neu = !x, e = x || { art: vorgabeArt, datum: heute(), kmStand: z.kmStand ?? '' };
+  const v = { betrag: e.betragCent != null ? geldOhneSymbol(e.betragCent) : '', menge: e.menge ? String(e.menge / 100).replace('.', ',') : '' };
+  dialog(`<form method="dialog" id="fz-eintrag-form"><h2>${neu ? 'Neuer Eintrag' : 'Eintrag'} · ${esc(z.kennzeichen)}</h2>
+    <label class="feld">Art<select name="art">${Object.entries(FAHRZEUG_EINTRAG).map(([k, [l]]) => `<option value="${k}" ${e.art === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+    <label class="feld">Datum<input name="datum" type="date" value="${esc(e.datum || '')}" required></label>
+    <label class="feld">Kilometerstand<input name="kmStand" inputmode="numeric" value="${esc(e.kmStand ?? '')}"><span class="fehlertext" data-fehler="kmStand" hidden></span></label>
+    <label class="feld">Betrag in Euro (brutto)<input name="betrag" inputmode="decimal" value="${esc(v.betrag)}"><span class="fehlertext" data-fehler="betrag" hidden></span></label>
+    <label class="feld" id="fz-menge">Liter (beim Tanken)<input name="menge" inputmode="decimal" value="${esc(v.menge)}"><span class="fehlertext" data-fehler="menge" hidden></span></label>
+    <label class="feld">Werkstatt / Tankstelle / neuer Fahrer<input name="werkstatt" value="${esc(e.werkstatt || '')}"></label>
+    <label class="feld">Was wurde gemacht?<textarea name="text">${esc(e.text || '')}</textarea></label>
+    <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="fz-eintrag-loeschen">Löschen</button>'}<span class="fuell"></span>
+      <button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
+  if (!neu) $('#fz-eintrag-loeschen').onclick = () => { $('#dialog').close(); FuhrparkAktionen.eintragLoeschen(x); };
+  $('#fz-eintrag-form').onsubmit = ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries([...new FormData(ev.target)].map(([k, val]) => [k, String(val).trim()]));
+    const zeige = (name, text) => { const s = $(`#fz-eintrag-form [data-fehler="${name}"]`); if (s) { s.textContent = text; s.hidden = !text; } return !text; };
+    const km = w.kmStand.replace(/[.\s]/g, ''), liter = w.menge.replace(',', '.');
+    if (!zeige('kmStand', km && !(Number(km) >= 0) ? 'Bitte eine Zahl eingeben.' : '')) return;
+    if (!zeige('betrag', w.betrag && geldLesen(w.betrag) == null ? 'Bitte einen Betrag wie 89,50 eingeben.' : '')) return;
+    if (!zeige('menge', liter && !(Number(liter) > 0) ? 'Bitte die Liter wie 62,5 eingeben.' : '')) return;
+    $('#dialog').close();
+    FuhrparkAktionen.eintragSpeichern({ ...(x || {}), fahrzeugId: z.id, art: w.art, datum: w.datum || heute(), kmStand: km ? Math.round(Number(km)) : null,
+      betragCent: w.betrag ? geldLesen(w.betrag) : null, menge: liter ? Math.round(Number(liter) * 100) : null, werkstatt: w.werkstatt, text: w.text });
+  };
+}
+
+/**
+ * Fuhrpark-Import (z. B. aus eingelesenen Fahrzeugscheinen): { fahrzeuge: [{ kennzeichen, … }], dokumente: [{ kennzeichen, art, name, mimeType, base64 }] }.
+ * Gleiches Kennzeichen = gleiches Fahrzeug: leere Felder werden ergänzt, vorhandene Angaben bleiben. Dokumente mit gleichem Namen kommen nicht doppelt.
+ */
+async function fuhrparkImportieren(text) {
+  const d = JSON.parse(text);
+  if (!d || !Array.isArray(d.fahrzeuge)) throw new Error('Das ist keine Fuhrpark-Datei.');
+  const felder = new Set(FAHRZEUG_FELDER.flatMap(([, f]) => f.map(([k]) => k)).concat(['leasingRateCent']));
+  const nachKz = new Map(alle('fahrzeuge').map(z => [kzNormal(z.kennzeichen), z]));
+  let neu = 0, ergaenzt = 0, doks = 0;
+  for (const roh of d.fahrzeuge) {
+    const kz = kzNormal(roh.kennzeichen); if (!kz) continue;
+    const sauber = Object.fromEntries(Object.entries(roh).filter(([k, v]) => felder.has(k) && v != null && v !== ''));
+    const alt = nachKz.get(kz);
+    if (!alt) { const id = FuhrparkAktionen.speichern({ art: 'TRANSPORTER', status: 'AKTIV', ...sauber }); nachKz.set(kz, S.fahrzeuge[id]); neu++; continue; }
+    const dazu = Object.fromEntries(Object.entries(sauber).filter(([k]) => alt[k] == null || alt[k] === ''));
+    if (Object.keys(dazu).length) { FuhrparkAktionen.speichern({ ...alt, ...dazu }); nachKz.set(kz, S.fahrzeuge[alt.id]); ergaenzt++; }
+  }
+  for (const dok of d.dokumente || []) {
+    const z = nachKz.get(kzNormal(dok.kennzeichen)); if (!z || !dok.base64) continue;
+    const name = `${dok.art || 'Sonstiges'} – ${dok.name}`;
+    if (anlagenVon(z.id).some(a => a.anzeigename === name)) continue;
+    const blob = blobAusBase64(dok.base64, dok.mimeType || 'application/pdf');
+    const a = merke('anlagen', { id: uuid(), fallId: z.id, anzeigename: name, mimeType: blob.type, groesseBytes: blob.size, hinzugefuegtAm: jetztIso(), vorhanden: false });
+    await Dateien.lege(a.id, blob); doks++;
+  }
+  nachAenderung();
+  return { neu, ergaenzt, doks };
+}
+
+function fuhrparkCsv() {
+  const tab = (kopf, zeilen) => '﻿' + [kopf, ...zeilen].map(z => z.map(csvZelle).join(';')).join('\r\n') + '\r\n';
+  const kz = id => S.fahrzeuge[id]?.kennzeichen || '';
+  return {
+    Fahrzeuge: tab(['Kennzeichen', 'Bezeichnung', 'Art', 'Status', 'Fahrer', 'km-Stand', 'Marke', 'Typ', 'FIN', 'Erstzulassung', 'Halter', ...FRISTEN.map(([, l]) => l), 'Versicherung', 'Vers.-Nr.', 'Rate (EUR)', 'Kosten dieses Jahr (EUR)'],
+      fahrzeugListe().map(z => [z.kennzeichen, z.bezeichnung, FAHRZEUG_ART[z.art] || '', fahrzeugStatus(z)[0], z.fahrer, z.kmStand ?? '', z.marke, z.modell, z.fin, datumText(z.erstzulassung), z.halter,
+        ...FRISTEN.map(([k]) => datumText(z[k])), z.versicherung, z.versicherungsNr, z.leasingRateCent != null ? geldOhneSymbol(z.leasingRateCent) : '', geldOhneSymbol(fahrzeugKosten(z).jahr)])),
+    Fahrzeugakte: tab(['Datum', 'Kennzeichen', 'Art', 'km-Stand', 'Betrag (EUR)', 'Liter', 'Werkstatt / Tankstelle', 'Text'],
+      alle('fahrzeugeintraege').sort((a, b) => String(b.datum).localeCompare(String(a.datum))).map(x => [datumText(x.datum), kz(x.fahrzeugId), (FAHRZEUG_EINTRAG[x.art] || FAHRZEUG_EINTRAG.KOSTEN)[0],
+        x.kmStand ?? '', x.betragCent != null ? geldOhneSymbol(x.betragCent) : '', x.menge ? String(x.menge / 100).replace('.', ',') : '', x.werkstatt, x.text])),
+  };
+}
+
+$('#liste').addEventListener('input', e => { if (e.target.id === 'fuhrpark-suche') { ANSICHT.fuhrparkSuche = e.target.value; zeichneListe(); const s = $('#fuhrpark-suche'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); } });
+$('#liste').addEventListener('click', e => {
+  const z = e.target.closest('[data-fahrzeug]'), st = e.target.closest('[data-fuhrpark-status]');
+  if (z) { gehe('#/fahrzeug/' + z.dataset.fahrzeug); return; }
+  if (st) { ANSICHT.fuhrparkStatus = st.dataset.fuhrparkStatus; zeichneListe(); return; }
+  if (e.target.closest('[data-neues-fahrzeug]')) { fahrzeugDialog(null); return; }
+  if (e.target.closest('[data-fuhrpark-csv]')) { const d = fuhrparkCsv(); ladeHerunter(`Fahrzeuge_${heute()}.csv`, d.Fahrzeuge); setTimeout(() => ladeHerunter(`Fahrzeugakte_${heute()}.csv`, d.Fahrzeugakte), 400); }
+});
+$('#liste').addEventListener('change', async e => {
+  if (e.target.id !== 'fuhrpark-import' || !e.target.files[0]) return;
+  try {
+    toast('Importiere …', 60000);
+    const r = await fuhrparkImportieren(await e.target.files[0].text());
+    toast(`${r.neu} Fahrzeuge neu, ${r.ergaenzt} ergänzt, ${r.doks} Dokumente übernommen.`, 6000);
+  } catch (fehler) { toast('Import nicht möglich: ' + (fehler.message || fehler), 6000); }
+  e.target.value = ''; // dieselbe Datei kann erneut gewählt werden
+});
+$('#detail').addEventListener('change', async e => {
+  if (e.target.id !== 'fz-datei') return;
+  const id = route().id, art = $('#fz-dok-art').value;
+  for (const datei of e.target.files) await FuhrparkAktionen.dokument(id, art, datei);
+});
+$('#detail').addEventListener('click', async e => {
+  if (route().art !== 'fahrzeug') return;
+  const z = S.fahrzeuge[route().id]; if (!z) return;
+  const akt = e.target.closest('[data-fz]'), dok = e.target.closest('[data-fz-dok]'), dokWeg = e.target.closest('[data-fz-dok-weg]'), eintrag = e.target.closest('[data-fz-eintrag]'), fall = e.target.closest('[data-fall-oeffnen]');
+  if (fall) { gehe('#/fall/' + fall.dataset.fallOeffnen); return; }
+  if (eintrag) { fahrzeugEintragDialog(z, S.fahrzeugeintraege[eintrag.dataset.fzEintrag]); return; }
+  if (dokWeg) { const a = S.anlagen[dokWeg.dataset.fzDokWeg]; bestaetige('Dokument entfernen?', `„${a.anzeigename}“ wird gelöscht.`, 'Entfernen', () => { entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id); nachAenderung(); }); return; }
+  if (dok) {
+    const a = S.anlagen[dok.dataset.fzDok];
+    try {
+      const u = await Dateien.adresse(a);
+      if (!u) toast('Die Datei wurde noch nicht in die Cloud übertragen.');
+      else if (window.desktop) await window.desktop.oeffneDatei(a.anzeigename, new Uint8Array(await (await Dateien.hole(a.id)).arrayBuffer()));
+      else window.open(u, '_blank');
+    } catch { toast('Die Datei konnte nicht geladen werden.'); }
+    return;
+  }
+  if (!akt) return;
+  ({ bearbeiten: () => fahrzeugDialog(z), eintrag: () => fahrzeugEintragDialog(z, null), tanken: () => fahrzeugEintragDialog(z, null, 'TANKEN'), km: () => fahrzeugEintragDialog(z, null, 'KM'),
+    loeschen: () => bestaetige('Fahrzeug löschen?', `${z.kennzeichen} wird mit Fahrzeugakte und Dokumenten gelöscht. Ist es nur verkauft, besser den Status „Abgemeldet / verkauft“ wählen.`, 'Löschen', () => { FuhrparkAktionen.loeschen(z); gehe('#/'); }) })[akt.dataset.fz]();
+});
+
+function ladeHerunter(name, inhalt, typ = 'text/csv;charset=utf-8') {
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([inhalt], { type: typ })), download: name });
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function belegeCsv() {
+  const z = alle('belege').sort((a, b) => String(a.nummer).localeCompare(String(b.nummer))).map(b => {
+    const s = belegSummen(b);
+    return [b.nummer, BELEG_ART[b.art][0], (S.auftraggeber[b.firmaId] || {}).name || '', datumText(b.datum), datumText(b.faelligAm), belegMarke(b)[0],
+      geldOhneSymbol(s.netto), geldOhneSymbol(s.mwst), geldOhneSymbol(s.brutto), geldOhneSymbol(b.bezahltCent || 0), datumText(b.bezahltAm), b.mahnstufe || 0];
+  });
+  return '﻿' + [['Nummer', 'Art', 'Firma', 'Datum', 'Fällig/gültig bis', 'Status', 'Netto', 'MwSt', 'Brutto', 'Bezahlt', 'Bezahlt am', 'Mahnstufe'], ...z]
+    .map(x => x.map(csvZelle).join(';')).join('\r\n') + '\r\n';
+}
+/** Alle offenen Termine (CRM und Fälle) als Kalenderdatei (ganztägig). */
+function termineIcs() {
+  const w = wiedervorlagen(), stempel = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+  const t = s => String(s || '').replace(/[\\,;]/g, m => '\\' + m).replace(/\n/g, '\\n');
+  const ereignisse = [...w.ueberfaellig, ...w.heute, ...w.demnaechst].map((x, i) => {
+    const tag = x.datum.replace(/-/g, ''), folgetag = plusTage(x.datum, 1).replace(/-/g, '');
+    return ['BEGIN:VEVENT', `UID:${x.a ? x.a.id : x.z ? 'fahrzeug-' + x.z.id + '-' + x.datum : 'fall-' + x.f.id}@ayse-crm`, `DTSTAMP:${stempel}`, `DTSTART;VALUE=DATE:${tag}`, `DTEND;VALUE=DATE:${folgetag}`,
+      `SUMMARY:${t(x.titel)}`, `DESCRIPTION:${t(x.zusatz)}`, 'END:VEVENT'].join('\r\n');
+  });
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Ayse Transport//CRM//DE', 'CALSCALE:GREGORIAN', ...ereignisse, 'END:VCALENDAR'].join('\r\n') + '\r\n';
+}
 
 // ============================== E-Mail (nur Windows-App) ==============================
 // Die Windows-App spricht über ihren Hauptprozess direkt per IMAP/SMTP mit den Postfächern – mit
@@ -1511,7 +2327,7 @@ function ablegen(messageId, m, text) {
   const eintrag = { ...m, verlaufId: '', aktivitaetId: '', fallId: m.fallId || '', firmaId: m.fallId ? '' : m.firmaId || '' };
   const f = eintrag.fallId && S.faelle[eintrag.fallId];
   if (f && !f.geloescht) {
-    const v = merke('verlauf', { id: uuid(), fallId: f.id, zeitpunkt: m.zeitpunkt || jetztIso(), typ: m.eingehend ? 'EMAIL_EINGANG' : 'EMAIL_AUSGANG', text: text.slice(0, 15000) });
+    const v = merke('verlauf', { id: uuid(), fallId: f.id, zeitpunkt: m.zeitpunkt || jetztIso(), typ: m.eingehend ? 'EMAIL_EINGANG' : 'EMAIL_AUSGANG', text: kuerze(text, MAIL_TEXT_FALL) });
     eintrag.verlaufId = v.id;
     const neu = { ...f };
     // Eine Antwort soll nicht untergehen: Wiedervorlage rückt auf heute.
@@ -1519,7 +2335,7 @@ function ablegen(messageId, m, text) {
     fallMerken(neu);
   } else if (eintrag.firmaId && S.auftraggeber[eintrag.firmaId]) {
     const a = merke('aktivitaeten', { id: uuid(), firmaId: eintrag.firmaId, datum: isoTag(new Date(m.zeitpunkt || Date.now())), art: 'EMAIL',
-      text: ((m.eingehend ? 'E-Mail erhalten' : 'E-Mail gesendet') + '\n' + text).slice(0, 15000),
+      text: kuerze((m.eingehend ? 'E-Mail erhalten' : 'E-Mail gesendet') + '\n' + text, MAIL_TEXT_FIRMA),
       kontakt: kontaktZuAdressen(eintrag.firmaId, m.eingehend ? m.von : m.an), geaendertAm: jetztIso() });
     eintrag.aktivitaetId = a.id;
   }
@@ -1578,7 +2394,7 @@ async function postfachAbrufen(sichtbar = false) {
         setzeMailStand(art, { ...mailStand(art), fehler: e.message }); fehler.push(e.message);
       }
     }
-    nachAenderung();
+    if (neu.length) nachAenderung(); else { speichere(); zeichneSync(); }
     const wohin = n => (n.ziel.fallId ? 'Fall ' + (S.faelle[n.ziel.fallId] || {}).fallnummer : n.ziel.firmaId ? (S.auftraggeber[n.ziel.firmaId] || {}).name : 'Nicht zugeordnet');
     if (neu.length) {
       const titel = neu.length === 1 ? `Neue E-Mail · ${wohin(neu[0])}` : `${neu.length} neue E-Mails`;
@@ -1603,8 +2419,12 @@ function zuordnungText(m) {
 function zeichnePostfach(r) {
   const filter = ANSICHT.postfachFilter || 'OFFEN';
   const alleMails = mailListe(), offen = alleMails.filter(m => !istZugeordnet(m)).length;
-  const liste = alleMails.filter(m => (filter === 'OFFEN' ? !istZugeordnet(m) : filter === 'FAELLE' ? !!m.fallId : filter === 'FIRMEN' ? !!m.firmaId : true));
+  const such = String(ANSICHT.postfachSuche || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const liste = alleMails.filter(m => (such.length
+    ? such.every(b => [m.von, m.an, m.betreff, m.text, m.kundeRef, (m.anhaenge || []).join(' '), (S.auftraggeber[m.firmaId] || {}).name].join('\n').toLowerCase().includes(b))
+    : filter === 'OFFEN' ? !istZugeordnet(m) : filter === 'FAELLE' ? !!m.fallId : filter === 'FIRMEN' ? !!m.firmaId : true));
   return `<div class="zeile" style="margin-bottom:8px"><button class="knopf" data-postfach-abrufen>⟳ Abrufen</button><button class="knopf voll" data-neue-mail>＋ Neue E-Mail</button></div>
+    <input class="suche" id="postfach-suche" type="search" placeholder="Mails durchsuchen (Absender, Betreff, Text …)" value="${esc(ANSICHT.postfachSuche || '')}">
     <div class="chips" role="group" aria-label="Postfach">${Object.entries(POSTFACH_FILTER).map(([k, l]) =>
       `<button class="chip" data-postfach-filter="${k}" aria-pressed="${filter === k}">${l}${k === 'OFFEN' ? ` (${offen})` : ''}</button>`).join('')}</div>
     <div id="postfach">${liste.map(m => `<button class="karte klickbar ${r.art === 'mail' && decodeURIComponent(r.id) === m.id ? 'gewaehlt' : ''}" data-mail="${esc(encodeURIComponent(m.id))}">
@@ -1647,8 +2467,15 @@ function zuordnenDialog(id) {
   };
 }
 
+const FIRMEN_VORLAGEN = {
+  ANGEBOT: ['Angebot', 'Angebot Auslieferung und Montage', 'vielen Dank für Ihre Anfrage. Gern bieten wir Ihnen Auslieferung und Montage zu folgenden Konditionen an:\n\n{PREISE}\n\nAlle Preise zzgl. MwSt. Das Angebot gilt 30 Tage. Für Rückfragen stehen wir Ihnen gern zur Verfügung.'],
+  TERMIN: ['Terminbestätigung', 'Terminbestätigung', 'hiermit bestätigen wir den Termin am [Datum] um [Uhrzeit] Uhr.\n\nBitte geben Sie uns kurz Bescheid, falls sich etwas ändert.'],
+  NACHFASSEN: ['Nachfassen', 'Nachfrage zu unserem Angebot', 'vor einiger Zeit haben wir Ihnen ein Angebot geschickt. Konnten Sie es schon prüfen?\n\nGern besprechen wir offene Punkte auch telefonisch.'],
+  ABRECHNUNG: ['Rückfrage Abrechnung', 'Rückfrage zur Abrechnung', 'zu unserer Abrechnung [Rechnungsnummer / Zeitraum] haben wir eine Rückfrage:\n\n[Rückfrage]\n\nVielen Dank für eine kurze Rückmeldung.'],
+};
+
 /** Schreibfenster ohne Fall: an eine Firma, einen Ansprechpartner oder als Antwort auf eine Mail aus dem Postfach. */
-function mailAnFirma({ firmaId = '', an = '', antwortAuf = '' } = {}) {
+function mailAnFirma({ firmaId = '', an = '', antwortAuf = '', betreff: betreffVorgabe = '', inhalt = '', anhaenge: feste = [], nachSenden = null } = {}) {
   const alt = antwortAuf && mails()[antwortAuf];
   const firma = S.auftraggeber[firmaId || (alt && alt.firmaId) || ''];
   const art = kontoFuer(alt ? alt.konto || 'SCHADEN' : 'ALLGEMEIN');
@@ -1656,19 +2483,29 @@ function mailAnFirma({ firmaId = '', an = '', antwortAuf = '' } = {}) {
   const gruss = (() => { const t = vorlageText('SACHSTANDSANFRAGE', {}, S.einstellungen).text; return t.slice(t.lastIndexOf('Mit freundlichen Grüßen')); })();
   const empfaenger = alt ? (alt.eingehend ? alt.von : alt.an) : an || (firma && firma.email) || '';
   const name = firma ? kontaktZuAdressen(firma.id, empfaenger) : '';
-  let text = `${name ? `Guten Tag ${name},` : 'Sehr geehrte Damen und Herren,'}\n\n\n\n${gruss}`;
+  let text = `${name ? `Guten Tag ${name},` : 'Sehr geehrte Damen und Herren,'}\n\n${inhalt ? inhalt + '\n\n' : '\n\n'}${gruss}`;
   if (alt) text += `\n\nAm ${zeitText(alt.zeitpunkt)} schrieb ${alt.von}:\n` + String(alt.text || '').split('\n').map(z => '> ' + z).join('\n');
-  const betreff = alt ? (/^(re|aw):/i.test(alt.betreff) ? alt.betreff : 'Re: ' + alt.betreff) : '';
+  const betreff = alt ? (/^(re|aw):/i.test(alt.betreff) ? alt.betreff : 'Re: ' + alt.betreff) : betreffVorgabe;
   const konten = Object.keys(MAIL.konten).filter(a => MAIL.konten[a]);
   dialog(`<form method="dialog" id="mail-form"><h2>E-Mail${firma ? ' · ' + esc(firma.name) : ''}</h2>
     <p class="fehlertext" id="mail-fehler" hidden></p>
     ${konten.length > 1 ? `<label class="feld">Von<select name="konto">${konten.map(a => `<option value="${a}" ${a === art ? 'selected' : ''}>${esc(MAIL.konten[a].adresse)} (${MAIL_KONTEN[a]})</option>`).join('')}</select></label>`
       : `<p class="leise">Von: ${esc(MAIL.konten[art].adresse)}</p><input type="hidden" name="konto" value="${art}">`}
+    ${alt ? '' : `<div class="chips">${Object.entries(FIRMEN_VORLAGEN).map(([k, [l]]) => `<button type="button" class="chip" data-firmenvorlage="${k}">${l}</button>`).join('')}</div>`}
     <label class="feld">An<input name="an" value="${esc(empfaenger)}"></label>
     <label class="feld">Betreff<input name="betreff" value="${esc(betreff)}"></label>
     <label class="feld">Nachricht<textarea name="text" style="min-height:260px">${esc(text)}</textarea></label>
+    ${feste.length ? `<p class="leise">Anhang: ${feste.map(a => esc(a.name)).join(', ')}</p>` : ''}
     <label class="knopf" style="margin-top:6px">📎 Datei vom Rechner anhängen<input type="file" id="mail-datei" multiple hidden></label><div id="mail-dateien" class="leise"></div>
     <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll" id="mail-senden">Senden</button></div></form>`);
+  $('#mail-form').addEventListener('click', ev => {
+    const v = ev.target.closest('[data-firmenvorlage]'); if (!v) return;
+    const [, betr, inhalt] = FIRMEN_VORLAGEN[v.dataset.firmenvorlage];
+    const liste = firma && vonFirma('preise', firma.id).length ? preislisteText(firma).split('\n').slice(1).join('\n') : '[Leistungen und Preise]';
+    const n = kontaktZuAdressen(firma ? firma.id : '', $('#mail-form [name=an]').value);
+    $('#mail-form [name=betreff]').value = betr;
+    $('#mail-form [name=text]').value = `${n ? `Guten Tag ${n},` : 'Sehr geehrte Damen und Herren,'}\n\n${inhalt.replace('{PREISE}', liste)}\n\n${gruss}`;
+  });
   let dateien = [];
   $('#mail-datei').onchange = ev => { dateien = dateien.concat([...ev.target.files]); $('#mail-dateien').textContent = dateien.map(d => d.name).join(', '); ev.target.value = ''; };
   $('#mail-form').onsubmit = async ev => {
@@ -1680,14 +2517,14 @@ function mailAnFirma({ firmaId = '', an = '', antwortAuf = '' } = {}) {
     if (dateien.reduce((n, d) => n + d.size, 0) > 20 * 1024 * 1024) { zeige('Die Anhänge sind zusammen größer als 20 MB.'); return; }
     const konto = String(w.get('konto') || art), knopf = $('#mail-senden'); knopf.disabled = true; knopf.textContent = 'Sendet …';
     try {
-      const anhaenge = [];
+      const anhaenge = [...feste];
       for (const d of dateien) anhaenge.push({ name: d.name, mimeType: d.type || 'application/octet-stream', base64: await alsBase64(d) });
       const entwurf = { an: adressen.join(', '), bcc: '', betreff: String(w.get('betreff')), text: String(w.get('text')), antwortAuf: antwortAuf || '', anhaenge };
       const messageId = await window.desktop.mail.sende(entwurf, konto);
       const m = { firmaId: firma ? firma.id : '', kundeRef: alt ? alt.kundeRef || '' : '', konto, eingehend: false, von: MAIL.konten[konto].adresse, an: entwurf.an,
         betreff: entwurf.betreff, text: entwurf.text, zeitpunkt: jetztIso(), anhaenge: anhaenge.map(a => a.name) };
       ablegen(messageId, m, mailText(m));
-      $('#dialog').close(); nachAenderung(); toast('E-Mail gesendet');
+      $('#dialog').close(); if (nachSenden) nachSenden(); nachAenderung(); toast('E-Mail gesendet');
     } catch (e) { zeige(e.message || 'Die E-Mail konnte nicht gesendet werden.'); knopf.disabled = false; knopf.textContent = 'Senden'; }
   };
 }
@@ -1898,6 +2735,7 @@ window.addEventListener('beforeunload', e => { if ($('#fall-form') && formularWe
 window.addEventListener('online', () => abgleich());
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { zeichne(); pruefeStand(); } });
 setInterval(pruefeStand, 45000);
+if (langeMailsKuerzen()) speichere();
 zeichne();
 if (mitCloud()) abgleich();
 mailStart();
