@@ -1694,11 +1694,13 @@ function belegHtml(b) {
 }
 const belegDateiname = b => `${BELEG_ART[b.art][0]}_${b.nummer}_${(S.auftraggeber[b.firmaId] || {}).name || ''}.pdf`.replace(/\s+/g, '_');
 async function belegPdf(b) {
-  if (!window.desktop || !window.desktop.pdf) throw new Error('PDF gibt es in der Windows-App. Im Browser bitte „Drucken“ → „Als PDF speichern“ nutzen.');
+  if (!window.desktop || !window.desktop.pdf) throw new Error('PDF gibt es in der Windows- und der Android-App. Im Browser bitte „Drucken“ → „Als PDF speichern“ nutzen.');
   return window.desktop.pdf(belegHtml(b));
 }
 /** Druckt HTML über einen unsichtbaren Rahmen – kein neues Fenster, das ein Popup-Blocker (oder die Windows-App) sperren könnte. */
 function druckeHtml(html) {
+  // Android: Druckdialog des Geräts (eine WebView kann nicht selbst drucken)
+  if (window.desktop && window.desktop.drucke) { window.desktop.drucke(html).catch(e => toast('Drucken nicht möglich: ' + e.message)); return; }
   const alt = $('#druckrahmen'); if (alt) alt.remove();
   const r = document.createElement('iframe');
   r.id = 'druckrahmen'; r.setAttribute('aria-hidden', 'true');
@@ -2253,7 +2255,7 @@ function termineIcs() {
   return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Ayse Transport//CRM//DE', 'CALSCALE:GREGORIAN', ...ereignisse, 'END:VCALENDAR'].join('\r\n') + '\r\n';
 }
 
-// ============================== E-Mail (nur Windows-App) ==============================
+// ============================== E-Mail (Windows- und Android-App) ==============================
 // Die Windows-App spricht über ihren Hauptprozess direkt per IMAP/SMTP mit den Postfächern – mit
 // denselben Regeln wie die Android-App: zwei Postfächer (SCHADEN für Schadensfälle, ALLGEMEIN für
 // alles andere). Zuordnung eingehender Mails:
@@ -2691,7 +2693,7 @@ function mailKontoDialog(art = 'SCHADEN') {
         <label class="feld">SMTP-Port<input name="smtpPort" inputmode="numeric" value="${esc(werte.smtpPort || k.smtpPort || 465)}"></label>
         <label class="auswahl"><input type="checkbox" name="starttls" ${k.smtpSicherheit === 'STARTTLS' ? 'checked' : ''}> SMTP mit STARTTLS (sonst SSL)</label>`
         : `<p class="leise">Server: ${esc(a.imapHost)} (IMAP) · ${esc(a.smtpHost)} (SMTP)</p>`}
-      <p class="leise">Das Passwort wird mit deinem Windows-Konto verschlüsselt und nur auf diesem Rechner gespeichert. Die App liest den Posteingang und verändert im Postfach nichts.</p>
+      <p class="leise">Das Passwort wird verschlüsselt und nur auf diesem ${window.desktop && window.desktop.plattform === 'android' ? 'Gerät' : 'Rechner (mit deinem Windows-Konto)'} gespeichert. Die App liest den Posteingang und verändert im Postfach nichts.</p>
       <p class="fehlertext" id="konto-fehler" hidden></p>
       <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll" id="konto-verbinden">Verbinden</button></div></form>`);
     $('#konto-form').onclick = e => { const c = e.target.closest('[data-anbieter]'); if (c) { wahl = c.dataset.anbieter; male(); } };
