@@ -1,7 +1,7 @@
 {
-  "name": "Schadensfälle",
-  "short_name": "Schadensfälle",
-  "description": "Schadensfälle bei Transportaufträgen nachhaken und bearbeiten",
+  "name": "Ayse CRM",
+  "short_name": "Ayse CRM",
+  "description": "Auftraggeber, Wiedervorlagen und Schadensfälle von Ayse Transport",
   "lang": "de",
   "start_url": "./",
   "scope": "./",

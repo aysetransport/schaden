@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Schadensfälle</title>
+<title>Ayse CRM</title>
 <script>
 // Adresse des Cloud-Skripts (…/exec). Bleibt sie leer, fragt die App beim ersten Start danach.
 window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwhDnWP7p9XeoIz8NisZR7NApIj-Xfgd_lP5j8KjPE11OFbQuA/exec";
@@ -112,13 +112,21 @@ dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
 .leer b{display:block;color:var(--text);font-size:16px;margin:10px 0 4px}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:20;background:#2E3135;color:#EFF0F7;padding:12px 18px;border-radius:8px;max-width:calc(100vw - 32px);box-shadow:0 3px 10px rgba(0,0,0,.3)}
 #sync{font-size:12px;padding:4px 10px;border-radius:999px;border:0;cursor:pointer}
+.reiter{display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--rand)}
+.reiter-knopf{flex:1;border:0;background:transparent;padding:10px 4px;cursor:pointer;border-bottom:3px solid transparent;font-weight:500;color:var(--leise)}
+.reiter-knopf[aria-selected=true]{border-bottom-color:var(--primaer);color:var(--text)}
+.reiter-knopf .zahl{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--rot-f);color:var(--rot-t);font-size:12px}
+.abschnitt{font-size:14px;color:var(--primaer);margin:16px 0 6px}
+.termin{display:flex;align-items:center;gap:6px}
+.termin input{width:20px;height:20px;flex:none}
+.termin-symbol{width:20px;text-align:center;flex:none}
 [hidden]{display:none!important}
 </style>
 </head>
 <body>
 <header>
   <button class="symbol" id="zurueck" aria-label="Zurück zur Liste" hidden>←</button>
-  <h1>Schadensfälle</h1>
+  <h1>Ayse CRM</h1>
   <button id="sync" class="grau" title="Jetzt abgleichen"></button>
   <button class="symbol" id="einstellungen-knopf" aria-label="Einstellungen">⚙</button>
 </header>
@@ -397,7 +405,8 @@ function csvErstellen(faelle, anlagenJeFall) {
 
 // ============================== Daten im Browser ==============================
 const SPEICHER = 'schadensfaelle-v1', PIN_SPEICHER = 'schadensfaelle-pin';
-const LEER = () => ({ faelle: {}, verlauf: {}, anlagen: {}, auftraggeber: {}, seit: 0, kennung: '', apiUrl: '', nurLokal: false,
+const CRM_TABELLEN = ['adressen', 'ansprechpartner', 'preise', 'aktivitaeten', 'aufgaben', 'dokumente'];
+const LEER = () => ({ faelle: {}, verlauf: {}, anlagen: {}, auftraggeber: {}, adressen: {}, ansprechpartner: {}, preise: {}, aktivitaeten: {}, aufgaben: {}, dokumente: {}, seit: 0, kennung: '', apiUrl: '', nurLokal: false,
   einstellungen: { firma: '', bearbeiter: '', funktion: '', wiedervorlageTage: 7 } });
 let S = LEER();
 try { S = Object.assign(LEER(), JSON.parse(localStorage.getItem(SPEICHER) || '{}')); } catch { /* beschädigter Stand: neu beginnen, die Cloud liefert nach */ }
@@ -430,33 +439,57 @@ function fallMerken(f) {
 }
 function nachAenderung() { speichere(); zeichne(); planeAbgleich(); }
 
-/** Ein bisher unbekannter Auftraggeber aus einem Fall kommt automatisch in die Liste. */
-function merkeAuftraggeber(f) {
-  const name = (f.auftraggeber || '').trim();
-  if (!name || alle('auftraggeber').some(e => e.name.trim().toLowerCase() === name.toLowerCase())) return;
-  merke('auftraggeber', { id: uuid(), name, kontakt: (f.auftraggeberKontakt || '').trim(), telefon: (f.auftraggeberTelefon || '').trim(),
-    email: (f.auftraggeberEmail || '').trim(), geaendertAm: jetztIso() });
-}
+const normal = t => String(t || '').trim().toLowerCase().replace(/\s+/g, ' ');
 const auftraggeberListe = () => alle('auftraggeber').sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }));
+const kontakteVon = firmaId => alle('ansprechpartner').filter(k => k.firmaId === firmaId).sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }));
+/** Bevorzugt der Ansprechpartner für Schäden, sonst der erste. */
+const schadenKontakt = firmaId => { const k = kontakteVon(firmaId); return k.find(x => /sch(a|ä)d/i.test(x.thema || '')) || k[0]; };
+/** Firma zum Namen (gleiche Regeln wie in der Android-App: ohne Groß-/Kleinschreibung, kleinste Kennung gewinnt). */
+const firmaZumNamen = name => alle('auftraggeber').filter(e => normal(e.name) === normal(name)).sort((a, b) => (a.id < b.id ? -1 : 1))[0];
+/** Gehört der Fall zur Firma – über den Verweis oder, noch unverknüpft, über den Namen? */
+const gehoertZu = (f, firma) => (f.auftraggeberUuid ? f.auftraggeberUuid === firma.id : !!(f.auftraggeber || '').trim() && normal(f.auftraggeber) === normal(firma.name));
+
+/** Ansprechpartner anlegen oder fehlende Telefonnummer/E-Mail ergänzen. */
+function kontaktUebernehmen(firmaId, name, telefon, email, thema = 'Schäden') {
+  name = (name || '').trim(); telefon = (telefon || '').trim(); email = (email || '').trim();
+  if (!name && !telefon && !email) return;
+  const liste = kontakteVon(firmaId);
+  const k = name ? liste.find(x => normal(x.name) === normal(name)) : email ? liste.find(x => (x.email || '').toLowerCase() === email.toLowerCase())
+    : liste.find(x => (x.telefon || '').replace(/\D/g, '') === telefon.replace(/\D/g, ''));
+  if (!k) merke('ansprechpartner', { id: uuid(), firmaId, name: name || email || telefon, thema, telefon, email, notiz: '', geaendertAm: jetztIso() });
+  else if ((!k.telefon && telefon) || (!k.email && email)) merke('ansprechpartner', { ...k, telefon: k.telefon || telefon, email: k.email || email, geaendertAm: jetztIso() });
+}
+/** Verbindet einen Fall mit seiner Firma; fehlt sie, wird sie angelegt. */
+function firmaVerknuepfen(f) {
+  const name = (f.auftraggeber || '').trim();
+  if (!name) { f.auftraggeberUuid = ''; return f; }
+  let firma = f.auftraggeberUuid && S.auftraggeber[f.auftraggeberUuid] && !S.auftraggeber[f.auftraggeberUuid].geloescht && normal(S.auftraggeber[f.auftraggeberUuid].name) === normal(name)
+    ? S.auftraggeber[f.auftraggeberUuid] : firmaZumNamen(name);
+  if (!firma) firma = merke('auftraggeber', { id: uuid(), name, rechtsform: '', status: 'AKTIV', telefon: '', email: '', website: '', notizen: '', geaendertAm: jetztIso() });
+  kontaktUebernehmen(firma.id, f.auftraggeberKontakt, f.auftraggeberTelefon, f.auftraggeberEmail);
+  f.auftraggeberUuid = firma.id;
+  return f;
+}
 function auftraggeberAuswahl() {
   const liste = auftraggeberListe();
-  if (!liste.length) return '<p class="leise" style="margin-bottom:8px">Noch keine gespeicherten Auftraggeber – neue kommen beim Speichern automatisch in die Liste.</p>';
-  return `<label class="feld">Aus Liste wählen<select id="ag-auswahl"><option value="">– Auftraggeber wählen –</option>${liste.map(e =>
-    `<option value="${e.id}">${esc(e.name)}${e.kontakt ? ' · ' + esc(e.kontakt) : ''}</option>`).join('')}</select></label>`;
+  if (!liste.length) return '<p class="leise" style="margin-bottom:8px">Noch keine Firmen im CRM – neue Auftraggeber kommen beim Speichern automatisch dazu.</p>';
+  return `<label class="feld">Aus Liste wählen<select id="ag-auswahl"><option value="">– Auftraggeber wählen –</option>${liste.map(e => {
+    const k = schadenKontakt(e.id);
+    return `<option value="${e.id}">${esc(e.name)}${k ? ' · ' + esc(k.name) : ''}</option>`;
+  }).join('')}</select></label>`;
 }
 
 const Aktionen = {
   anlegen(entwurf) {
     const jetzt = jetztIso();
-    merkeAuftraggeber(entwurf);
+    firmaVerknuepfen(entwurf);
     const f = fallMerken({ ...entwurf, id: uuid(), fallnummer: naechsteFallnummer(faelle()), erstelltAm: jetzt });
     vermerke(f.id, 'ANGELEGT', `Fall ${f.fallnummer} angelegt`);
     nachAenderung(); return f.id;
   },
   speichern(id, neu) {
     const alt = S.faelle[id]; if (!alt) return;
-    const f = fallMerken({ ...alt, ...neu, id, fallnummer: alt.fallnummer, erstelltAm: alt.erstelltAm });
-    merkeAuftraggeber(f);
+    const f = fallMerken(firmaVerknuepfen({ ...alt, ...neu, id, fallnummer: alt.fallnummer, erstelltAm: alt.erstelltAm }));
     if (alt.status !== f.status) vermerke(id, 'STATUS', `Status: ${status(alt).label} → ${status(f).label}`);
     if (status(f).offen && alt.wiedervorlageAm !== f.wiedervorlageAm) vermerke(id, 'WIEDERVORLAGE', wvText(f.wiedervorlageAm, f.wartetAuf, f.wiedervorlageNotiz));
     nachAenderung();
@@ -501,11 +534,24 @@ const Aktionen = {
     entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id);
     vermerke(a.fallId, 'ANLAGE', `Anlage entfernt: ${a.anzeigename}`); nachAenderung();
   },
-  auftraggeberSpeichern(e) {
-    merke('auftraggeber', { id: e.id || uuid(), name: e.name.trim(), kontakt: e.kontakt.trim(), telefon: e.telefon.trim(), email: e.email.trim(), geaendertAm: jetztIso() });
-    nachAenderung();
+  /** Firma speichern; eine neue Firma mit vorhandenem Namen wird nicht doppelt angelegt. @return Kennung */
+  firmaSpeichern(e) {
+    const vorhanden = !e.id && firmaZumNamen(e.name);
+    if (vorhanden) { nachAenderung(); return vorhanden.id; }
+    const alt = e.id && S.auftraggeber[e.id];
+    const f = merke('auftraggeber', { ...(alt || {}), ...e, id: e.id || uuid(), name: e.name.trim(), geaendertAm: jetztIso() });
+    // Fälle tragen den Namen als Text – bei einer Umbenennung mitziehen.
+    if (alt && alt.name !== f.name) for (const fall of faelle().filter(x => x.auftraggeberUuid === f.id)) fallMerken({ ...fall, auftraggeber: f.name });
+    nachAenderung(); return f.id;
   },
-  auftraggeberLoeschen(e) { entferne('auftraggeber', e, { geaendertAm: jetztIso() }); nachAenderung(); },
+  /** Löscht die Firma mit allem, was an ihr hängt (die Cloud löscht mit). Fälle bleiben erhalten. */
+  firmaLoeschen(e) {
+    for (const t of CRM_TABELLEN) for (const x of Object.values(S[t])) if (x.firmaId === e.id) delete S[t][x.id];
+    for (const fall of faelle().filter(x => x.auftraggeberUuid === e.id)) S.faelle[fall.id] = { ...fall, auftraggeberUuid: '' };
+    entferne('auftraggeber', e, { geaendertAm: jetztIso() }); nachAenderung();
+  },
+  crmSpeichern(tabelle, e) { merke(tabelle, { ...e, id: e.id || uuid(), geaendertAm: jetztIso() }); nachAenderung(); },
+  crmLoeschen(tabelle, e) { entferne(tabelle, e, { firmaId: e.firmaId, geaendertAm: jetztIso() }); nachAenderung(); },
   fallLoeschen(id) {
     const f = S.faelle[id]; if (!f) return;
     // Verlauf und Anlagen entfernt der Server zusammen mit dem Fall; lokal verschwinden sie sofort.
@@ -568,12 +614,14 @@ async function api(fn, ...args) {
   if (j.error) throw new Error(j.error);
   return j.ok;
 }
-const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber'];
-const CLOUD_API = 3;
+const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber', ...CRM_TABELLEN];
+const CLOUD_API = 4;
 const VERALTET = 'Das Cloud-Skript ist veraltet – bitte die neue Code.gs bereitstellen.';
 const offeneAnzahl = () => TABELLEN.reduce((n, t) => n + offene(t).length, 0);
 const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
 const ohneLokales = d => Object.fromEntries(Object.entries(d).filter(([k]) => !k.startsWith('_')));
+/** Vergleich unabhängig von der Reihenfolge der Felder (die Cloud liefert sie in ihrer eigenen Reihenfolge). */
+const gleicherStand = (a, b) => JSON.stringify(Object.keys(a).sort().map(k => [k, a[k]])) === JSON.stringify(Object.keys(b).sort().map(k => [k, b[k]]));
 const offene = tabelle => Object.values(S[tabelle]).filter(d => d._dirty);
 
 function planeAbgleich(ms = 1200) { if (!mitCloud()) return; clearTimeout(SYNC.timer); SYNC.timer = setTimeout(abgleich, ms); zeichneSync(); }
@@ -587,11 +635,9 @@ async function abgleich() {
     // Ein veraltetes Cloud-Skript würde unbekannte Felder verwerfen – dann lieber gar nicht abgleichen.
     const st = await api('status');
     if (!(st.api >= CLOUD_API)) throw new Error(VERALTET);
-    const gesendet = { faelle: offene('faelle'), verlauf: offene('verlauf'), anlagen: offene('anlagen'), auftraggeber: offene('auftraggeber') };
+    const gesendet = Object.fromEntries(TABELLEN.map(t => [t, offene(t)]));
     const marken = new Map(Object.values(gesendet).flat().map(d => [d.id, d._n]));
-    const r = await api('sync', PIN, { seit: S.seit, kennung: S.kennung,
-      faelle: gesendet.faelle.map(ohneLokales), verlauf: gesendet.verlauf.map(ohneLokales), anlagen: gesendet.anlagen.map(ohneLokales),
-      auftraggeber: gesendet.auftraggeber.map(ohneLokales) });
+    const r = await api('sync', PIN, { seit: S.seit, kennung: S.kennung, ...Object.fromEntries(TABELLEN.map(t => [t, gesendet[t].map(ohneLokales)])) });
 
     let neuesVomServer = false;
     for (const tabelle of TABELLEN) {
@@ -606,9 +652,10 @@ async function abgleich() {
         if (lokal && lokal._dirty) continue; // inzwischen lokal geändert – geht beim nächsten Abgleich hoch
         if (fern.geloescht) {
           if (lokal) { neuesVomServer = true; delete S[tabelle][fern.id]; if (tabelle === 'anlagen') Dateien.loesche(fern.id); }
+          if (tabelle === 'auftraggeber') for (const t of CRM_TABELLEN) for (const x of Object.values(S[t])) if (x.firmaId === fern.id && !x._dirty) delete S[t][x.id];
           continue;
         }
-        if (!lokal || JSON.stringify(ohneLokales(lokal)) !== JSON.stringify(fern)) neuesVomServer = true;
+        if (!lokal || !gleicherStand(ohneLokales(lokal), fern)) neuesVomServer = true;
         S[tabelle][fern.id] = { ...fern, _n: lokal ? lokal._n : 0 };
       }
     }
@@ -690,7 +737,8 @@ async function anmeldung(falsch = false) {
 }
 
 // ============================== Oberfläche ==============================
-const ANSICHT = { filter: 'OFFEN', suche: '', notiz: '' };
+const ANSICHT = { filter: 'OFFEN', suche: '', notiz: '', bereich: 'firmen', firmenSuche: '', firmenStatus: '', firmaFuerNeuenFall: '' };
+try { const b = localStorage.getItem('crm-bereich'); if (b && ['firmen', 'faelle', 'termine', 'postfach'].includes(b)) ANSICHT.bereich = b; } catch {}
 function route() {
   const [, art = '', id = ''] = location.hash.split('/');
   return { art, id };
@@ -718,6 +766,13 @@ function zeichne() {
 }
 
 function zeichneListe(r = route()) {
+  if (ANSICHT.bereich !== 'faelle') {
+    const el = $('#liste'), fokus = document.activeElement && document.activeElement.id === 'firmen-suche';
+    if (ANSICHT.bereich === 'postfach' && !MAIL.konto) ANSICHT.bereich = 'firmen';
+    el.innerHTML = bereichsReiter() + (ANSICHT.bereich === 'termine' ? zeichneTermine() : ANSICHT.bereich === 'postfach' ? zeichnePostfach(r) : zeichneFirmenliste(r));
+    if (fokus) { const s = $('#firmen-suche'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+    return;
+  }
   const k = kennzahlen(faelle());
   const liste = filtereUndSortiere(faelle(), ANSICHT.filter, ANSICHT.suche);
   const el = $('#liste');
@@ -738,7 +793,7 @@ function zeichneListe(r = route()) {
     ? `<div class="leer">🚚<b>Noch keine Schadensfälle</b>Lege den ersten Fall an – so geht keine Wiedervorlage unter.<br><br><button class="knopf voll" data-neu>Ersten Fall anlegen</button></div>`
     : `<div class="leer"><b>${ANSICHT.suche.trim() ? 'Keine Treffer' : { FAELLIG: 'Nichts fällig', OFFEN: 'Keine offenen Fälle', ABGESCHLOSSEN: 'Noch nichts abgeschlossen', ALLE: 'Keine Fälle' }[ANSICHT.filter]}</b>
         ${ANSICHT.suche.trim() ? `Zu „${esc(ANSICHT.suche.trim())}“ wurde in dieser Ansicht nichts gefunden.` : ANSICHT.filter === 'FAELLIG' ? 'Heute muss bei keinem Fall nachgehakt werden.' : 'In dieser Ansicht gibt es derzeit keine Fälle.'}</div>`;
-  el.innerHTML = `
+  el.innerHTML = bereichsReiter() + `
     <div class="kennzahlen">
       <button class="kennzahl ${k.faellig ? 'rot' : ''}" data-filter="FAELLIG"><b>${k.faellig}</b><span>Fällig</span></button>
       <button class="kennzahl" data-filter="OFFEN"><b>${k.offen}</b><span>Offen</span></button>
@@ -767,16 +822,19 @@ function zeichneDetail(r = route()) {
   if (r.art === 'neu' || r.art === 'bearbeiten') { if (!el.querySelector('#fall-form') || el.dataset.id !== r.art + r.id) zeichneFormular(r); return; }
   el.dataset.id = '';
   if (r.art === 'einstellungen') { zeichneEinstellungen(); return; }
+  if (r.art === 'firma') { zeichneFirma(r.id); return; }
+  if (r.art === 'mail') { zeichneMail(decodeURIComponent(r.id)); return; }
   const f = r.art === 'fall' ? S.faelle[r.id] : null;
   if (!f || f.geloescht) {
     if (r.art === 'fall') { gehe('#/'); return; } // Fall wurde gelöscht (hier oder auf einem anderen Gerät)
-    el.innerHTML = faelle().length ? '<div class="leer"><b>Kein Fall ausgewählt</b>Wähle links einen Fall oder lege einen neuen an.</div>' : '';
+    el.innerHTML = faelle().length || alle('auftraggeber').length ? '<div class="leer"><b>Nichts ausgewählt</b>Wähle links eine Firma, einen Fall oder einen Termin.</div>' : '';
     return;
   }
   const fk = faelligkeit(f), anl = anlagenVon(f.id);
   const zeilen = paare => paare.filter(([, w]) => w && String(w).trim()).map(([l, w]) => `<dt>${l}</dt><dd>${esc(String(w).trim())}</dd>`).join('');
   const block = (titel, paare, leer) => { const z = zeilen(paare); return z || leer ? `<h3>${titel}</h3>${z ? `<dl>${z}</dl>` : `<p class="leise">${leer}</p>`}` : ''; };
   const zusatz = [f.wartetAuf && 'Wartet auf ' + PARTNER[f.wartetAuf], f.wiedervorlageNotiz].filter(Boolean).join(' · ');
+  const firmaDesFalls = f.auftraggeberUuid && S.auftraggeber[f.auftraggeberUuid] && !S.auftraggeber[f.auftraggeberUuid].geloescht ? S.auftraggeber[f.auftraggeberUuid] : (f.auftraggeber && firmaZumNamen(f.auftraggeber));
   const notizFokus = document.activeElement && document.activeElement.id === 'notiz';
   el.innerHTML = `
     <div class="karte">
@@ -802,6 +860,7 @@ function zeichneDetail(r = route()) {
       ${block('Schaden', [['Beschreibung', f.beschreibung], ['Schadensort', f.schadensort], ['Gemeldet am', datumText(f.meldedatum)]], 'Noch keine Beschreibung erfasst.')}
       ${block('Geschädigter', [['Name', f.kundeName], ['Firma', f.kundeFirma], ['Telefon', f.kundeTelefon], ['E-Mail', f.kundeEmail], ['Anschrift', f.kundeAnschrift], ['Zeichen', f.kundenAktenzeichen]], 'Keine Kontaktdaten erfasst.')}
       ${block('Auftraggeber', [['Firma', f.auftraggeber], ['Ansprechpartner', f.auftraggeberKontakt], ['Telefon', f.auftraggeberTelefon], ['E-Mail', f.auftraggeberEmail], ['Zeichen', f.auftraggeberZeichen], ['Auftrags-Nr.', f.auftragsReferenz]], 'Kein Auftraggeber erfasst.')}
+      ${firmaDesFalls ? `<a class="knopf text" id="zur-firma" href="#/firma/${firmaDesFalls.id}">Firma im CRM öffnen</a>` : ''}
       ${block('Transport', [['Tour', f.tour], ['Fahrzeug', f.fahrzeug], ['Fahrer', f.fahrer], ['Beifahrer', beifahrer(f)]], 'Keine Angaben zum Transport.')}
       ${block('Regulierung', [['Vergleich / Regulierung', f.vergleichCent != null ? geld(f.vergleichCent) : ''], ['Zahlungsfrist', datumText(f.zahlungsfrist)], ['Schadennr. Versicherung', f.versicherungsNummer]], '')}
     </div>
@@ -978,7 +1037,7 @@ function zeichneFormular(r) {
   const alt = r.art === 'bearbeiten' ? S.faelle[r.id] : null;
   if (r.art === 'bearbeiten' && !alt) { gehe('#/'); return; }
   const f = alt ? { ...alt, forderung: alt.forderungCent != null ? geldOhneSymbol(alt.forderungCent) : '', vergleich: alt.vergleichCent != null ? geldOhneSymbol(alt.vergleichCent) : '' }
-    : { status: 'NEU', schadensart: 'WARE', meldedatum: heute(), wiedervorlageAm: plusTage(heute(), S.einstellungen.wiedervorlageTage) };
+    : { status: 'NEU', schadensart: 'WARE', meldedatum: heute(), wiedervorlageAm: plusTage(heute(), S.einstellungen.wiedervorlageTage), ...vorbelegteFirma() };
   const feld = ([name, label, art]) => {
     const wert = esc(f[name] ?? '');
     if (art && typeof art === 'object') return `<label class="feld">${label}<select name="${name}">${Object.entries(art).map(([k, t]) => `<option value="${k}" ${String(f[name] ?? '') === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
@@ -997,7 +1056,8 @@ function zeichneFormular(r) {
   if (auswahl) auswahl.onchange = () => {
     const e = S.auftraggeber[auswahl.value]; if (!e) return;
     const setze = (name, wert) => { $(`#fall-form [name="${name}"]`).value = wert || ''; };
-    setze('auftraggeber', e.name); setze('auftraggeberKontakt', e.kontakt); setze('auftraggeberTelefon', e.telefon); setze('auftraggeberEmail', e.email);
+    const k = schadenKontakt(e.id);
+    setze('auftraggeber', e.name); setze('auftraggeberKontakt', k?.name); setze('auftraggeberTelefon', k?.telefon || e.telefon); setze('auftraggeberEmail', k?.email || e.email);
     auswahl.value = '';
   };
   $('#abbrechen').onclick = () => { if (formularSchliessen()) { formularStand = formularWerte(); history.length > 1 ? history.back() : gehe('#/'); } };
@@ -1026,6 +1086,14 @@ function zeichneFormular(r) {
   };
 }
 
+/** Neuer Fall aus der Ansicht einer Firma: Auftraggeber und Ansprechpartner für Schäden vorbelegen. */
+function vorbelegteFirma() {
+  const e = S.auftraggeber[ANSICHT.firmaFuerNeuenFall]; ANSICHT.firmaFuerNeuenFall = '';
+  if (!e) return {};
+  const k = schadenKontakt(e.id);
+  return { auftraggeber: e.name, auftraggeberKontakt: k?.name || '', auftraggeberTelefon: k?.telefon || e.telefon || '', auftraggeberEmail: k?.email || e.email || '' };
+}
+
 // ---------- Einstellungen ----------
 function zeichneEinstellungen() {
   const e = S.einstellungen;
@@ -1042,29 +1110,49 @@ function zeichneEinstellungen() {
         <label class="feld">Cloud-Adresse (…/exec)<input id="cloud-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(apiUrl())}"></label>
         <button class="knopf voll" id="verbinden">Verbinden</button>`}</div>
     ${window.desktop ? mailEinstellungen() : ''}
-    <div class="karte block"><h3>Auftraggeber</h3><p class="leise" style="margin-bottom:8px">Diese Auftraggeber lassen sich im Fall-Formular auswählen. Neue aus Fällen kommen automatisch hinzu.</p>
-      ${auftraggeberListe().map(e => `<button class="vorlage" data-ag="${e.id}"><b>${esc(e.name)}</b><br><span class="leise">${esc([e.kontakt, e.telefon, e.email].filter(Boolean).join(' · ') || 'keine Kontaktdaten')}</span></button>`).join('')}
-      <button class="knopf" id="ag-neu" style="margin-top:8px">＋ Neuer Auftraggeber</button></div>
+    <div class="karte block"><h3>CRM</h3><p class="leise" style="margin-bottom:8px">Die Sicherung des bisherigen Browser-CRM (JSON) einlesen. Firmen mit gleichem Namen werden zusammengeführt, nichts wird doppelt angelegt.</p>
+      <div class="zeile"><label class="knopf" id="crm-import-knopf">Sicherung des Browser-CRM importieren<input type="file" id="crm-import" accept=".json,application/json" hidden></label>
+      <button class="knopf" id="crm-csv">CRM für Excel exportieren (5 CSV-Dateien)</button></div></div>
     <div class="karte block"><h3>Daten</h3><button class="knopf" id="csv">Fallliste für Excel exportieren (CSV)</button></div>
     <p class="leise">Erinnerungen per Benachrichtigung gibt es in der Android-App. Hier stehen fällige Fälle immer oben.</p>`;
 }
 $('#detail').addEventListener('input', e => { const k = e.target.dataset.einst; if (k) { S.einstellungen[k] = e.target.value; speichere(); } });
+$('#detail').addEventListener('change', async e => {
+  if (e.target.id !== 'crm-import' || !e.target.files.length) return;
+  try {
+    const r = crmImportieren(await e.target.files[0].text());
+    toast(`Importiert: ${r.neu} neue Firma(n), ${r.zusammen} mit vorhandenen zusammengeführt, ${r.eintraege} Einträge`, 6000);
+  } catch (fehler) { toast(fehler.message, 6000); }
+  e.target.value = '';
+});
 $('#detail').addEventListener('click', e => {
-  const ag = e.target.closest('[data-ag]');
-  if (ag || e.target.id === 'ag-neu') { auftraggeberDialog(ag ? S.auftraggeber[ag.dataset.ag] : null); return; }
   const tage = e.target.closest('[data-wv-tage]');
   if (tage) { S.einstellungen.wiedervorlageTage = Number(tage.dataset.wvTage); speichere(); zeichneEinstellungen(); return; }
   switch (e.target.id) {
-    case 'mail-einrichten': case 'mail-aendern': mailKontoDialog(); break;
-    case 'mail-abrufen': postfachAbrufen(true); break;
-    case 'mail-entfernen': bestaetige('E-Mail-Konto entfernen?', 'Konto und Passwort werden von diesem Rechner entfernt. Bereits zugeordnete Mails bleiben im Verlauf.', 'Entfernen',
-      async () => { await window.desktop.mail.trennen(); MAIL.konto = null; zeichne(); toast('E-Mail-Konto entfernt'); }); break;
+    default: {
+      const einrichten = e.target.closest('[data-mail-einrichten]'), entfernen = e.target.closest('[data-mail-entfernen]');
+      if (einrichten) mailKontoDialog(einrichten.dataset.mailEinrichten);
+      else if (e.target.closest('[data-mail-abrufen]')) postfachAbrufen(true);
+      else if (entfernen) {
+        const art = entfernen.dataset.mailEntfernen;
+        bestaetige('E-Mail-Konto entfernen?', 'Konto und Passwort werden von diesem Rechner entfernt. Bereits zugeordnete Mails bleiben im Verlauf.', 'Entfernen',
+          async () => { await window.desktop.mail.trennen(art); MAIL.konten[art] = null; aktualisiereKonto(); zeichne(); toast('E-Mail-Konto entfernt'); });
+      }
+    }
     case 'jetzt': abgleich(); break;
     case 'abmelden': PIN = ''; try { localStorage.removeItem(PIN_SPEICHER); } catch {} toast('Abgemeldet. Beim nächsten Abgleich wird die PIN abgefragt.'); break;
     case 'verbinden': {
       const url = $('#cloud-url').value.trim();
       if (!/^https?:\/\/.+/.test(url)) { toast('Bitte die vollständige Adresse eintragen (beginnt mit https://).'); break; }
       S.apiUrl = url; S.nurLokal = false; speichere(); zeichne(); abgleich(); break;
+    }
+    case 'crm-csv': {
+      if (!alle('auftraggeber').length) { toast('Es gibt noch keine Firmen zum Exportieren'); break; }
+      for (const [name, inhalt] of Object.entries(crmCsvDateien())) {
+        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([inhalt], { type: 'text/csv;charset=utf-8' })), download: `CRM_${name}_${heute()}.csv` });
+        a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      }
+      break;
     }
     case 'csv': {
       if (!faelle().length) { toast('Es gibt noch keine Fälle zum Exportieren'); break; }
@@ -1075,88 +1163,557 @@ $('#detail').addEventListener('click', e => {
   }
 });
 
-function auftraggeberDialog(e) {
-  const neu = !e; e = e || { name: '', kontakt: '', telefon: '', email: '' };
-  dialog(`<form method="dialog" id="ag-form"><h2>${neu ? 'Neuer Auftraggeber' : 'Auftraggeber bearbeiten'}</h2>
-    <label class="feld">Firma<input name="name" required value="${esc(e.name)}"></label>
-    <label class="feld">Ansprechpartner<input name="kontakt" value="${esc(e.kontakt)}"></label>
-    <label class="feld">Telefon<input name="telefon" type="tel" value="${esc(e.telefon)}"></label>
-    <label class="feld">E-Mail<input name="email" type="email" value="${esc(e.email)}"><span class="fehlertext" id="ag-fehler" hidden>Die E-Mail-Adresse sieht unvollständig aus.</span></label>
-    ${neu ? '' : '<p class="leise">Änderungen gelten für neue Fälle; bereits erfasste Fälle behalten ihre Angaben.</p>'}
-    <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="ag-loeschen">Löschen</button>'}<span class="fuell"></span>
-      <button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
-  $('#ag-form').onsubmit = ev => {
-    ev.preventDefault();
-    const w = Object.fromEntries(new FormData(ev.target));
-    if (!w.name.trim()) return;
-    if (w.email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(w.email.trim())) { $('#ag-fehler').hidden = false; return; }
-    $('#dialog').close(); Aktionen.auftraggeberSpeichern({ ...w, id: e.id });
-  };
-  if (!neu) $('#ag-loeschen').onclick = () => bestaetige(`„${e.name}“ löschen?`, 'Der Auftraggeber verschwindet aus der Auswahlliste. Bereits erfasste Fälle bleiben unverändert.', 'Löschen', () => Aktionen.auftraggeberLoeschen(e));
+// ============================== CRM: Firmen (Auftraggeber) ==============================
+// Gleiche Daten und Regeln wie in der Android-App; alles gleicht sich über die Cloud ab.
+const FIRMEN_STATUS = { INTERESSENT: ['Interessent', 'violett'], AKTIV: ['Aktiv', 'gruen'], PAUSIERT: ['Pausiert', 'gelb'], EHEMALIG: ['Ehemalig', 'grau'] };
+const ADRESS_ART = { HAUPTSITZ: 'Hauptsitz', LAGER: 'Lager', FILIALE: 'Filiale', RECHNUNG: 'Rechnungsadresse', SONSTIGE: 'Sonstige' };
+const AKTIVITAET_ART = { ANRUF: 'Anruf', EMAIL: 'E-Mail', TREFFEN: 'Treffen', ANGEBOT: 'Angebot', SONSTIGES: 'Sonstiges' };
+const firmenStatus = e => FIRMEN_STATUS[e.status] || FIRMEN_STATUS.AKTIV;
+const firmaName = e => [e.name, e.rechtsform].filter(Boolean).join(' ');
+const vonFirma = (tabelle, id) => alle(tabelle).filter(x => x.firmaId === id);
+const adresseText = a => [a.strasse, [a.plz, a.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+
+/** Wiedervorlagen: offene CRM-Aufgaben und Wiedervorlagen offener Fälle, nach Fälligkeit eingeteilt. */
+function wiedervorlagen() {
+  const t = heute();
+  const termine = [
+    ...alle('aufgaben').filter(a => !a.erledigt && a.faelligAm).map(a => ({ art: 'aufgabe', datum: a.faelligAm, titel: a.text, zusatz: [S.auftraggeber[a.firmaId]?.name, a.kontakt].filter(Boolean).join(' · '), a })),
+    ...faelle().filter(f => status(f).offen && f.wiedervorlageAm).map(f => ({ art: 'fall', datum: f.wiedervorlageAm, titel: `Fall ${f.fallnummer} · ${anzeigeName(f)}`,
+      zusatz: [f.auftraggeber, f.wartetAuf && 'wartet auf ' + PARTNER[f.wartetAuf], f.wiedervorlageNotiz].filter(Boolean).join(' · '), f })),
+  ].sort((a, b) => a.datum.localeCompare(b.datum) || a.titel.localeCompare(b.titel));
+  return { ueberfaellig: termine.filter(x => x.datum < t), heute: termine.filter(x => x.datum === t), demnaechst: termine.filter(x => x.datum > t),
+    ohneDatum: alle('aufgaben').filter(a => !a.erledigt && !a.faelligAm) };
+}
+const naechsterTermin = firma => { const w = wiedervorlagen(); return [...w.ueberfaellig, ...w.heute, ...w.demnaechst].find(x => (x.a ? x.a.firmaId === firma.id : gehoertZu(x.f, firma))); };
+
+/** Volltextsuche: Fundstelle oder null. */
+function firmaTreffer(e, such) {
+  const p = t => String(t || '').toLowerCase().includes(such);
+  if (p(e.name) || p(e.rechtsform)) return '';
+  if (p(e.notizen)) return 'Notizen';
+  if (p(e.email) || p(e.telefon) || p(e.website)) return 'Kontaktdaten';
+  let x = vonFirma('ansprechpartner', e.id).find(k => [k.name, k.thema, k.telefon, k.email, k.notiz].some(p)); if (x) return 'Ansprechpartner: ' + x.name;
+  x = vonFirma('adressen', e.id).find(a => [a.strasse, a.plz, a.ort, a.notiz].some(p)); if (x) return 'Adresse: ' + adresseText(x);
+  x = vonFirma('aktivitaeten', e.id).find(a => p(a.text) || p(a.kontakt)); if (x) return 'Kontakthistorie: ' + datumText(x.datum);
+  x = vonFirma('aufgaben', e.id).find(a => !a.erledigt && p(a.text)); if (x) return 'Wiedervorlage: ' + x.text;
+  x = vonFirma('dokumente', e.id).find(d => p(d.titel) || p(d.notiz)); if (x) return 'Dokument: ' + x.titel;
+  x = faelle().find(f => gehoertZu(f, e) && filtereUndSortiere([f], 'ALLE', such).length); if (x) return 'Fall ' + x.fallnummer;
+  return null;
 }
 
+const BEREICHE = { firmen: 'Firmen', faelle: 'Schäden', termine: 'Termine', postfach: 'Postfach' };
+function bereichsReiter() {
+  const w = wiedervorlagen(), faellig = w.ueberfaellig.length + w.heute.length;
+  const offen = Object.values(mails()).filter(m => !istZugeordnet(m)).length;
+  // Das Postfach gibt es nur in der Windows-App mit eingerichtetem Konto.
+  return `<div class="reiter" role="tablist">${Object.entries(BEREICHE).filter(([k]) => k !== 'postfach' || MAIL.konto).map(([k, l]) => {
+    const zahl = k === 'termine' ? faellig : k === 'postfach' ? offen : 0;
+    return `<button class="reiter-knopf" role="tab" data-bereich="${k}" aria-selected="${ANSICHT.bereich === k}">${l}${zahl ? ` <span class="zahl">${zahl}</span>` : ''}</button>`;
+  }).join('')}</div>`;
+}
+
+function zeichneFirmenliste(r) {
+  const such = ANSICHT.firmenSuche.trim().toLowerCase();
+  const zeilen = auftraggeberListe().filter(e => !ANSICHT.firmenStatus || e.status === ANSICHT.firmenStatus)
+    .map(e => ({ e, treffer: such ? firmaTreffer(e, such) : '' })).filter(z => z.treffer !== null);
+  const karten = zeilen.map(({ e, treffer }) => {
+    const t = naechsterTermin(e), offen = faelle().filter(f => gehoertZu(f, e) && status(f).offen).length;
+    const tText = t && (t.datum < heute() ? `Überfällig seit ${datumText(t.datum)}` : t.datum === heute() ? 'Heute' : datumText(t.datum));
+    return `<button class="karte klickbar ${r.art === 'firma' && r.id === e.id ? 'gewaehlt' : ''}" data-firma="${e.id}">
+      <div class="zeile eng"><span class="titel fuell">${esc(firmaName(e))}</span><span class="marke ${firmenStatus(e)[1]}">${firmenStatus(e)[0]}</span></div>
+      ${treffer ? `<div class="leise" style="color:var(--primaer)">${esc(treffer)}</div>` : ''}
+      ${offen || e.telefon ? `<div class="leise">${esc([offen && (offen === 1 ? '1 offener Schadensfall' : offen + ' offene Schadensfälle'), e.telefon].filter(Boolean).join(' · '))}</div>` : ''}
+      ${t ? `<div class="leise" style="${t.datum <= heute() ? 'color:var(--rot-t)' : ''}">⏱ ${esc(tText)}: ${esc(t.titel)}</div>` : ''}</button>`;
+  }).join('');
+  const faelleTreffer = such ? filtereUndSortiere(faelle(), 'ALLE', such) : [];
+  const leer = !alle('auftraggeber').length
+    ? '<div class="leer">🏢<b>Noch keine Auftraggeber</b>Lege die erste Firma an oder importiere die Sicherung des Browser-CRM unter ⚙ → CRM. Auftraggeber aus Schadensfällen kommen automatisch dazu.</div>'
+    : `<div class="leer"><b>Keine Treffer</b>${such ? `Zu „${esc(ANSICHT.firmenSuche.trim())}“ wurde nichts gefunden.` : 'In dieser Ansicht gibt es keine Firmen.'}</div>`;
+  return `<input class="suche" id="firmen-suche" type="search" placeholder="Firma, Ansprechpartner, Notiz, Fall …" aria-label="Firmen durchsuchen" value="${esc(ANSICHT.firmenSuche)}">
+    <div class="chips" role="group" aria-label="Status"><button class="chip" data-firmen-status="" aria-pressed="${!ANSICHT.firmenStatus}">Alle</button>${Object.entries(FIRMEN_STATUS).map(([k, [l]]) =>
+      `<button class="chip" data-firmen-status="${k}" aria-pressed="${ANSICHT.firmenStatus === k}">${l}</button>`).join('')}</div>
+    <button class="knopf voll fab" data-neue-firma>＋ Neue Firma</button>
+    <div id="firmen">${karten || (faelleTreffer.length ? '' : leer)}</div>
+    ${faelleTreffer.length ? `<h3 class="abschnitt">Schadensfälle</h3>${faelleTreffer.map(f => `<button class="karte klickbar" data-fall="${f.id}"><div class="zeile eng"><span class="titel fuell">${esc(anzeigeName(f))}</span><span class="marke ${status(f).farbe}">${esc(status(f).label)}</span></div><div class="leise">${esc([f.fallnummer, f.auftraggeber].filter(Boolean).join(' · '))}</div></button>`).join('')}` : ''}`;
+}
+
+function zeichneTermine() {
+  const w = wiedervorlagen();
+  const eintrag = x => x.art === 'aufgabe'
+    ? `<div class="termin"><input type="checkbox" data-erledigt="${x.a.id}" aria-label="Erledigt"><button class="vorlage fuell" data-firma="${x.a.firmaId}"><b>${esc(x.titel)}</b><br><span class="leise">${esc([x.datum !== heute() && datumText(x.datum), x.zusatz].filter(Boolean).join(' · '))}</span></button></div>`
+    : `<div class="termin"><span class="termin-symbol">🚚</span><button class="vorlage fuell" data-fall="${x.f.id}"><b>${esc(x.titel)}</b><br><span class="leise">${esc([x.datum !== heute() && datumText(x.datum), x.zusatz].filter(Boolean).join(' · '))}</span></button></div>`;
+  const gruppe = (titel, liste, farbe) => (liste.length ? `<h3 class="abschnitt" style="${farbe}">${titel} (${liste.length})</h3>${liste.map(eintrag).join('')}` : '');
+  const ohne = w.ohneDatum.length ? `<h3 class="abschnitt">Ohne Datum</h3>${w.ohneDatum.map(a => eintrag({ art: 'aufgabe', datum: '', titel: a.text, zusatz: S.auftraggeber[a.firmaId]?.name || '', a })).join('')}` : '';
+  const inhalt = gruppe('Überfällig', w.ueberfaellig, 'color:var(--rot-t)') + gruppe('Heute', w.heute, '') + gruppe('Demnächst', w.demnaechst, 'color:var(--leise)') + ohne;
+  return `<div id="termine">${inhalt || '<div class="leer">⏱<b>Nichts zu tun</b>Hier erscheinen Wiedervorlagen bei Firmen und die Wiedervorlagen der Schadensfälle.</div>'}</div>`;
+}
+
+/** Kontakthistorie: festgehaltene Kontakte und Mails aus den Fällen der Firma. */
+function historieVon(firma) {
+  const fallIds = new Set(faelle().filter(f => gehoertZu(f, firma)).map(f => f.id));
+  return [
+    ...vonFirma('aktivitaeten', firma.id).map(a => ({ sort: a.datum + 'T' + (a.geaendertAm || '').slice(11), a })),
+    ...alle('verlauf').filter(v => fallIds.has(v.fallId) && (v.typ === 'EMAIL_EINGANG' || v.typ === 'EMAIL_AUSGANG')).map(v => ({ sort: v.zeitpunkt, v })),
+  ].sort((x, y) => y.sort.localeCompare(x.sort));
+}
+
+function zeichneFirma(id) {
+  const e = S.auftraggeber[id];
+  const el = $('#detail');
+  if (!e || e.geloescht) { gehe('#/'); return; }
+  const bereich = (titel, tabelle, inhalt, neuText = 'Hinzufügen') => `<div class="karte block" data-bereich-firma="${tabelle}"><div class="zeile eng"><h3 class="fuell" style="margin:0">${titel}</h3>
+    <button class="knopf text" data-crm-neu="${tabelle}">＋ ${neuText}</button></div>${inhalt || '<p class="leise">Noch nichts eingetragen.</p>'}</div>`;
+  const zeile = (tabelle, x, titel, unter) => `<button class="vorlage" data-crm="${tabelle}" data-crm-id="${x.id}"><b>${esc(titel)}</b>${unter ? `<br><span class="leise" style="white-space:pre-wrap">${esc(unter)}</span>` : ''}</button>`;
+  const kontakte = kontakteVon(id).map(k => `<div class="zeile eng">${zeile('ansprechpartner', k, k.name, [k.thema, k.telefon, k.email].filter(Boolean).join(' · '))}
+      ${k.telefon ? `<button class="symbol" data-oeffne="tel:${esc(k.telefon.replace(/[^\d+]/g, ''))}" aria-label="${esc(k.name)} anrufen">☎</button>` : ''}
+      ${k.email ? `<button class="symbol" data-oeffne="mailto:${esc(k.email)}" aria-label="E-Mail an ${esc(k.name)}">✉</button>` : ''}</div>`).join('');
+  const adressen = vonFirma('adressen', id).map(a => zeile('adressen', a, ADRESS_ART[a.art] || 'Adresse', [adresseText(a), a.notiz].filter(Boolean).join('\n'))).join('');
+  const preise = vonFirma('preise', id).sort((a, b) => a.bezeichnung.localeCompare(b.bezeichnung, 'de')).map(p => zeile('preise', p,
+    [p.bezeichnung, [p.betragCent != null && geld(p.betragCent), p.einheit].filter(Boolean).join(' ')].filter(Boolean).join(': '),
+    [p.gueltigAb && 'gültig ab ' + datumText(p.gueltigAb), p.notiz].filter(Boolean).join(' · '))).join('');
+  const aufgaben = vonFirma('aufgaben', id).sort((a, b) => (a.erledigt - b.erledigt) || String(a.faelligAm || '9').localeCompare(String(b.faelligAm || '9')));
+  const offen = aufgaben.filter(a => !a.erledigt), erledigt = aufgaben.filter(a => a.erledigt);
+  const aufgabeZeile = a => `<div class="termin"><input type="checkbox" data-erledigt="${a.id}" ${a.erledigt ? 'checked' : ''} aria-label="Erledigt">${zeile('aufgaben', a, a.text,
+    [a.faelligAm && (a.faelligAm === heute() ? 'heute' : datumText(a.faelligAm)), a.kontakt].filter(Boolean).join(' · '))}</div>`;
+  const historie = historieVon(e).slice(0, 50).map(h => (h.a
+    ? zeile('aktivitaeten', h.a, `${datumText(h.a.datum)} · ${AKTIVITAET_ART[h.a.art] || ''}${h.a.kontakt ? ' · ' + h.a.kontakt : ''}`, h.a.text)
+    : `<button class="vorlage" data-fall="${h.v.fallId}"><b>${zeitText(h.v.zeitpunkt)} · ${VERLAUF[h.v.typ][0]} · Fall ${esc(S.faelle[h.v.fallId]?.fallnummer || '')}</b><br><span class="leise zwei-zeilen" style="white-space:pre-wrap">${esc(h.v.text.split('\n\n')[0])}</span></button>`)).join('');
+  const dokumente = vonFirma('dokumente', id).map(d => `<div class="zeile eng">${zeile('dokumente', d, d.titel, [d.link, d.notiz].filter(Boolean).join('\n'))}
+      ${/^https?:\/\//i.test(d.link || '') ? `<a class="symbol" href="${esc(d.link)}" target="_blank" rel="noopener" aria-label="${esc(d.titel)} öffnen">↗</a>` : ''}</div>`).join('');
+  const faelleDerFirma = faelle().filter(f => gehoertZu(f, e)).sort((a, b) => String(b.geaendertAm).localeCompare(String(a.geaendertAm)))
+    .map(f => `<button class="vorlage" data-fall="${f.id}"><div class="zeile eng"><b class="fuell">${esc(f.fallnummer)} · ${esc(anzeigeName(f))}</b><span class="marke ${status(f).farbe}">${esc(status(f).label)}</span></div></button>`).join('');
+  el.dataset.id = 'firma' + id;
+  el.innerHTML = `<div class="karte" id="stammdaten">
+      <div class="zeile eng"><h2 class="gross fuell">${esc(firmaName(e))}</h2><span class="marke ${firmenStatus(e)[1]}">${firmenStatus(e)[0]}</span>
+        <button class="symbol" data-firma-bearbeiten aria-label="Stammdaten bearbeiten">✎</button></div>
+      ${e.telefon ? `<p><a href="tel:${esc(e.telefon.replace(/[^\d+]/g, ''))}">☎ ${esc(e.telefon)}</a></p>` : ''}
+      ${e.email ? `<p><button class="knopf text" style="padding:0" data-oeffne="mailto:${esc(e.email)}">✉ ${esc(e.email)}</button></p>` : ''}
+      ${e.website ? `<p><a href="${esc(/^https?:/i.test(e.website) ? e.website : 'https://' + e.website)}" target="_blank" rel="noopener">🌐 ${esc(e.website)}</a></p>` : ''}
+      ${e.notizen ? `<p class="leise" style="white-space:pre-wrap;margin-top:6px">${esc(e.notizen)}</p>` : ''}
+      ${!e.telefon && !e.email && !e.website && !e.notizen ? '<p class="leise">Telefon, E-Mail, Website und Notizen über ✎ eintragen.</p>' : ''}</div>
+    ${bereich('Ansprechpartner', 'ansprechpartner', kontakte)}
+    ${bereich('Adressen', 'adressen', adressen)}
+    ${bereich('Preise und Konditionen', 'preise', preise)}
+    ${bereich('Wiedervorlagen', 'aufgaben', offen.map(aufgabeZeile).join('') + (erledigt.length ? `<details><summary class="leise" style="cursor:pointer;margin:6px 0">${erledigt.length} erledigt</summary>${erledigt.map(aufgabeZeile).join('')}</details>` : ''))}
+    ${bereich('Kontakthistorie', 'aktivitaeten', historie, 'Kontakt festhalten')}
+    ${bereich('Dokumente', 'dokumente', dokumente)}
+    ${bereich('Schadensfälle', 'faelle', faelleDerFirma, 'Neuer Fall')}`;
+}
+
+// ---------- Dialoge für Firmen und Einträge ----------
+const CRM_FELDER = {
+  auftraggeber: ['Firma', [['name', 'Firma', 'pflicht'], ['rechtsform', 'Rechtsform (z. B. GmbH)'], ['status', 'Status', Object.fromEntries(Object.entries(FIRMEN_STATUS).map(([k, [l]]) => [k, l]))],
+    ['telefon', 'Telefon', 'tel'], ['email', 'E-Mail', 'email'], ['website', 'Website'], ['notizen', 'Notizen', 'lang']]],
+  ansprechpartner: ['Ansprechpartner', [['name', 'Name', 'pflicht'], ['thema', 'Zuständig für (Disposition, Abrechnung, Schäden, Geschäftsführung …)'], ['telefon', 'Telefon', 'tel'], ['email', 'E-Mail', 'email'], ['notiz', 'Notiz', 'lang']]],
+  adressen: ['Adresse', [['art', 'Art', ADRESS_ART], ['strasse', 'Straße und Hausnummer'], ['plz', 'PLZ'], ['ort', 'Ort', 'pflicht'], ['notiz', 'Notiz (z. B. Rampe, Öffnungszeiten)', 'lang']]],
+  preise: ['Preis', [['bezeichnung', 'Bezeichnung (Tourpauschale, Montage, Extra-km, Etage, Maut …)', 'pflicht'], ['betrag', 'Betrag in Euro', 'geld'], ['einheit', 'Einheit (pro Tour, pro km …)'], ['gueltigAb', 'Gültig ab', 'date'], ['notiz', 'Notiz', 'lang']]],
+  aktivitaeten: ['Kontakt', [['datum', 'Datum', 'date'], ['art', 'Art', AKTIVITAET_ART], ['kontakt', 'Ansprechpartner'], ['text', 'Was wurde besprochen?', 'lang pflicht']]],
+  aufgaben: ['Wiedervorlage', [['text', 'Was ist zu tun?', 'pflicht'], ['faelligAm', 'Fällig am', 'date'], ['kontakt', 'Ansprechpartner']]],
+  dokumente: ['Dokument', [['titel', 'Titel (z. B. Rahmenvertrag 2026)', 'pflicht'], ['link', 'Link oder Pfad'], ['notiz', 'Notiz', 'lang']]],
+};
+const CRM_VORGABEN = {
+  auftraggeber: () => ({ status: 'AKTIV' }), adressen: () => ({ art: 'HAUPTSITZ' }), aktivitaeten: () => ({ datum: heute(), art: 'ANRUF' }),
+  aufgaben: () => ({ faelligAm: plusTage(heute(), 7), erledigt: false }),
+};
+
+function crmDialog(tabelle, eintrag, firmaId, danach) {
+  const neu = !eintrag;
+  const [titel, felder] = CRM_FELDER[tabelle];
+  const e = eintrag ? { ...eintrag, betrag: eintrag.betragCent != null ? geldOhneSymbol(eintrag.betragCent) : '' } : { ...(CRM_VORGABEN[tabelle] || (() => ({})))() };
+  const namen = tabelle === 'aktivitaeten' || tabelle === 'aufgaben' ? kontakteVon(firmaId).map(k => k.name) : [];
+  const feld = ([name, label, art = '']) => {
+    const wert = esc(e[name] ?? ''), pflicht = typeof art === 'string' && art.includes('pflicht') ? 'required' : '';
+    if (typeof art === 'object') return `<label class="feld">${label}<select name="${name}">${Object.entries(art).map(([k, t]) => `<option value="${k}" ${String(e[name] ?? '') === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
+    if (art.includes('lang')) return `<label class="feld">${label}<textarea name="${name}" ${pflicht}>${wert}</textarea></label>`;
+    const typ = art.includes('date') ? 'type="date"' : art.includes('tel') ? 'type="tel"' : art.includes('email') ? 'type="email"' : art.includes('geld') ? 'inputmode="decimal"' : '';
+    const liste = name === 'kontakt' && namen.length ? 'list="crm-kontakte"' : '';
+    return `<label class="feld">${label}<input name="${name}" ${typ} ${pflicht} ${liste} value="${wert}"><span class="fehlertext" data-fehler="${name}" hidden></span></label>`;
+  };
+  dialog(`<form method="dialog" id="crm-form"><h2>${neu ? (tabelle === 'aktivitaeten' ? 'Kontakt festhalten' : (tabelle === 'auftraggeber' ? 'Neue Firma' : 'Neu: ' + titel)) : titel}</h2>
+    ${felder.map(feld).join('')}${namen.length ? `<datalist id="crm-kontakte">${namen.map(n => `<option value="${esc(n)}">`).join('')}</datalist>` : ''}
+    <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="crm-loeschen">Löschen</button>'}<span class="fuell"></span>
+      <button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
+  $('#crm-form').onsubmit = ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries([...new FormData(ev.target)].map(([k, v]) => [k, String(v).trim()]));
+    const zeige = (name, text) => { const s = $(`#crm-form [data-fehler="${name}"]`); if (s) { s.textContent = text; s.hidden = !text; } return !text; };
+    if ('email' in w && !zeige('email', w.email && !w.email.split(/[,;]/).every(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x.trim())) ? 'Die E-Mail-Adresse sieht unvollständig aus.' : '')) return;
+    if ('betrag' in w) {
+      if (!zeige('betrag', w.betrag && geldLesen(w.betrag) == null ? 'Bitte einen Betrag wie 89,50 eingeben.' : '')) return;
+      w.betragCent = w.betrag ? geldLesen(w.betrag) : null; delete w.betrag;
+      w.gueltigAb = w.gueltigAb || null;
+    }
+    if ('faelligAm' in w) w.faelligAm = w.faelligAm || null;
+    if (tabelle === 'aktivitaeten') w.datum = w.datum || heute();
+    $('#dialog').close();
+    if (tabelle === 'auftraggeber') { const id = Aktionen.firmaSpeichern({ ...(eintrag || {}), ...w, id: eintrag?.id }); if (danach) danach(id); return; }
+    Aktionen.crmSpeichern(tabelle, { ...(eintrag || { erledigt: false }), ...w, firmaId, id: eintrag?.id });
+  };
+  if (!neu) $('#crm-loeschen').onclick = () => (tabelle === 'auftraggeber'
+    ? bestaetige(`„${eintrag.name}“ löschen?`, 'Mit Ansprechpartnern, Adressen, Preisen, Kontakthistorie und Dokumenten – auf allen Geräten. Schadensfälle bleiben erhalten.', 'Löschen', () => { Aktionen.firmaLoeschen(eintrag); gehe('#/'); })
+    : bestaetige('Eintrag löschen?', `„${eintrag.name || eintrag.titel || eintrag.bezeichnung || eintrag.text || ADRESS_ART[eintrag.art] || ''}“ wird gelöscht.`, 'Löschen', () => Aktionen.crmLoeschen(tabelle, eintrag)));
+}
+
+// ---------- Import der Sicherung des Browser-CRM ----------
+function crmImportieren(text) {
+  let d; try { d = JSON.parse(String(text).replace(/^﻿/, '')); } catch { d = null; }
+  if (!d || !Array.isArray(d.firmen)) throw new Error('Die Datei ist keine Sicherung des Browser-CRM (es fehlt die Liste „firmen“).');
+  const t = x => String(x ?? '').trim(), jetzt = jetztIso();
+  const tag = x => (/^\d{4}-\d{2}-\d{2}/.test(t(x)) ? t(x).slice(0, 10) : null);
+  const status = x => ({ interessent: 'INTERESSENT', lead: 'INTERESSENT', pausiert: 'PAUSIERT', ehemalig: 'EHEMALIG', inaktiv: 'EHEMALIG' }[t(x).toLowerCase()] || (FIRMEN_STATUS[t(x).toUpperCase()] ? t(x).toUpperCase() : 'AKTIV'));
+  const adressArt = x => { const v = t(x).toLowerCase(); return v.startsWith('haupt') ? 'HAUPTSITZ' : v.startsWith('lager') ? 'LAGER' : v.startsWith('filial') ? 'FILIALE' : v.startsWith('rechnung') ? 'RECHNUNG' : ADRESS_ART[v.toUpperCase()] ? v.toUpperCase() : 'SONSTIGE'; };
+  const aktArt = x => { const v = t(x).toLowerCase(); return v.startsWith('anruf') || v.startsWith('telefon') ? 'ANRUF' : v.includes('mail') ? 'EMAIL' : /^(treffen|termin|besuch)/.test(v) ? 'TREFFEN' : v.startsWith('angebot') ? 'ANGEBOT' : 'SONSTIGES'; };
+  const cent = x => (x == null || x === '' ? null : typeof x === 'number' ? Math.round(x * 100) : geldLesen(String(x)));
+  let neu = 0, zusammen = 0, eintraege = 0;
+  for (const f of d.firmen) {
+    const name = t(f && f.name); if (!name) continue;
+    let firma = firmaZumNamen(name);
+    if (!firma) {
+      neu++;
+      firma = merke('auftraggeber', { id: uuid(), name, rechtsform: t(f.rechtsform), status: status(f.status), telefon: t(f.telefon), email: t(f.email), website: t(f.website), notizen: t(f.notizen), geaendertAm: jetzt });
+    } else {
+      zusammen++;
+      const notiz = t(f.notizen);
+      const erg = { ...firma, rechtsform: firma.rechtsform || t(f.rechtsform), telefon: firma.telefon || t(f.telefon), email: firma.email || t(f.email), website: firma.website || t(f.website),
+        notizen: !notiz || (firma.notizen || '').includes(notiz) ? firma.notizen || '' : [firma.notizen, notiz].filter(Boolean).join('\n\n'),
+        status: (firma.status || 'AKTIV') === 'AKTIV' && t(f.status) ? status(f.status) : firma.status };
+      if (JSON.stringify(ohneLokales(erg)) !== JSON.stringify(ohneLokales(firma))) merke('auftraggeber', { ...erg, geaendertAm: jetzt });
+    }
+    const id = firma.id, liste = x => (Array.isArray(x) ? x.filter(Boolean) : []);
+    const dazu = (tabelle, e, gleich) => { if (vonFirma(tabelle, id).some(gleich)) return; merke(tabelle, { id: uuid(), firmaId: id, ...e, geaendertAm: jetzt }); eintraege++; };
+    for (const k of liste(f.kontakte)) { const n = t(k.name) || t(k.email); if (n) dazu('ansprechpartner', { name: n, thema: t(k.thema), telefon: t(k.telefon), email: t(k.email), notiz: t(k.notiz) }, x => normal(x.name) === normal(n)); }
+    for (const a of liste(f.adressen)) { if (!t(a.strasse) && !t(a.ort) && !t(a.plz)) continue; dazu('adressen', { art: adressArt(a.art), strasse: t(a.strasse), plz: t(a.plz), ort: t(a.ort), notiz: t(a.notiz) }, x => normal(x.strasse) === normal(a.strasse) && normal(x.ort) === normal(a.ort)); }
+    for (const p of liste(f.preise)) { const b = t(p.bez || p.bezeichnung); if (!b) continue; const c = cent(p.betrag), ab = tag(p.ab); dazu('preise', { bezeichnung: b, betragCent: c, einheit: t(p.einheit), gueltigAb: ab, notiz: t(p.notiz) }, x => normal(x.bezeichnung) === normal(b) && x.gueltigAb === ab && x.betragCent === c); }
+    for (const a of liste(f.aktivitaeten)) { const text = t(a.text); if (!text) continue; const dt = tag(a.datum) || heute(); dazu('aktivitaeten', { datum: dt, art: aktArt(a.art), text, kontakt: t(a.kontakt) }, x => x.datum === dt && x.text === text); }
+    for (const a of liste(f.aufgaben)) { const text = t(a.text); if (!text) continue; const fa = tag(a.faellig); dazu('aufgaben', { faelligAm: fa, text, kontakt: t(a.kontakt), erledigt: a.erledigt === true }, x => x.text === text && (x.faelligAm || null) === fa); }
+    for (const x of liste(f.dokumente)) { const ti = t(x.titel) || t(x.link); if (!ti) continue; dazu('dokumente', { titel: ti, link: t(x.link), notiz: t(x.notiz) }, y => y.titel === ti && (y.link || '') === t(x.link)); }
+  }
+  // Fälle, deren Auftraggeber jetzt als Firma existiert, verbinden.
+  for (const f of faelle().filter(f => !f.auftraggeberUuid && (f.auftraggeber || '').trim())) { const firma = firmaZumNamen(f.auftraggeber); if (firma) fallMerken({ ...f, auftraggeberUuid: firma.id }); }
+  nachAenderung();
+  return { neu, zusammen, eintraege };
+}
+
+// ---------- CSV-Export des CRM ----------
+function crmCsvDateien() {
+  const firmen = auftraggeberListe(), name = id => S.auftraggeber[id]?.name || '';
+  const tab = (kopf, zeilen) => '﻿' + [kopf, ...zeilen].map(z => z.map(csvZelle).join(';')).join('\r\n') + '\r\n';
+  const nach = (a, b) => name(a.firmaId).localeCompare(name(b.firmaId), 'de');
+  const sitz = id => { const l = vonFirma('adressen', id); return l.find(a => a.art === 'HAUPTSITZ') || l[0]; };
+  return {
+    Firmen: tab(['Firma', 'Rechtsform', 'Status', 'Telefon', 'E-Mail', 'Website', 'Hauptsitz', 'Notizen'],
+      firmen.map(f => [f.name, f.rechtsform, firmenStatus(f)[0], f.telefon, f.email, f.website, sitz(f.id) ? adresseText(sitz(f.id)) : '', f.notizen])),
+    Ansprechpartner: tab(['Firma', 'Name', 'Zuständigkeit', 'Telefon', 'E-Mail', 'Notiz'], alle('ansprechpartner').sort(nach).map(k => [name(k.firmaId), k.name, k.thema, k.telefon, k.email, k.notiz])),
+    Preise: tab(['Firma', 'Bezeichnung', 'Betrag (EUR)', 'Einheit', 'Gültig ab', 'Notiz'], alle('preise').sort(nach).map(p => [name(p.firmaId), p.bezeichnung, p.betragCent != null ? geldOhneSymbol(p.betragCent) : '', p.einheit, datumText(p.gueltigAb), p.notiz])),
+    Aktivitaeten: tab(['Datum', 'Firma', 'Art', 'Ansprechpartner', 'Text'], alle('aktivitaeten').sort((a, b) => b.datum.localeCompare(a.datum)).map(a => [datumText(a.datum), name(a.firmaId), AKTIVITAET_ART[a.art] || '', a.kontakt, a.text])),
+    Wiedervorlagen: tab(['Fällig am', 'Firma', 'Aufgabe', 'Ansprechpartner', 'Erledigt'], alle('aufgaben').sort((a, b) => (a.erledigt - b.erledigt) || String(a.faelligAm || '9').localeCompare(String(b.faelligAm || '9')))
+      .map(a => [datumText(a.faelligAm), name(a.firmaId), a.text, a.kontakt, a.erledigt ? 'ja' : 'nein'])),
+  };
+}
+
+// ---------- Bedienung ----------
+$('#liste').addEventListener('click', e => {
+  const b = e.target.closest('[data-bereich]'), st = e.target.closest('[data-firmen-status]'), firma = e.target.closest('[data-firma]'), erl = e.target.closest('[data-erledigt]');
+  if (b) { ANSICHT.bereich = b.dataset.bereich; try { localStorage.setItem('crm-bereich', ANSICHT.bereich); } catch {} zeichneListe(); return; }
+  if (st) { ANSICHT.firmenStatus = st.dataset.firmenStatus; zeichneListe(); return; }
+  if (erl) { const a = S.aufgaben[erl.dataset.erledigt]; if (a) Aktionen.crmSpeichern('aufgaben', { ...a, erledigt: erl.checked }); return; }
+  if (e.target.closest('[data-neue-firma]')) { crmDialog('auftraggeber', null, null, id => gehe('#/firma/' + id)); return; }
+  if (firma && formularSchliessen()) { formularStand = $('#fall-form') ? formularWerte() : ''; gehe('#/firma/' + firma.dataset.firma); }
+});
+$('#liste').addEventListener('input', e => { if (e.target.id === 'firmen-suche') { ANSICHT.firmenSuche = e.target.value; zeichneListe(); } });
+$('#detail').addEventListener('click', e => {
+  const r = route(); if (r.art !== 'firma') return;
+  const firma = S.auftraggeber[r.id]; if (!firma) return;
+  const neu = e.target.closest('[data-crm-neu]'), x = e.target.closest('[data-crm]'), erl = e.target.closest('[data-erledigt]'), oeffnen = e.target.closest('[data-oeffne]'), fall = e.target.closest('[data-fall]');
+  if (e.target.closest('[data-firma-bearbeiten]')) { crmDialog('auftraggeber', firma, null); return; }
+  if (neu) { if (neu.dataset.crmNeu === 'faelle') { ANSICHT.firmaFuerNeuenFall = firma.id; gehe('#/neu'); } else crmDialog(neu.dataset.crmNeu, null, firma.id); return; }
+  if (erl) { const a = S.aufgaben[erl.dataset.erledigt]; if (a) Aktionen.crmSpeichern('aufgaben', { ...a, erledigt: erl.checked }); return; }
+  if (oeffnen) {
+    const ziel = oeffnen.dataset.oeffne;
+    if (ziel.startsWith('mailto:') && MAIL.konto) mailAnFirma({ firmaId: firma.id, an: ziel.slice(7) }); else oeffne(ziel);
+    return;
+  }
+  if (x) { crmDialog(x.dataset.crm, S[x.dataset.crm][x.dataset.crmId], firma.id); return; }
+  if (fall) gehe('#/fall/' + fall.dataset.fall);
+});
+
 // ============================== E-Mail (nur Windows-App) ==============================
-// Die Windows-App spricht über ihren Hauptprozess direkt per IMAP/SMTP mit dem Postfach (wie die
-// Android-App). Zuordnung zu den Fällen: Fallnummer im Betreff, Antwortbezug oder ein Absender, der
-// bei genau einem offenen Fall als Geschädigter oder Auftraggeber hinterlegt ist.
-const MAIL = { konto: null, anbieter: {}, laeuft: false, timer: 0 };
+// Die Windows-App spricht über ihren Hauptprozess direkt per IMAP/SMTP mit den Postfächern – mit
+// denselben Regeln wie die Android-App: zwei Postfächer (SCHADEN für Schadensfälle, ALLGEMEIN für
+// alles andere). Zuordnung eingehender Mails:
+//   1. Fallnummer im Betreff → Fall   2. Antwort auf eine bekannte Mail → wie diese
+//   3. nur Schadens-Postfach: Absender bei genau einem offenen Fall eingetragen → Fall
+//   4. Absender passt zur E-Mail der Firma, eines Ansprechpartners oder zur Domain der Firma → Firma
+//   5. sonst → „Nicht zugeordnet“ (im Postfach von Hand zuordnen)
+const MAIL = { konten: { SCHADEN: null, ALLGEMEIN: null }, konto: null, anbieter: {}, laeuft: false, timer: 0 };
+const MAIL_KONTEN = { SCHADEN: 'Schäden', ALLGEMEIN: 'Allgemein' };
 const FALLNUMMER = /\[Fall (\d{4}-\d+)]/;
 const mitFallnummer = (betreff, nr) => (FALLNUMMER.test(betreff) ? betreff : `${String(betreff).trim()} [Fall ${nr}]`.trim());
 const mails = () => (S.mails = S.mails || {});
 const mailZuVerlauf = verlaufId => Object.entries(mails()).map(([id, m]) => ({ messageId: id, ...m })).find(m => m.verlaufId === verlaufId);
 const blobAusBase64 = (b64, typ) => new Blob([Uint8Array.from(atob(b64), z => z.charCodeAt(0))], { type: typ });
+/** Das Postfach, über das gesendet wird: das gewünschte, sonst das andere. */
+const kontoFuer = gewuenscht => (MAIL.konten[gewuenscht] ? gewuenscht : Object.keys(MAIL.konten).find(a => MAIL.konten[a]) || null);
+const eigeneAdressen = () => Object.values(MAIL.konten).filter(Boolean).map(k => k.adresse.toLowerCase());
+const mailStand = art => (art === 'ALLGEMEIN' ? S.mailStandAllgemein : S.mailStand) || {};
+function setzeMailStand(art, wert) { if (art === 'ALLGEMEIN') S.mailStandAllgemein = wert; else S.mailStand = wert; }
+const istZugeordnet = m => !!(m.fallId || m.firmaId || String(m.kundeRef || '').trim());
+function aktualisiereKonto() { MAIL.konto = MAIL.konten.SCHADEN || MAIL.konten.ALLGEMEIN || null; }
 
-/** Mail im Verlauf ablegen (von dort wandert sie in die Cloud) und für „Antworten“ merken. */
-function vermerkeMail(f, mail, text, eingehend) {
-  const v = merke('verlauf', { id: uuid(), fallId: f.id, zeitpunkt: mail.zeitpunkt || jetztIso(), typ: eingehend ? 'EMAIL_EINGANG' : 'EMAIL_AUSGANG', text: text.slice(0, 15000) });
-  mails()[mail.messageId] = { fallId: f.id, verlaufId: v.id, eingehend, von: mail.von, betreff: mail.betreff, text: (mail.text || '').slice(0, 15000), zeitpunkt: v.zeitpunkt };
-  const neu = { ...S.faelle[f.id] };
-  // Eine Antwort soll nicht untergehen: Wiedervorlage rückt auf heute.
-  if (eingehend && status(neu).offen && (!neu.wiedervorlageAm || neu.wiedervorlageAm > heute())) Object.assign(neu, { wiedervorlageAm: heute(), wiedervorlageNotiz: 'Neue E-Mail beantworten' });
-  fallMerken(neu);
+const FREEMAIL = new Set(['gmail.com', 'googlemail.com', 'gmx.de', 'gmx.net', 'gmx.at', 'gmx.ch', 'web.de', 't-online.de', 'outlook.com', 'outlook.de', 'hotmail.com', 'hotmail.de',
+  'live.com', 'live.de', 'msn.com', 'yahoo.com', 'yahoo.de', 'icloud.com', 'me.com', 'mac.com', 'aol.com', 'aol.de', 'freenet.de', 'posteo.de', 'mail.de', 'online.de',
+  'arcor.de', 'vodafone.de', 'email.de', 'mailbox.org', 'ionos.de', 'proton.me', 'protonmail.com']);
+const domainVon = a => { const d = String(a || '').trim().toLowerCase().replace(/^.*</, '').replace(/>.*$/, '').split('@')[1] || ''; return d.includes('.') ? d : null; };
+const websiteDomain = w => { const d = String(w || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[/?]/)[0]; return d.includes('.') && !d.includes(' ') ? d : null; };
+/** Firma zur Absenderadresse: zuerst exakt (Firma oder Ansprechpartner), dann über die Domain. Bei mehreren Treffern wird nicht geraten. */
+function firmaZuAdresse(adresse) {
+  const a = String(adresse || '').trim().toLowerCase();
+  if (!a.includes('@')) return null;
+  const firmen = alle('auftraggeber'), kontakte = alle('ansprechpartner');
+  const genau = [...new Set([...firmen.filter(f => (f.email || '').trim().toLowerCase() === a).map(f => f.id),
+    ...kontakte.filter(k => (k.email || '').trim().toLowerCase() === a).map(k => k.firmaId)])];
+  if (genau.length === 1) return S.auftraggeber[genau[0]] || null;
+  if (genau.length > 1) return null;
+  const d = domainVon(a);
+  if (!d || FREEMAIL.has(d)) return null;
+  const passend = firmen.filter(f => domainVon(f.email) === d || websiteDomain(f.website) === d || kontakte.some(k => k.firmaId === f.id && domainVon(k.email) === d));
+  return passend.length === 1 ? passend[0] : null;
 }
 
-function ordneZu(m) {
+function ordneZu(m, art) {
   const nr = (m.betreff.match(FALLNUMMER) || [])[1];
   const perNummer = nr && faelle().find(f => f.fallnummer === nr);
-  if (perNummer) return perNummer;
-  for (const bezug of m.antwortAuf) { const alt = mails()[bezug]; if (alt && S.faelle[alt.fallId] && !S.faelle[alt.fallId].geloescht) return S.faelle[alt.fallId]; }
-  const passend = faelle().filter(f => status(f).offen && [f.kundeEmail, f.auftraggeberEmail].some(a => (a || '').trim().toLowerCase() === m.von));
-  return passend.length === 1 ? passend[0] : null;
+  if (perNummer) return { fallId: perNummer.id };
+  for (const bezug of m.antwortAuf) {
+    const alt = mails()[bezug];
+    if (alt && alt.fallId && S.faelle[alt.fallId] && !S.faelle[alt.fallId].geloescht) return { fallId: alt.fallId };
+    if (alt && alt.firmaId && S.auftraggeber[alt.firmaId]) return { firmaId: alt.firmaId };
+  }
+  if (art !== 'ALLGEMEIN') {
+    const passend = faelle().filter(f => status(f).offen && [f.kundeEmail, f.auftraggeberEmail].some(a => (a || '').trim().toLowerCase() === m.von));
+    if (passend.length === 1) return { fallId: passend[0].id };
+  }
+  const firma = firmaZuAdresse(m.von);
+  return firma ? { firmaId: firma.id } : {};
+}
+
+const kontaktZuAdressen = (firmaId, adressen) => {
+  const liste = String(adressen || '').split(/[,;]/).map(x => x.trim().replace(/^.*</, '').replace(/>.*$/, '').toLowerCase());
+  const k = kontakteVon(firmaId).find(x => x.email && liste.includes(x.email.trim().toLowerCase()));
+  return k ? k.name : '';
+};
+
+/**
+ * Legt die Mail ab: im Verlauf des Falls, in der Kontakthistorie der Firma (beide wandern in die Cloud)
+ * oder nur hier im Postfach. Eine eingehende Fall-Mail rückt die Wiedervorlage auf heute.
+ */
+function ablegen(messageId, m, text) {
+  const eintrag = { ...m, verlaufId: '', aktivitaetId: '', fallId: m.fallId || '', firmaId: m.fallId ? '' : m.firmaId || '' };
+  const f = eintrag.fallId && S.faelle[eintrag.fallId];
+  if (f && !f.geloescht) {
+    const v = merke('verlauf', { id: uuid(), fallId: f.id, zeitpunkt: m.zeitpunkt || jetztIso(), typ: m.eingehend ? 'EMAIL_EINGANG' : 'EMAIL_AUSGANG', text: text.slice(0, 15000) });
+    eintrag.verlaufId = v.id;
+    const neu = { ...f };
+    // Eine Antwort soll nicht untergehen: Wiedervorlage rückt auf heute.
+    if (m.eingehend && status(neu).offen && (!neu.wiedervorlageAm || neu.wiedervorlageAm > heute())) Object.assign(neu, { wiedervorlageAm: heute(), wiedervorlageNotiz: 'Neue E-Mail beantworten' });
+    fallMerken(neu);
+  } else if (eintrag.firmaId && S.auftraggeber[eintrag.firmaId]) {
+    const a = merke('aktivitaeten', { id: uuid(), firmaId: eintrag.firmaId, datum: isoTag(new Date(m.zeitpunkt || Date.now())), art: 'EMAIL',
+      text: ((m.eingehend ? 'E-Mail erhalten' : 'E-Mail gesendet') + '\n' + text).slice(0, 15000),
+      kontakt: kontaktZuAdressen(eintrag.firmaId, m.eingehend ? m.von : m.an), geaendertAm: jetztIso() });
+    eintrag.aktivitaetId = a.id;
+  }
+  eintrag.text = String(m.text || '').slice(0, 15000);
+  mails()[messageId] = eintrag;
+}
+/** Für die bisherigen Aufrufe aus dem Schreibfenster eines Falls. */
+const vermerkeMail = (f, mail, text, eingehend) => ablegen(mail.messageId, { ...mail, fallId: f.id, eingehend }, text);
+
+const mailText = m => (m.eingehend ? `Von: ${m.von}` : `An: ${m.an}`) + `\nBetreff: ${m.betreff}` + (m.anhaenge && m.anhaenge.length ? '\nAnhänge: ' + m.anhaenge.join(', ') : '') + `\n\n${m.text}`;
+
+/** Mail von Hand zuordnen bzw. umhängen: Fall, Firma und/oder Kunde. Gespeicherte Anhänge werden Anlagen des Falls. */
+async function mailZuordnen(messageId, ziel) {
+  const alt = mails()[messageId]; if (!alt) return;
+  const fallId = ziel.fallId || '', firmaId = fallId ? '' : ziel.firmaId || '', kundeRef = String(ziel.kundeRef || '').trim();
+  if (alt.verlaufId && alt.fallId !== fallId) { const v = S.verlauf[alt.verlaufId]; if (v) entferne('verlauf', v, { fallId: v.fallId }); }
+  if (alt.aktivitaetId && (fallId || alt.firmaId !== firmaId)) { const a = S.aktivitaeten[alt.aktivitaetId]; if (a) entferne('aktivitaeten', a, { firmaId: a.firmaId, geaendertAm: jetztIso() }); }
+  const bleibt = (fallId && alt.fallId === fallId && alt.verlaufId) || (!fallId && firmaId && alt.firmaId === firmaId && alt.aktivitaetId);
+  if (bleibt) mails()[messageId] = { ...alt, kundeRef };
+  else ablegen(messageId, { ...alt, fallId, firmaId, kundeRef }, mailText(alt));
+  if (fallId) {
+    for (const [i, name] of (alt.anhaenge || []).entries()) {
+      const blob = await Dateien.hole(`mail:${messageId}:${i}`);
+      if (!blob) continue;
+      await Aktionen.anlageHinzufuegen(fallId, new File([blob], name, { type: blob.type }));
+      await Dateien.loesche(`mail:${messageId}:${i}`);
+    }
+  }
+  nachAenderung();
 }
 
 async function postfachAbrufen(sichtbar = false) {
   if (!MAIL.konto || MAIL.laeuft) return [];
   MAIL.laeuft = true;
   if (sichtbar) toast('Postfach wird abgerufen …');
+  const neu = [], fehler = [];
   try {
-    const stand = S.mailStand || {};
-    const r = await window.desktop.mail.hole({ letzteUid: stand.letzteUid || 0, uidValidity: stand.uidValidity || 0 });
-    const neu = [];
-    for (const m of r.mails.sort((a, b) => a.zeitpunkt.localeCompare(b.zeitpunkt))) {
-      if (m.von === MAIL.konto.adresse.toLowerCase() || mails()[m.messageId]) continue;
-      const f = ordneZu(m); if (!f) continue;
-      for (const a of m.anhaenge) await Aktionen.anlageHinzufuegen(f.id, new File([blobAusBase64(a.base64, a.mimeType)], a.name, { type: a.mimeType }));
-      const absender = m.vonName ? `${m.vonName} <${m.von}>` : m.von;
-      const anh = m.anhaenge.length ? '\nAnhänge (zum Fall genommen): ' + m.anhaenge.map(a => a.name).join(', ') : '';
-      vermerkeMail(f, m, `Von: ${absender}\nBetreff: ${m.betreff}${anh}\n\n${m.text}`, true);
-      neu.push({ f, absender, betreff: m.betreff });
+    for (const art of Object.keys(MAIL.konten)) {
+      if (!MAIL.konten[art]) continue;
+      try {
+        const stand = mailStand(art);
+        const r = await window.desktop.mail.hole({ letzteUid: stand.letzteUid || 0, uidValidity: stand.uidValidity || 0 }, art);
+        for (const m of r.mails.sort((a, b) => a.zeitpunkt.localeCompare(b.zeitpunkt))) {
+          if (eigeneAdressen().includes(m.von) || mails()[m.messageId]) continue;
+          const ziel = ordneZu(m, art);
+          const absender = m.vonName ? `${m.vonName} <${m.von}>` : m.von;
+          if (ziel.fallId) for (const a of m.anhaenge) await Aktionen.anlageHinzufuegen(ziel.fallId, new File([blobAusBase64(a.base64, a.mimeType)], a.name, { type: a.mimeType }));
+          else for (const [i, a] of m.anhaenge.entries()) await Dateien.lege(`mail:${m.messageId}:${i}`, blobAusBase64(a.base64, a.mimeType));
+          const anh = m.anhaenge.length ? `\nAnhänge${ziel.fallId ? ' (zum Fall genommen)' : ''}: ` + m.anhaenge.map(a => a.name).join(', ') : '';
+          ablegen(m.messageId, { ...ziel, konto: art, eingehend: true, von: m.von, an: m.an, betreff: m.betreff, text: m.text, zeitpunkt: m.zeitpunkt,
+            anhaenge: m.anhaenge.map(a => a.name) }, `Von: ${absender}\nBetreff: ${m.betreff}${anh}\n\n${m.text}`);
+          neu.push({ id: m.messageId, ziel, absender, betreff: m.betreff });
+        }
+        setzeMailStand(art, { letzteUid: r.letzteUid, uidValidity: r.uidValidity, letzterAbruf: Date.now(), fehler: '' });
+      } catch (e) {
+        setzeMailStand(art, { ...mailStand(art), fehler: e.message }); fehler.push(e.message);
+      }
     }
-    S.mailStand = { letzteUid: r.letzteUid, uidValidity: r.uidValidity, letzterAbruf: Date.now(), fehler: '' };
     nachAenderung();
+    const wohin = n => (n.ziel.fallId ? 'Fall ' + (S.faelle[n.ziel.fallId] || {}).fallnummer : n.ziel.firmaId ? (S.auftraggeber[n.ziel.firmaId] || {}).name : 'Nicht zugeordnet');
     if (neu.length) {
-      const titel = neu.length === 1 ? `Neue E-Mail zu Fall ${neu[0].f.fallnummer}` : `${neu.length} neue E-Mails zu Schadensfällen`;
-      window.desktop.benachrichtige(titel, neu.map(n => `${n.f.fallnummer} · ${n.absender}: ${n.betreff}`).join('\n'), neu.length === 1 ? '#/fall/' + neu[0].f.id : '#/').catch(() => {});
+      const titel = neu.length === 1 ? `Neue E-Mail · ${wohin(neu[0])}` : `${neu.length} neue E-Mails`;
+      const ziel = neu.length === 1 ? (neu[0].ziel.fallId ? '#/fall/' + neu[0].ziel.fallId : neu[0].ziel.firmaId ? '#/firma/' + neu[0].ziel.firmaId : '#/mail/' + encodeURIComponent(neu[0].id)) : '#/';
+      window.desktop.benachrichtige(titel, neu.map(n => `${wohin(n)} · ${n.absender}: ${n.betreff}`).join('\n'), ziel).catch(() => {});
     }
-    if (sichtbar) toast(neu.length ? `${neu.length} neue E-Mail(s) den Fällen zugeordnet` : 'Keine neuen E-Mails zu Fällen');
-    return neu;
-  } catch (e) {
-    S.mailStand = { ...(S.mailStand || {}), fehler: e.message }; speichere();
-    if (sichtbar) toast(e.message, 6000);
+    const offen = neu.filter(n => !n.ziel.fallId && !n.ziel.firmaId).length;
+    if (sichtbar) toast(fehler.length && !neu.length ? fehler[0] : !neu.length ? 'Keine neuen E-Mails'
+      : offen ? `${neu.length} neue E-Mail(s), davon ${offen} im Postfach unter „Nicht zugeordnet“` : `${neu.length} neue E-Mail(s) zugeordnet`, 6000);
     if (route().art === 'einstellungen') zeichne();
-    return [];
+    return neu;
   } finally { MAIL.laeuft = false; }
 }
+
+// ---------- Postfach (Liste und einzelne Mail) ----------
+const POSTFACH_FILTER = { OFFEN: 'Nicht zugeordnet', ALLE: 'Alle', FAELLE: 'Zu Fällen', FIRMEN: 'Zu Firmen' };
+const mailListe = () => Object.entries(mails()).map(([id, m]) => ({ id, ...m })).sort((a, b) => String(b.zeitpunkt).localeCompare(String(a.zeitpunkt)));
+function zuordnungText(m) {
+  return [m.fallId && 'Fall ' + ((S.faelle[m.fallId] || {}).fallnummer || ''), m.firmaId && (S.auftraggeber[m.firmaId] || {}).name, m.kundeRef && 'Kunde: ' + m.kundeRef]
+    .filter(Boolean).join(' · ') || 'Nicht zugeordnet';
+}
+function zeichnePostfach(r) {
+  const filter = ANSICHT.postfachFilter || 'OFFEN';
+  const alleMails = mailListe(), offen = alleMails.filter(m => !istZugeordnet(m)).length;
+  const liste = alleMails.filter(m => (filter === 'OFFEN' ? !istZugeordnet(m) : filter === 'FAELLE' ? !!m.fallId : filter === 'FIRMEN' ? !!m.firmaId : true));
+  return `<div class="zeile" style="margin-bottom:8px"><button class="knopf" data-postfach-abrufen>⟳ Abrufen</button><button class="knopf voll" data-neue-mail>＋ Neue E-Mail</button></div>
+    <div class="chips" role="group" aria-label="Postfach">${Object.entries(POSTFACH_FILTER).map(([k, l]) =>
+      `<button class="chip" data-postfach-filter="${k}" aria-pressed="${filter === k}">${l}${k === 'OFFEN' ? ` (${offen})` : ''}</button>`).join('')}</div>
+    <div id="postfach">${liste.map(m => `<button class="karte klickbar ${r.art === 'mail' && decodeURIComponent(r.id) === m.id ? 'gewaehlt' : ''}" data-mail="${esc(encodeURIComponent(m.id))}">
+      <div class="zeile eng"><span class="titel fuell">${esc(m.eingehend ? m.von : 'An: ' + (m.an || ''))}</span><span class="leise">${m.zeitpunkt ? zeitText(m.zeitpunkt) : ''}</span></div>
+      <div class="zwei-zeilen">${esc(m.betreff || '(ohne Betreff)')}</div>
+      <div class="leise" style="${istZugeordnet(m) ? '' : 'color:var(--fehler)'}">${esc(MAIL_KONTEN[m.konto || 'SCHADEN'])} · ${esc(zuordnungText(m))}</div></button>`).join('')
+      || `<div class="leer"><b>${filter === 'OFFEN' ? 'Alle E-Mails sind zugeordnet' : 'Keine E-Mails in dieser Ansicht'}</b></div>`}</div>`;
+}
+function zeichneMail(id) {
+  const m = mails()[id], el = $('#detail');
+  if (!m) { el.innerHTML = '<div class="leer"><b>Die E-Mail gibt es nicht mehr.</b></div>'; return; }
+  el.dataset.id = 'mail' + id;
+  el.innerHTML = `<div class="karte"><h2 class="gross">${esc(m.betreff || '(ohne Betreff)')}</h2>
+      <p>${esc(m.eingehend ? 'Von: ' + m.von : 'Von: ' + (m.von || '') + '\nAn: ' + (m.an || ''))}</p>
+      <p class="leise">${m.zeitpunkt ? zeitText(m.zeitpunkt) : ''} · Postfach ${esc(MAIL_KONTEN[m.konto || 'SCHADEN'])}</p></div>
+    <div class="karte ${istZugeordnet(m) ? '' : 'rot'}" id="mail-zuordnung"><b>Zugeordnet: ${esc(zuordnungText(m))}</b>
+      <div class="zeile" style="margin-top:8px"><button class="knopf voll" data-mail-zuordnen>${istZugeordnet(m) ? 'Umhängen' : 'Zuordnen'}</button>
+      ${m.fallId ? `<a class="knopf" href="#/fall/${m.fallId}">Zum Fall</a>` : ''}${m.firmaId ? `<a class="knopf" href="#/firma/${m.firmaId}">Zur Firma</a>` : ''}
+      <button class="knopf" data-mail-antworten>Antworten</button></div></div>
+    ${m.anhaenge && m.anhaenge.length ? `<div class="karte block"><h3>Anhänge</h3>${m.anhaenge.map((n, i) => `<button class="vorlage" data-mail-anhang="${i}">📎 ${esc(n)}</button>`).join('')}${m.fallId ? '<p class="leise">Beim Fall als Anlage abgelegt.</p>' : ''}</div>` : ''}
+    <div class="karte"><p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(m.text || '')}</p></div>`;
+}
+function zuordnenDialog(id) {
+  const m = mails()[id]; if (!m) return;
+  const faelleListe = faelle().sort((a, b) => (status(b).offen - status(a).offen) || String(b.fallnummer).localeCompare(String(a.fallnummer)));
+  dialog(`<form method="dialog" id="zuordnen-form"><h2>E-Mail zuordnen</h2>
+    <label class="feld">Schadensfall<select name="fallId"><option value="">– kein Fall –</option>${faelleListe.map(f =>
+      `<option value="${f.id}" ${m.fallId === f.id ? 'selected' : ''}>${esc(f.fallnummer)} · ${esc(anzeigeName(f))}${f.auftraggeber ? ' · ' + esc(f.auftraggeber) : ''}</option>`).join('')}</select></label>
+    <label class="feld">Firma (ohne Fall)<select name="firmaId"><option value="">– keine Firma –</option>${auftraggeberListe().map(e =>
+      `<option value="${e.id}" ${m.firmaId === e.id ? 'selected' : ''}>${esc(firmaName(e))}</option>`).join('')}</select><span class="leise">Bei einem Fall gehört die Mail automatisch auch zu dessen Firma.</span></label>
+    <label class="feld">Kunde (Name oder E-Mail des Endkunden)<input name="kundeRef" value="${esc(m.kundeRef || '')}"></label>
+    ${m.eingehend ? `<button type="button" class="knopf text" id="kunde-absender">Absender übernehmen</button>` : ''}
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Übernehmen</button></div></form>`);
+  if ($('#kunde-absender')) $('#kunde-absender').onclick = () => { $('#zuordnen-form [name=kundeRef]').value = m.von; };
+  $('#zuordnen-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries(new FormData(ev.target));
+    $('#dialog').close();
+    await mailZuordnen(id, w); toast('Zuordnung gespeichert');
+  };
+}
+
+/** Schreibfenster ohne Fall: an eine Firma, einen Ansprechpartner oder als Antwort auf eine Mail aus dem Postfach. */
+function mailAnFirma({ firmaId = '', an = '', antwortAuf = '' } = {}) {
+  const alt = antwortAuf && mails()[antwortAuf];
+  const firma = S.auftraggeber[firmaId || (alt && alt.firmaId) || ''];
+  const art = kontoFuer(alt ? alt.konto || 'SCHADEN' : 'ALLGEMEIN');
+  if (!art) { toast('Kein E-Mail-Konto eingerichtet'); return; }
+  const gruss = (() => { const t = vorlageText('SACHSTANDSANFRAGE', {}, S.einstellungen).text; return t.slice(t.lastIndexOf('Mit freundlichen Grüßen')); })();
+  const empfaenger = alt ? (alt.eingehend ? alt.von : alt.an) : an || (firma && firma.email) || '';
+  const name = firma ? kontaktZuAdressen(firma.id, empfaenger) : '';
+  let text = `${name ? `Guten Tag ${name},` : 'Sehr geehrte Damen und Herren,'}\n\n\n\n${gruss}`;
+  if (alt) text += `\n\nAm ${zeitText(alt.zeitpunkt)} schrieb ${alt.von}:\n` + String(alt.text || '').split('\n').map(z => '> ' + z).join('\n');
+  const betreff = alt ? (/^(re|aw):/i.test(alt.betreff) ? alt.betreff : 'Re: ' + alt.betreff) : '';
+  const konten = Object.keys(MAIL.konten).filter(a => MAIL.konten[a]);
+  dialog(`<form method="dialog" id="mail-form"><h2>E-Mail${firma ? ' · ' + esc(firma.name) : ''}</h2>
+    <p class="fehlertext" id="mail-fehler" hidden></p>
+    ${konten.length > 1 ? `<label class="feld">Von<select name="konto">${konten.map(a => `<option value="${a}" ${a === art ? 'selected' : ''}>${esc(MAIL.konten[a].adresse)} (${MAIL_KONTEN[a]})</option>`).join('')}</select></label>`
+      : `<p class="leise">Von: ${esc(MAIL.konten[art].adresse)}</p><input type="hidden" name="konto" value="${art}">`}
+    <label class="feld">An<input name="an" value="${esc(empfaenger)}"></label>
+    <label class="feld">Betreff<input name="betreff" value="${esc(betreff)}"></label>
+    <label class="feld">Nachricht<textarea name="text" style="min-height:260px">${esc(text)}</textarea></label>
+    <label class="knopf" style="margin-top:6px">📎 Datei vom Rechner anhängen<input type="file" id="mail-datei" multiple hidden></label><div id="mail-dateien" class="leise"></div>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll" id="mail-senden">Senden</button></div></form>`);
+  let dateien = [];
+  $('#mail-datei').onchange = ev => { dateien = dateien.concat([...ev.target.files]); $('#mail-dateien').textContent = dateien.map(d => d.name).join(', '); ev.target.value = ''; };
+  $('#mail-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const w = new FormData(ev.target), fehler = $('#mail-fehler');
+    const zeige = t => { fehler.textContent = t; fehler.hidden = false; };
+    const adressen = String(w.get('an')).split(/[,;]/).map(x => x.trim()).filter(Boolean);
+    if (!adressen.length || adressen.some(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) { zeige('Bitte eine gültige Empfängeradresse eintragen.'); return; }
+    if (dateien.reduce((n, d) => n + d.size, 0) > 20 * 1024 * 1024) { zeige('Die Anhänge sind zusammen größer als 20 MB.'); return; }
+    const konto = String(w.get('konto') || art), knopf = $('#mail-senden'); knopf.disabled = true; knopf.textContent = 'Sendet …';
+    try {
+      const anhaenge = [];
+      for (const d of dateien) anhaenge.push({ name: d.name, mimeType: d.type || 'application/octet-stream', base64: await alsBase64(d) });
+      const entwurf = { an: adressen.join(', '), bcc: '', betreff: String(w.get('betreff')), text: String(w.get('text')), antwortAuf: antwortAuf || '', anhaenge };
+      const messageId = await window.desktop.mail.sende(entwurf, konto);
+      const m = { firmaId: firma ? firma.id : '', kundeRef: alt ? alt.kundeRef || '' : '', konto, eingehend: false, von: MAIL.konten[konto].adresse, an: entwurf.an,
+        betreff: entwurf.betreff, text: entwurf.text, zeitpunkt: jetztIso(), anhaenge: anhaenge.map(a => a.name) };
+      ablegen(messageId, m, mailText(m));
+      $('#dialog').close(); nachAenderung(); toast('E-Mail gesendet');
+    } catch (e) { zeige(e.message || 'Die E-Mail konnte nicht gesendet werden.'); knopf.disabled = false; knopf.textContent = 'Senden'; }
+  };
+}
+
+$('#liste').addEventListener('click', e => {
+  const filter = e.target.closest('[data-postfach-filter]'), m = e.target.closest('[data-mail]');
+  if (filter) { ANSICHT.postfachFilter = filter.dataset.postfachFilter; zeichneListe(); return; }
+  if (e.target.closest('[data-postfach-abrufen]')) { postfachAbrufen(true); return; }
+  if (e.target.closest('[data-neue-mail]')) { mailAnFirma(); return; }
+  if (m && formularSchliessen()) { formularStand = $('#fall-form') ? formularWerte() : ''; gehe('#/mail/' + m.dataset.mail); }
+});
+$('#detail').addEventListener('click', async e => {
+  const r = route(); if (r.art !== 'mail') return;
+  const id = decodeURIComponent(r.id), m = mails()[id]; if (!m) return;
+  if (e.target.closest('[data-mail-zuordnen]')) { zuordnenDialog(id); return; }
+  if (e.target.closest('[data-mail-antworten]')) {
+    if (m.fallId && S.faelle[m.fallId] && m.verlaufId) mailSchreiben(S.faelle[m.fallId], { antwortAufVerlauf: m.verlaufId }); else mailAnFirma({ antwortAuf: id });
+    return;
+  }
+  const anh = e.target.closest('[data-mail-anhang]');
+  if (anh) {
+    const blob = await Dateien.hole(`mail:${id}:${anh.dataset.mailAnhang}`);
+    if (!blob) { toast('Der Anhang liegt beim Fall bzw. nicht auf diesem Rechner.'); return; }
+    await window.desktop.oeffneDatei(m.anhaenge[Number(anh.dataset.mailAnhang)], new Uint8Array(await blob.arrayBuffer()));
+  }
+});
 
 function mailVorlagen(f) {
   const gruppen = Object.entries(EMPFAENGER).map(([e, info]) => {
@@ -1205,8 +1762,11 @@ function mailSchreiben(f, { vorlage, empfaenger, antwortAufVerlauf } = {}) {
   const agMail = (f.auftraggeberEmail || '').trim();
   const bccMoeglich = agMail && !an.toLowerCase().includes(agMail.toLowerCase());
   const anlageZeile = (a, an = false) => `<label class="auswahl"><input type="checkbox" name="anlage" value="${a.id}"${an ? ' checked' : ''}> ${esc(a.anzeigename)}</label>`;
+  const konten = Object.keys(MAIL.konten).filter(x => MAIL.konten[x]), kontoVorgabe = kontoFuer((alt && alt.konto) || 'SCHADEN');
   dialog(`<form method="dialog" id="mail-form"><h2>E-Mail · Fall ${esc(f.fallnummer)}</h2>
     <p class="fehlertext" id="mail-fehler" hidden></p>
+    ${konten.length > 1 ? `<label class="feld">Von<select name="konto">${konten.map(x => `<option value="${x}" ${x === kontoVorgabe ? 'selected' : ''}>${esc(MAIL.konten[x].adresse)} (${MAIL_KONTEN[x]})</option>`).join('')}</select></label>`
+      : `<input type="hidden" name="konto" value="${kontoVorgabe || 'SCHADEN'}">`}
     <label class="feld">An<input name="an" value="${esc(an)}"></label>
     <label class="feld">Betreff<input name="betreff" value="${esc(betreff)}"><span class="leise">Die Fallnummer im Betreff ordnet Antworten automatisch diesem Fall zu.</span></label>
     <label class="feld">Nachricht<textarea name="text" style="min-height:260px">${esc(text)}</textarea></label>
@@ -1251,9 +1811,10 @@ function mailSchreiben(f, { vorlage, empfaenger, antwortAufVerlauf } = {}) {
       }
       const bcc = w.get('bcc') && !adressen.some(x => x.toLowerCase() === agMail.toLowerCase()) ? agMail : '';
       const entwurf = { an: adressen.join(', '), bcc, betreff: String(w.get('betreff')), text: String(w.get('text')), antwortAuf, anhaenge };
-      const messageId = await window.desktop.mail.sende(entwurf);
+      const konto = String(w.get('konto') || kontoVorgabe || 'SCHADEN');
+      const messageId = await window.desktop.mail.sende(entwurf, konto);
       const anh = anhaenge.length ? '\nAnhänge: ' + anhaenge.map(a => a.name).join(', ') : '';
-      vermerkeMail(S.faelle[f.id], { messageId, von: MAIL.konto.adresse, betreff: entwurf.betreff, text: entwurf.text, zeitpunkt: jetztIso() },
+      vermerkeMail(S.faelle[f.id], { messageId, konto, von: MAIL.konten[konto].adresse, an: entwurf.an, betreff: entwurf.betreff, text: entwurf.text, zeitpunkt: jetztIso(), anhaenge: anhaenge.map(a => a.name) },
         `An: ${entwurf.an}${bcc ? '\nBcc: ' + bcc : ''}\nBetreff: ${entwurf.betreff}${anh}\n\n${entwurf.text}`, false);
       $('#dialog').close(); nachAenderung(); toast('E-Mail gesendet');
     } catch (e) {
@@ -1263,21 +1824,26 @@ function mailSchreiben(f, { vorlage, empfaenger, antwortAufVerlauf } = {}) {
 }
 
 function mailEinstellungen() {
-  const k = MAIL.konto, st = S.mailStand || {};
-  if (!k) return `<div class="karte block"><h3>E-Mail</h3><p class="leise" style="margin-bottom:8px">Mit deinem Postfach schreibst und empfängst du die Mails zu den Fällen direkt in der App. Antworten werden über die Fallnummer im Betreff automatisch dem Fall zugeordnet.</p>
-    <button class="knopf voll" id="mail-einrichten">E-Mail-Konto einrichten</button></div>`;
-  const zustand = MAIL.laeuft ? 'Wird abgerufen …' : st.fehler ? `Letzter Abruf fehlgeschlagen: ${st.fehler}` : st.letzterAbruf ? `Zuletzt abgerufen ${zeitText(new Date(st.letzterAbruf).toISOString())}` : 'Noch nicht abgerufen';
-  return `<div class="karte block"><h3>E-Mail</h3><p>${esc(k.adresse)}</p><p class="${st.fehler ? 'fehlertext' : 'leise'}" style="margin:4px 0 8px">${esc(zustand)}</p>
-    <div class="zeile"><button class="knopf" id="mail-abrufen">Jetzt abrufen</button><button class="knopf" id="mail-aendern">Ändern</button><button class="knopf" id="mail-entfernen">Entfernen</button></div></div>`;
+  return Object.keys(MAIL_KONTEN).map(art => {
+    const k = MAIL.konten[art], st = mailStand(art), schaden = art === 'SCHADEN';
+    const titel = schaden ? 'E-Mail für Schadensfälle' : 'E-Mail für alles andere';
+    if (!k) return `<div class="karte block"><h3>${titel}</h3><p class="leise" style="margin-bottom:8px">${schaden
+      ? 'Postfach für die Schadensbearbeitung (z. B. schaden@…). Mails aus einem Fall gehen darüber; Antworten werden über die Fallnummer im Betreff dem Fall zugeordnet.'
+      : 'Postfach für Disposition, Angebote und Abrechnung (z. B. info@…). Mails an Firmen und Ansprechpartner gehen darüber. Ohne eigenes Konto wird das andere Postfach verwendet.'}</p>
+      <button class="knopf voll" data-mail-einrichten="${art}" id="mail-einrichten-${art}">E-Mail-Konto einrichten</button></div>`;
+    const zustand = MAIL.laeuft ? 'Wird abgerufen …' : st.fehler ? `Letzter Abruf fehlgeschlagen: ${st.fehler}` : st.letzterAbruf ? `Zuletzt abgerufen ${zeitText(new Date(st.letzterAbruf).toISOString())}` : 'Noch nicht abgerufen';
+    return `<div class="karte block"><h3>${titel}</h3><p>${esc(k.adresse)}</p><p class="${st.fehler ? 'fehlertext' : 'leise'}" style="margin:4px 0 8px">${esc(zustand)}</p>
+      <div class="zeile"><button class="knopf" data-mail-abrufen id="mail-abrufen-${art}">Jetzt abrufen</button><button class="knopf" data-mail-einrichten="${art}">Ändern</button><button class="knopf" data-mail-entfernen="${art}">Entfernen</button></div></div>`;
+  }).join('');
 }
 
-function mailKontoDialog() {
-  const k = MAIL.konto || {}, liste = { ...MAIL.anbieter, EIGENER: { label: 'Eigener Server' } };
+function mailKontoDialog(art = 'SCHADEN') {
+  const k = MAIL.konten[art] || {}, liste = { ...MAIL.anbieter, EIGENER: { label: 'Eigener Server' } };
   let wahl = Object.keys(MAIL.anbieter).find(a => MAIL.anbieter[a].imapHost === k.imapHost) || (k.imapHost ? 'EIGENER' : 'IONOS');
   const male = () => {
     const eigen = wahl === 'EIGENER', a = MAIL.anbieter[wahl] || {};
     const werte = $('#konto-form') ? Object.fromEntries(new FormData($('#konto-form'))) : { adresse: k.adresse || '', benutzer: k.benutzer && k.benutzer !== k.adresse ? k.benutzer : '' };
-    dialog(`<form method="dialog" id="konto-form"><h2>E-Mail-Konto</h2>
+    dialog(`<form method="dialog" id="konto-form"><h2>${art === 'SCHADEN' ? 'E-Mail für Schadensfälle' : 'E-Mail für alles andere'}</h2>
       <div class="chips">${Object.entries(liste).map(([id, x]) => `<button type="button" class="chip" data-anbieter="${id}" aria-pressed="${id === wahl}">${esc(x.label)}</button>`).join('')}</div>
       <label class="feld">E-Mail-Adresse<input name="adresse" type="email" required value="${esc(werte.adresse || '')}"></label>
       <label class="feld">Passwort<input name="passwort" type="password" required autocomplete="current-password"></label>
@@ -1288,7 +1854,7 @@ function mailKontoDialog() {
         <label class="feld">SMTP-Port<input name="smtpPort" inputmode="numeric" value="${esc(werte.smtpPort || k.smtpPort || 465)}"></label>
         <label class="auswahl"><input type="checkbox" name="starttls" ${k.smtpSicherheit === 'STARTTLS' ? 'checked' : ''}> SMTP mit STARTTLS (sonst SSL)</label>`
         : `<p class="leise">Server: ${esc(a.imapHost)} (IMAP) · ${esc(a.smtpHost)} (SMTP)</p>`}
-      <p class="leise">Das Passwort wird mit deinem Windows-Konto verschlüsselt und nur auf diesem Rechner gespeichert. Die App liest ausschließlich Mails, die zu einem Fall gehören, und verändert im Postfach nichts.</p>
+      <p class="leise">Das Passwort wird mit deinem Windows-Konto verschlüsselt und nur auf diesem Rechner gespeichert. Die App liest den Posteingang und verändert im Postfach nichts.</p>
       <p class="fehlertext" id="konto-fehler" hidden></p>
       <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll" id="konto-verbinden">Verbinden</button></div></form>`);
     $('#konto-form').onclick = e => { const c = e.target.closest('[data-anbieter]'); if (c) { wahl = c.dataset.anbieter; male(); } };
@@ -1301,8 +1867,8 @@ function mailKontoDialog() {
       const konfig = { adresse: w.adresse.trim(), benutzer: w.benutzer.trim() || w.adresse.trim(), name: S.einstellungen.firma || '', ...server };
       knopf.disabled = true; knopf.textContent = 'Prüfe …'; fehler.hidden = true;
       try {
-        MAIL.konto = await window.desktop.mail.einrichten(konfig, w.passwort);
-        if (MAIL.konto.adresse !== k.adresse) S.mailStand = {};
+        MAIL.konten[art] = await window.desktop.mail.einrichten(konfig, w.passwort, art); aktualisiereKonto();
+        if (MAIL.konten[art].adresse !== k.adresse) setzeMailStand(art, {});
         $('#dialog').close(); speichere(); zeichne(); toast('E-Mail-Konto verbunden'); postfachAbrufen();
       } catch (e) { fehler.textContent = e.message; fehler.hidden = false; knopf.disabled = false; knopf.textContent = 'Verbinden'; }
     };
@@ -1310,9 +1876,16 @@ function mailKontoDialog() {
   male();
 }
 
+/** Konto setzen (z. B. nach dem Einrichten) und die Oberfläche auffrischen. */
+function mailKontoGesetzt(art, konfig) { MAIL.konten[art] = konfig; aktualisiereKonto(); zeichne(); }
+
 async function mailStart() {
   if (!window.desktop) return;
-  try { MAIL.anbieter = await window.desktop.mail.anbieter(); MAIL.konto = await window.desktop.mail.konto(); } catch { return; }
+  try {
+    MAIL.anbieter = await window.desktop.mail.anbieter();
+    for (const art of Object.keys(MAIL.konten)) MAIL.konten[art] = await window.desktop.mail.konto(art);
+    aktualisiereKonto();
+  } catch { return; }
   window.desktop.beiZiel(ziel => gehe(ziel));
   zeichne();
   if (MAIL.konto) postfachAbrufen();
