@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<script>
+/*
+ * Ayse CRM: Diese Seite ist die Tourenplanung (Quelle: aysetransport/tourenplanung), eingebunden als Reiter „Touren“.
+ * Sie spricht weiter mit ihrem eigenen Cloud-Skript (Google-Tabelle). Dieser Block sorgt nur dafür, dass Telefon-,
+ * Mail- und WhatsApp-Links, Drucken und Downloads auch in der Windows- und Android-App funktionieren.
+ */
+(function () {
+  var oben = window.parent !== window ? window.parent : null;
+  var app = oben && oben.desktop;
+  if (!app) return;
+  var extern = function (u) { if (app.oeffneExtern) app.oeffneExtern(String(u)).catch(function () {}); };
+  window.open = function (u) { if (/^(https:|mailto:|tel:)/i.test(String(u))) extern(u); return null; };
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest && e.target.closest('a[href]'); if (!a) return;
+    var h = a.getAttribute('href') || '';
+    if (/^(tel:|mailto:)/i.test(h) || (a.target === '_blank' && /^https:/i.test(h))) { e.preventDefault(); extern(h); }
+  }, true);
+  // Android: eine WebView kann nicht selbst drucken – die aktuelle Ansicht (mit den eingetragenen Werten) an den Druckdialog geben
+  if (app.drucke) window.print = function () {
+    var kopie = document.documentElement.cloneNode(true);
+    var alt = document.querySelectorAll('input,select,textarea'), neu = kopie.querySelectorAll('input,select,textarea');
+    Array.prototype.forEach.call(alt, function (el, i) {
+      var k = neu[i]; if (!k) return;
+      if (el.tagName === 'SELECT') Array.prototype.forEach.call(k.options, function (o, j) { if (j === el.selectedIndex) o.setAttribute('selected', ''); else o.removeAttribute('selected'); });
+      else if (el.type === 'checkbox' || el.type === 'radio') { if (el.checked) k.setAttribute('checked', ''); else k.removeAttribute('checked'); }
+      else if (el.tagName === 'TEXTAREA') k.textContent = el.value;
+      else k.setAttribute('value', el.value);
+    });
+    Array.prototype.forEach.call(kopie.querySelectorAll('script'), function (s) { s.remove(); });
+    app.drucke('<!doctype html>' + kopie.outerHTML).catch(function () {});
+  };
+  // Android: Downloads (PDF, CSV) in den Download-Ordner
+  if (app.plattform === 'android') {
+    var klick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (this.download && /^(blob|data):/.test(this.href)) {
+        var name = this.download;
+        fetch(this.href).then(function (r) { return r.arrayBuffer(); }).then(function (b) {
+          var u = new Uint8Array(b), s = '';
+          for (var i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+          return app.speichere(name, btoa(s));
+        }).then(function (ort) { if (oben.toast) oben.toast('Gespeichert: ' + ort, 5000); })
+          .catch(function (e) { if (oben.toast) oben.toast('Speichern nicht möglich: ' + (e.message || e), 6000); });
+        return;
+      }
+      return klick.call(this);
+    };
+  }
+})();
+</script>
+
+<script>
+(function () {
+  var URL_ = "https://script.google.com/macros/s/AKfycby5KUa5VlCeza6mLZCDt1hajWjMGLXFjD_fW847ERpWn12DC2xZZfOlezVpBUv63WTG2g/exec";
+  function lauf(ok, fail) {
+    return {
+      withSuccessHandler: function (f) { return lauf(f, fail); },
+      withFailureHandler: function (f) { return lauf(ok, f); },
+      api: function (pin, name, args) {
+        fetch(URL_, { method: 'POST', body: JSON.stringify({ pin: pin, name: name, args: args }) })
+          .then(function (r) { return r.json(); })
+          .then(function (r) { if (r.error) throw new Error(r.error); return r.ok; })
+          .then(function (v) { if (ok) ok(v); }, function (e) { if (fail) fail(e); });
+      }
+    };
+  }
+  window.google = { script: { get run() { return lauf(); } } };
+})();
+</script>
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1f6feb">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<title>Tourenplanung</title>
+
+<style>
+  :root { --bg: #f3f5f8; --karte: #fff; --rand: #d9dee5; --linie: #e8ebef; --text: #1f2933; --leise: #5f6b7a;
+    --blau: #1f6feb; --blau-d: #1858c0; --blau-h: #eaf2ff; --rot: #c62828; --rot-h: #fdecea; --gelb: #fff6d6; --kopf: #eef2f7; }
+  body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; color: var(--text); background: var(--bg); }
+  header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;
+    padding: 10px 16px; margin-bottom: 14px; background: var(--karte); border-bottom: 1px solid var(--rand); box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  h1 { font-size: 18px; margin: 0; color: var(--blau-d); }
+  .gruppe { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-left: 14px; border-left: 1px solid var(--rand); }
+  header label { display: flex; gap: 6px; align-items: center; font-weight: 600; }
+  input, select { font: inherit; color: inherit; }
+  header input, section input, section select { padding: 5px 8px; border: 1px solid var(--rand); border-radius: 6px; background: #fff; }
+  button { font: inherit; padding: 6px 12px; border: 1px solid var(--rand); border-radius: 6px; background: #fff; color: var(--text); cursor: pointer; }
+  button:hover:not(:disabled) { background: var(--kopf); border-color: #b8c2cf; }
+  button:disabled { opacity: .45; cursor: default; }
+  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--blau); outline-offset: 1px; }
+  button.primaer { background: var(--blau); border-color: var(--blau); color: #fff; font-weight: 600; }
+  button.primaer:hover:not(:disabled) { background: var(--blau-d); }
+  body.ungespeichert #speichern::after { content: " •"; }
+  body.ungespeichert #speichern { box-shadow: 0 0 0 3px rgba(31,111,235,.3); }
+  button[aria-expanded=true] { background: var(--blau-h); border-color: var(--blau); color: var(--blau-d); }
+  #stamm { color: var(--blau); text-decoration: none; }
+  #stamm:hover { text-decoration: underline; }
+  #zaehler { font-weight: 600; background: var(--kopf); padding: 4px 10px; border-radius: 999px; font-size: 14px; }
+  #zaehler:empty { display: none; }
+  #status { margin-left: auto; color: var(--leise); font-size: 13px; }
+  #status:not(:empty) { background: var(--kopf); padding: 4px 10px; border-radius: 999px; }
+  body > section, body > .wrap { margin: 0 16px 14px; }
+  .wrap { overflow-x: auto; background: var(--karte); border: 1px solid var(--rand); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border-bottom: 1px solid var(--linie); border-right: 1px solid var(--linie); padding: 2px; text-align: left; vertical-align: middle; }
+  th { background: var(--kopf); font-size: 12px; font-weight: 600; color: #3d4a5c; padding: 8px 6px; white-space: nowrap; }
+  #rows tr:nth-child(even) td { background: #fafbfc; }
+  #rows tr:hover td { background: #f2f7ff; }
+  td input, td select { width: 100%; box-sizing: border-box; border: 1px solid transparent; border-radius: 4px; padding: 5px 6px;
+    background: transparent; min-width: 6.5em; }
+  td input:hover, td select:hover { border-color: var(--rand); }
+  td input:focus, td select:focus { background: #fff; border-color: var(--blau); outline: none; }
+  td:nth-child(3) input, td:nth-child(4) input { min-width: 12em; }
+  td:first-child input { min-width: 8.5em; font-weight: 600; }
+  td.weg { white-space: nowrap; padding: 2px 4px; }
+  td.weg button { padding: 3px 7px; border-radius: 4px; font-size: 13px; }
+  td input.doppelt { background: var(--rot-h); border-color: var(--rot); }
+  td.hinweis { color: var(--rot); font-size: 12px; min-width: 160px; padding: 4px 6px; }
+  #rows tr td.hinweis:not(:empty) { background: var(--rot-h); }
+  #rows tr.leer td { background: #f4f5f7; }
+  #rows tr.leer td input { color: var(--leise); }
+  #kal, #st, #ber, #fuell, #hol { background: var(--karte); border: 1px solid var(--rand); border-radius: 8px; padding: 14px 16px;
+    max-width: 900px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  section h2 { font-size: 16px; margin: 0 0 10px; }
+  section h3 { font-size: 14px; margin: 16px 0 6px; }
+  section p { color: var(--leise); margin: 0 0 8px; }
+  section form, section .zeile { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  section label { display: inline-flex; gap: 6px; align-items: center; }
+  [role=tab][aria-selected=true] { background: var(--blau-h); border-color: var(--blau); color: var(--blau-d); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; max-width: 420px; }
+  .grid .wt { font-weight: 600; text-align: center; color: var(--leise); font-size: 12px; }
+  .grid .tag { padding: 6px 0; border: 1px solid var(--linie); border-radius: 4px; background: #fff; }
+  .grid .tag.ab { background: #f6c6c6; border-color: #d88; }
+  #frei-sek { background: var(--karte); border: 1px solid var(--rand); border-radius: 8px; padding: 14px 16px; max-width: 900px; }
+  #frei-liste h3:first-child { margin-top: 0; }
+  #frei-liste p { color: var(--text); margin: 4px 0; }
+  .liste td, .liste th { padding: 6px 8px; }
+  .liste tr.laeuft td { background: var(--gelb); }
+  .liste button.link { border: 0; background: none; padding: 0; color: var(--blau); }
+  .liste button.link:hover { text-decoration: underline; background: none; }
+  #hol-liste, #k-liste { padding-left: 18px; }
+  #hol-liste li, #k-liste li { margin: 4px 0; }
+  /* Handy: Kopfleiste scrollt mit, Touren als Karten (nur Bildschirm, Druck bleibt Tabelle) */
+  @media screen and (max-width: 760px) {
+    header { position: static; padding: 10px 12px; gap: 8px; }
+    h1 { width: 100%; }
+    .gruppe { width: 100%; padding-left: 0; border-left: 0; }
+    .gruppe button { flex: 1 1 auto; }
+    #status { width: 100%; margin-left: 0; }
+    body > section, body > .wrap { margin: 0 8px 12px; }
+    #kal, #st, #ber, #fuell, #hol { padding: 12px; }
+    input, select, button { font-size: 16px; }
+    body:not(.drucken) #tourwrap { background: none; border: 0; overflow: visible; }
+    body:not(.drucken) #tourtab thead { display: none; }
+    body:not(.drucken) #tourtab, body:not(.drucken) #rows { display: block; }
+    body:not(.drucken) #rows tr { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-bottom: 10px; padding: 10px;
+      background: var(--karte); border: 1px solid var(--rand); border-radius: 8px; }
+    body:not(.drucken) #rows tr.leer { background: #f4f5f7; }
+    body:not(.drucken) #rows td { display: block; border: 0; padding: 0; background: none !important; }
+    body:not(.drucken) #rows td::before { content: attr(data-label); display: block; font-size: 11px; color: var(--leise); }
+    body:not(.drucken) #rows td input, body:not(.drucken) #rows td select { min-width: 0 !important; border-color: var(--linie); background: #fff; }
+    body:not(.drucken) #rows td:first-child, body:not(.drucken) #rows td.hinweis, body:not(.drucken) #rows td.weg { grid-column: 1 / -1; }
+    body:not(.drucken) #rows td.hinweis:empty { display: none; }
+    body:not(.drucken) #rows td.hinweis:not(:empty) { background: var(--rot-h) !important; padding: 6px 8px; border-radius: 6px; }
+    body:not(.drucken) #rows td.hinweis::before { content: none; }
+    body:not(.drucken) #rows td.weg { display: flex; gap: 8px; justify-content: flex-end; padding-top: 4px; }
+    body:not(.drucken) #rows td.weg::before { content: none; }
+    body:not(.drucken) #rows td.weg button { padding: 8px 14px; font-size: 16px; }
+  }
+  #pin-box { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+  #pin-box[hidden] { display: none; }
+  #pin-form { display: flex; flex-direction: column; gap: 12px; width: min(300px, 90vw); padding: 24px; background: var(--karte);
+    border: 1px solid var(--rand); border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+  #pin-form h2 { margin: 0; color: var(--blau-d); }
+  #pin-form label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+  #pin-form input { font-size: 20px; padding: 8px 10px; border: 1px solid var(--rand); border-radius: 6px; letter-spacing: 4px; }
+  #pin-fehler { color: var(--rot); margin: 0; min-height: 1.2em; }
+  @page { size: A4 landscape; margin: 8mm; }
+  body.drucken { margin: 0; background: #fff; }
+  .drucken header { position: static; box-shadow: none; border: 0; padding: 0; margin-bottom: 6px; }
+  .drucken .gruppe, .drucken #hol, .drucken #frei-sek { display: none; }
+  .drucken .wrap { margin: 0; border: 0; border-radius: 0; background: none; }
+  .drucken th, .drucken td { border: 1px solid #999; }
+  .drucken #rows tr td { background: none !important; }
+  .drucken header button, .drucken header a, .drucken #status, .drucken .weg, .drucken td.hinweis, .drucken th.hinweis,
+  .drucken #kal, .drucken #st, .drucken #ber, .drucken #fuell { display: none; }
+  .drucken .wrap { overflow: visible; }
+  .drucken table { width: auto; }
+  .drucken td input, .drucken td select { display: none; }
+  .drucktext { display: none; }
+  .drucken .drucktext { display: inline; }
+  .drucken th, .drucken td { padding: 3px 6px; white-space: nowrap; }
+  .drucken tr.leer td { background: none; }
+  .drucken tr.nichtdrucken, .drucken .spalteleer { display: none; }
+  #frei { display: none; }
+  .drucken #frei { display: block; margin-top: 10px; font-size: 12px; }
+  #frei h3 { font-size: 13px; margin: 8px 0 2px; }
+  #frei p { margin: 1px 0; }
+  #bericht { display: none; }
+  body.bericht > *:not(#bericht) { display: none !important; }
+  body.bericht { margin: 0; }
+  body.bericht #bericht { display: block; font-size: 8pt; width: 1062px; } /* = nutzbare Breite A4 quer, damit die Messung zum Druck passt */
+  #bericht h2 { font-size: 12pt; margin: 0 0 4px; }
+  #bericht table { width: 100%; table-layout: fixed; }
+  #bericht th, #bericht td { padding: 1px 0; text-align: center; border: 1px solid #999; height: 14px; }
+  #bericht .nm { width: 30mm; text-align: left; padding-left: 3px; white-space: nowrap; overflow: hidden; }
+  #bericht .sum { width: 9mm; font-weight: 600; }
+  #bericht .we { background: #e6e6e6; }
+  #bericht tr { break-inside: avoid; }
+  #bericht .ag-block + .ag-block { break-before: page; }
+  #bericht .nm2 { width: 60mm; text-align: left; padding-left: 3px; }
+  #bericht .ag-touren { margin-top: 6px; }
+  #bericht .ag-block { margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<div id="pin-box" hidden>
+  <form id="pin-form">
+    <h2>Tourenplanung</h2>
+    <label>PIN <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" required></label>
+    <button class="primaer">Öffnen</button>
+    <p id="pin-fehler" role="alert"></p>
+  </form>
+</div>
+<header>
+  <h1>Tourenplanung</h1>
+  <label>Datum <input type="date" id="datum"></label>
+  <div class="gruppe" role="group" aria-label="Tag bearbeiten">
+    <button id="plus">+ Tour</button>
+    <button id="auffuellen">Teams auffüllen</button>
+    <button id="undo" disabled>↶ Rückgängig</button>
+    <button id="speichern" class="primaer">Speichern</button>
+  </div>
+  <div class="gruppe" role="group" aria-label="Weitere Funktionen">
+    <button id="frei-btn" aria-expanded="false">Frei</button>
+    <button id="hol-btn" aria-expanded="false">Übernehmen / Versionen</button>
+    <button id="kal-btn" aria-expanded="false">Abwesenheiten</button>
+    <button id="st-btn" aria-expanded="false">Stammdaten</button>
+    <button id="ber-btn" aria-expanded="false">Berichte</button>
+    <button onclick="window.print()">Drucken</button>
+    <button id="pdf-btn" title="Tagestouren als schmales PDF fürs Handy">Tagestouren als PDF</button>
+    <button id="csv-btn" title="Nachricht und Telefonnummer je Person als CSV (z. B. für Sammel-SMS)">CSV</button>
+    <a id="stamm" target="_blank">Sheet öffnen</a>
+  </div>
+  <span id="zaehler" aria-live="polite"></span>
+  <span id="status" role="status"></span>
+</header>
+<section id="fuell" hidden>
+  <h2>Welche Touren auffüllen?</h2>
+  <p>Abgehakte Touren bleiben unverändert (Ausnahmen) und werden nur geprüft.</p>
+  <div class="zeile"><button id="fuell-alle">Alle</button><button id="fuell-keine">Keine</button></div>
+  <div id="fuell-liste"></div>
+  <div class="zeile"><button id="fuell-los">Auffüllen</button><button id="fuell-ab">Abbrechen</button></div>
+</section>
+<section id="frei-sek" hidden>
+  <h2>Frei am gewählten Tag</h2>
+  <p>Nicht eingeteilt, nicht abwesend, aktiv. Leihfahrzeuge zählen nicht als frei. Aktualisiert sich bei jeder Änderung.</p>
+  <div id="frei-liste"></div>
+</section>
+<section id="hol" hidden>
+  <h2>Tourenliste übernehmen</h2>
+  <p>Ersetzt die Tabelle des gewählten Tages. Erst „Speichern“ schreibt es fest, „Rückgängig“ holt den vorigen Stand zurück.</p>
+  <div class="zeile">
+    <label>Von Tag <input type="date" id="hol-datum"></label>
+    <button id="hol-tag">Tourenliste übernehmen</button>
+  </div>
+  <h3>Gespeicherte Stände dieses Tages</h3>
+  <ul id="hol-liste"></ul>
+</section>
+<section id="kal" hidden>
+  <h2>Abwesenheiten</h2>
+  <div class="zeile">
+    <label>Mitarbeiter <select id="k-name"></select></label>
+    <label>Monat <input type="month" id="k-monat"></label>
+  </div>
+  <div id="k-grid" class="grid"></div>
+  <form id="k-form">
+    <label>Von <input type="date" id="k-von" required></label>
+    <label>Bis <input type="date" id="k-bis" required></label>
+    <label>Grund <input id="k-grund" list="dl-grund" size="10"></label>
+    <button>Eintragen</button>
+  </form>
+  <ul id="k-liste"></ul>
+  <h3>Alle Abwesenheiten</h3>
+  <div class="zeile"><label><input type="checkbox" id="k-alt"> auch vergangene anzeigen</label></div>
+  <div class="wrap"><table class="liste">
+    <thead><tr><th>Mitarbeiter</th><th>Von</th><th>Bis</th><th>Tage</th><th>Grund</th><th></th></tr></thead>
+    <tbody id="k-alle"></tbody>
+  </table></div>
+</section>
+<section id="ber" hidden>
+  <h2>Berichte</h2>
+  <div class="zeile">
+    <strong>Anwesenheit</strong>
+    <label>Monat <input type="month" id="ber-monat"></label>
+    <button id="ber-druck">Drucken</button>
+  </div>
+  <div class="zeile">
+    <strong>Auftraggeber</strong>
+    <label>Zeitraum <select id="ag-zeitraum"><option value="w">Woche</option><option value="m">Monat</option></select></label>
+    <label>mit Tag <input type="date" id="ag-datum"></label>
+    <label>Auftraggeber <select id="ag-name"></select></label>
+    <button id="ag-druck">Drucken</button>
+  </div>
+</section>
+<section id="st" hidden>
+  <h2>Stammdaten</h2>
+  <div class="zeile" role="tablist">
+    <button role="tab" data-t="Fahrzeuge">Fahrzeuge</button>
+    <button role="tab" data-t="Personal">Personal</button>
+    <button role="tab" data-t="Einsatzarten">Einsatzarten</button>
+    <button role="tab" data-t="Auftraggeber">Auftraggeber</button>
+    <span style="flex:1"></span>
+    <button id="st-plus">+ Zeile</button>
+    <button id="st-xlsx" title="Alle Stammdaten (gespeicherter Stand) als Excel-Datei">Excel-Export</button>
+    <button id="st-save">Stammdaten speichern</button>
+  </div>
+  <div class="wrap"><table><thead id="st-head"></thead><tbody id="st-rows"></tbody></table></div>
+</section>
+<datalist id="dl-grund"><option value="Urlaub"><option value="Krank"><option value="Schule"><option value="Frei"></datalist>
+<div class="wrap" id="tourwrap"><table id="tourtab">
+  <thead><tr><th>Kennzeichen</th><th>Tour Nr.</th><th>Auftraggeber</th><th>Name</th><th>Ladezeit</th><th>Einsatzart</th>
+    <th>Fahrer</th><th>Beifahrer 1</th><th>Beifahrer 2</th><th>Beifahrer 3</th><th>Beifahrer 4</th><th>Beifahrer 5</th><th class="hinweis">Hinweis</th><th class="weg"></th></tr></thead>
+  <tbody id="rows"></tbody>
+</table></div>
+<div id="frei"></div>
+<datalist id="dl-kz"></datalist><datalist id="dl-fahrer"></datalist><datalist id="dl-bf"></datalist><datalist id="dl-ag"></datalist>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+var FELDER = [['Kennzeichen', 'dl-kz'], ['TourNr'], ['Auftraggeber', 'dl-ag'], ['Name'], ['Uhrzeit'], ['Einsatzart'],
+  ['Fahrer', 'dl-fahrer'], ['Beifahrer1', 'dl-bf'], ['Beifahrer2', 'dl-bf'], ['Beifahrer3', 'dl-bf'], ['Beifahrer4', 'dl-bf'], ['Beifahrer5', 'dl-bf']];
+var KOPF = ['Kennzeichen', 'Tour Nr.', 'Auftraggeber', 'Name', 'Ladezeit', 'Einsatzart', 'Fahrer', 'Beifahrer 1', 'Beifahrer 2', 'Beifahrer 3', 'Beifahrer 4', 'Beifahrer 5'];
+var data = null, tours = [], dirty = false, stTab = 'Fahrzeuge', stRows = [], stDirty = false, basis = [], stBasis = null;
+var $ = function (id) { return document.getElementById(id); };
+function status(t) { $('status').textContent = t; }
+function fehler(e) {
+  var t = e && e.message ? e.message : String(e); t = t.replace(/^Error: /, '');
+  if (/PIN falsch|falsche PINs/.test(t)) { pinZeigen(t); return; }
+  status('Fehler: ' + t);
+}
+/* PIN nur für diese Browser-Sitzung merken */
+var PIN = '';
+function pinZeigen(text) {
+  PIN = ''; try { sessionStorage.removeItem('tp-pin'); } catch (x) {}
+  $('pin-fehler').textContent = text || ''; $('pin').value = ''; $('pin-box').hidden = false; $('pin').focus();
+}
+function setDirty(v) { dirty = v; document.title = (v ? '* ' : '') + 'Tourenplanung'; document.body.classList.toggle('ungespeichert', v); }
+
+function optionen(id, werte) {
+  $(id).innerHTML = '';
+  werte.forEach(function (w) { var o = document.createElement('option'); o.value = w; $(id).appendChild(o); });
+}
+
+function render(ohnePruefung) {
+  var tb = $('rows'); tb.innerHTML = '';
+  tours.forEach(function (t, i) {
+    var tr = document.createElement('tr');
+    if (!t.Kennzeichen) tr.className = 'leer';
+    FELDER.forEach(function (f, k) {
+      var td = document.createElement('td'), el;
+      if (f[0] === 'Einsatzart') {
+        el = document.createElement('select');
+        [''].concat(data.einsatzarten.map(function (e) { return e.Einsatzart; })).forEach(function (n) {
+          var o = document.createElement('option'); o.textContent = n; el.appendChild(o);
+        });
+      } else {
+        el = document.createElement('input');
+        if (f[1]) el.setAttribute('list', f[1]);
+      }
+      el.value = t[f[0]] == null ? '' : t[f[0]];
+      el.setAttribute('aria-label', KOPF[k] + ' Zeile ' + (i + 1));
+      el.setAttribute('data-feld', f[0]); td.setAttribute('data-label', KOPF[k]);
+      el.addEventListener('change', function () { merken(); t[f[0]] = el.value.trim(); setDirty(true); tr.className = t.Kennzeichen ? '' : 'leer'; doppelt(); freiDrucken(); livePruefen(); });
+      td.appendChild(el); tr.appendChild(td);
+    });
+    var h = document.createElement('td'); h.className = 'hinweis'; h.setAttribute('data-label', 'Hinweis'); h.textContent = t.Hinweis || ''; tr.appendChild(h);
+    var x = document.createElement('td'); x.className = 'weg';
+    var b = document.createElement('button'); b.textContent = '✕'; b.setAttribute('aria-label', 'Zeile ' + (i + 1) + ' löschen');
+    b.onclick = function () { merken(); tours.splice(i, 1); setDirty(true); render(); };
+    [[-1, '▲', 'nach oben'], [1, '▼', 'nach unten']].forEach(function (m) {
+      var j = i + m[0];
+      if (j < 0 || j >= tours.length) return;
+      var v = document.createElement('button'); v.textContent = m[1]; v.setAttribute('aria-label', 'Zeile ' + (i + 1) + ' ' + m[2]);
+      v.onclick = function () {
+        merken(); tours.splice(j, 0, tours.splice(i, 1)[0]); setDirty(true); render();
+        var ziel = $('rows').children[j].querySelector('button[aria-label$="' + m[2] + '"]');
+        if (ziel) ziel.focus();
+      };
+      x.appendChild(v);
+    });
+    if (t.Kennzeichen) {
+      var s = document.createElement('button'); s.textContent = '✉'; s.setAttribute('aria-label', 'Tour ' + (t.TourNr || i + 1) + ' per WhatsApp senden');
+      s.onclick = function () { window.open(WA + '?text=' + encodeURIComponent(nachricht(t)), '_blank', 'noopener'); };
+      x.appendChild(s);
+    }
+    x.appendChild(b); tr.appendChild(x);
+    tb.appendChild(tr);
+  });
+  doppelt(); freiDrucken();
+  if (!ohnePruefung) livePruefen();
+}
+
+/* Personen und Fahrzeuge, die am Tag mehrfach vorkommen, sofort rot markieren */
+function doppelt() {
+  var TEAM = ['Fahrer', 'Beifahrer1', 'Beifahrer2', 'Beifahrer3', 'Beifahrer4', 'Beifahrer5'], person = {}, auto = {};
+  var zaehle = function (o, v) { if (v) o[v] = (o[v] || 0) + 1; };
+  tours.forEach(function (t) { TEAM.forEach(function (f) { zaehle(person, t[f]); }); zaehle(auto, t.Kennzeichen); });
+  /* Zähler: Touren mit Fahrzeug oder Fahrer, eingesetztes Personal ohne Doppelzählung */
+  var fahrer = {}; tours.forEach(function (t) { zaehle(fahrer, t.Fahrer); });
+  var nTouren = tours.filter(function (t) { return t.Kennzeichen || t.Fahrer; }).length, nPers = Object.keys(person).length, nFahrer = Object.keys(fahrer).length;
+  $('zaehler').textContent = nTouren + ' Touren · ' + nPers + ' Personal (' + nFahrer + ' Fahrer, ' + (nPers - nFahrer) + ' Beifahrer)';
+  Array.prototype.forEach.call($('rows').children, function (tr, i) {
+    Array.prototype.forEach.call(tr.querySelectorAll('input[data-feld]'), function (el) {
+      var f = el.getAttribute('data-feld'), v = tours[i][f];
+      var rot = !!v && (f === 'Kennzeichen' ? auto[v] > 1 : TEAM.indexOf(f) >= 0 && person[v] > 1);
+      el.classList.toggle('doppelt', rot);
+      el.setAttribute('aria-invalid', String(rot));
+      el.title = rot ? (f === 'Kennzeichen' ? 'Fahrzeug' : v) + ' ist heute mehrfach eingeteilt' : '';
+    });
+  });
+}
+
+/* nur die zuletzt angeforderte Antwort zählt: eine langsamere ältere würde sonst einen anderen Tag unter diesem Datum anzeigen */
+var ladeNr = 0, geladen = '';
+function laden() {
+  if (dirty && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
+  status('Lade …');
+  var tag = $('datum').value, nr = ++ladeNr;
+  google.script.run.withFailureHandler(fehler).withSuccessHandler(function (r) {
+    if (nr !== ladeNr) return;
+    geladen = tag; undo = []; $('undo').disabled = true;
+    if (!$('hol').hidden) versionen();
+    basis = r.vorlage ? [] : JSON.parse(JSON.stringify(r.tours)); /* Stand beim Laden, Server prüft ihn beim Speichern */
+    data = r; tours = r.tours.map(function (t) { delete t.Datum; return t; });
+    $('stamm').href = r.url;
+    listen();
+    kalender();
+    setDirty(!!r.vorlage);
+    render();
+    var weg = r.abwesenheiten.filter(function (a) { return a.Von <= tag && tag <= a.Bis; }).map(function (a) { return a.Name; });
+    status((r.vorlage ? 'Neuer Tag – Vorlage vom ' + r.vorlage + ' übernommen (noch nicht gespeichert)' : tours.length + ' Touren geladen')
+      + (weg.length ? ' · Abwesend: ' + weg.join(', ') : ''));
+  }).api(PIN, 'getDay', [tag]);
+}
+
+function listen() {
+  var r = data;
+  optionen('dl-kz', r.fahrzeuge.map(function (f) { return f.Kennzeichen; }));
+  var rolle = function (rs) { return r.personal.filter(function (p) { return rs.indexOf(p.Rolle) >= 0; }).map(function (p) { return p.Name; }); };
+  optionen('dl-fahrer', rolle(['Fahrer', 'Beides']));
+  optionen('dl-bf', rolle(['Beifahrer', 'Beides']).concat(rolle(['Fahrer']))); /* Fahrer dürfen auch Beifahrer sein */
+  var ag = {};
+  r.auftraggeber.forEach(function (a) { ag[a.Auftraggeber] = 1; });
+  r.tours.concat(r.verlauf).forEach(function (t) { if (t.Auftraggeber) ag[t.Auftraggeber] = 1; });
+  optionen('dl-ag', Object.keys(ag).sort());
+  var agWahl = $('ag-name').value;
+  $('ag-name').innerHTML = '<option value="">Alle</option>';
+  Object.keys(ag).sort().forEach(function (a) { var o = document.createElement('option'); o.textContent = a; $('ag-name').appendChild(o); });
+  $('ag-name').value = agWahl;
+  if (!$('ag-datum').value) $('ag-datum').value = $('datum').value;
+  var alteWahl = $('k-name').value;
+  $('k-name').innerHTML = '';
+  r.personal.map(function (p) { return p.Name; }).sort().forEach(function (n) {
+    var o = document.createElement('option'); o.textContent = n; $('k-name').appendChild(o);
+  });
+  if (alteWahl) $('k-name').value = alteWahl;
+  if (!$('k-monat').value) $('k-monat').value = $('datum').value.slice(0, 7);
+  if (!$('ber-monat').value) $('ber-monat').value = $('datum').value.slice(0, 7);
+}
+
+function dt(iso) { return iso ? iso.slice(8, 10) + '.' + iso.slice(5, 7) + '.' + iso.slice(0, 4) : ''; }
+function abwLoeschen(a) {
+  if (!confirm('Abwesenheit von ' + a.Name + ' (' + dt(a.Von) + ' bis ' + dt(a.Bis) + ') löschen?')) return;
+  google.script.run.withFailureHandler(fehler).withSuccessHandler(function (r) { data.abwesenheiten = r; kalender(); livePruefen(); })
+    .api(PIN, 'deleteAbwesenheit', [{ Name: a.Name, Von: a.Von, Bis: a.Bis }]);
+}
+/* alle Abwesenheiten nach Beginn sortiert, laufende gelb; ohne Haken nur aktuelle und künftige */
+function alleAbwesenheiten() {
+  var tb = $('k-alle'), tag = heute.toISOString().slice(0, 10), alt = $('k-alt').checked;
+  var tage = function (a) { return Math.round((new Date(a.Bis + 'T12:00:00Z') - new Date(a.Von + 'T12:00:00Z')) / 864e5) + 1; };
+  var liste = data.abwesenheiten.filter(function (a) { return alt || a.Bis >= tag; })
+    .sort(function (a, b) { return a.Von < b.Von ? -1 : a.Von > b.Von ? 1 : a.Name < b.Name ? -1 : 1; });
+  tb.innerHTML = '';
+  if (!liste.length) { tb.innerHTML = '<tr><td colspan="6">Keine Abwesenheiten eingetragen.</td></tr>'; return; }
+  liste.forEach(function (a) {
+    var tr = document.createElement('tr');
+    if (a.Von <= tag && tag <= a.Bis) { tr.className = 'laeuft'; tr.title = 'aktuell abwesend'; }
+    var n = document.createElement('button'); n.className = 'link'; n.textContent = a.Name;
+    n.setAttribute('aria-label', 'Kalender von ' + a.Name + ' zeigen');
+    n.onclick = function () { $('k-name').value = a.Name; $('k-monat').value = a.Von.slice(0, 7); kalender(); };
+    var td = document.createElement('td'); td.appendChild(n); tr.appendChild(td);
+    [dt(a.Von), dt(a.Bis), tage(a), a.Grund || ''].forEach(function (v) { var c = document.createElement('td'); c.textContent = v; tr.appendChild(c); });
+    var x = document.createElement('td'), b = document.createElement('button');
+    b.textContent = '✕'; b.setAttribute('aria-label', 'Abwesenheit ' + a.Name + ' ' + dt(a.Von) + ' löschen');
+    b.onclick = function () { abwLoeschen(a); };
+    x.appendChild(b); tr.appendChild(x); tb.appendChild(tr);
+  });
+}
+function kalender() {
+  var name = $('k-name').value, m = $('k-monat').value, g = $('k-grid'), ul = $('k-liste');
+  if (data) { alleAbwesenheiten(); freiDrucken(); }
+  if (!data || !name || !m) return;
+  var eig = data.abwesenheiten.filter(function (a) { return a.Name === name; })
+    .sort(function (a, b) { return a.Von < b.Von ? -1 : 1; });
+  g.innerHTML = ''; ul.innerHTML = '';
+  ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].forEach(function (w) {
+    var h = document.createElement('div'); h.className = 'wt'; h.textContent = w; g.appendChild(h);
+  });
+  var erster = new Date(m + '-01T12:00:00Z');
+  var anzahl = new Date(Date.UTC(erster.getUTCFullYear(), erster.getUTCMonth() + 1, 0)).getUTCDate();
+  for (var i = 0; i < (erster.getUTCDay() + 6) % 7; i++) g.appendChild(document.createElement('div'));
+  for (var d = 1; d <= anzahl; d++) {
+    (function (tag) {
+      var a = eig.filter(function (x) { return x.Von <= tag && tag <= x.Bis; })[0];
+      var c = document.createElement('button');
+      c.type = 'button'; c.textContent = Number(tag.slice(8)); c.className = 'tag' + (a ? ' ab' : '');
+      c.title = a ? (a.Grund || 'abwesend') : '';
+      c.setAttribute('aria-label', tag + (a ? ', abwesend ' + (a.Grund || '') : ''));
+      c.onclick = function () { $('k-von').value = tag; $('k-bis').value = tag; $('k-grund').focus(); };
+      g.appendChild(c);
+    })(m + '-' + (d < 10 ? '0' : '') + d);
+  }
+  eig.forEach(function (a) {
+    var li = document.createElement('li'), b = document.createElement('button');
+    li.textContent = dt(a.Von) + ' bis ' + dt(a.Bis) + (a.Grund ? ' – ' + a.Grund : '') + ' ';
+    b.textContent = '✕'; b.setAttribute('aria-label', 'Abwesenheit ' + a.Von + ' bis ' + a.Bis + ' löschen');
+    b.onclick = function () { abwLoeschen(a); };
+    li.appendChild(b); ul.appendChild(li);
+  });
+}
+
+var SL = String.fromCharCode(47), WA = 'https:' + SL + SL + 'wa.me' + SL; /* Google schneidet sonst ab dem Doppelschrägstrich ab */
+function telefon(n) { var p = data.personal.filter(function (x) { return x.Name === n; })[0]; return p && p.Telefon ? String(p.Telefon) : ''; }
+function nachricht(t) {
+  var d = $('datum').value.split('-');
+  var mitNr = function (n) { return n + (telefon(n) ? ' – ' + telefon(n) : ''); };
+  var z = ['Tour am ' + d[2] + '.' + d[1] + '.' + d[0] + (t.TourNr ? ' – ' + t.TourNr : '')];
+  if (t.Auftraggeber) z.push('Auftraggeber: ' + t.Auftraggeber);
+  var ag = data.auftraggeber.filter(function (a) { return a.Auftraggeber === t.Auftraggeber; })[0];
+  if (ag && ag.Adresse) z.push('Adresse: ' + ag.Adresse);
+  if (t.Name) z.push('Tour: ' + t.Name);
+  z.push('Fahrzeug: ' + t.Kennzeichen);
+  if (t.Uhrzeit) z.push('Ladezeit: ' + t.Uhrzeit);
+  if (t.Fahrer) z.push('Fahrer: ' + mitNr(t.Fahrer));
+  [t.Beifahrer1, t.Beifahrer2, t.Beifahrer3, t.Beifahrer4, t.Beifahrer5].filter(Boolean).forEach(function (b) { z.push('Beifahrer: ' + mitNr(b)); });
+  return z.join('\n');
+}
+/* CSV für Sammel-Versand: nummer,name,nachricht – eine Zeile je Person, Nummer international, Nachricht einzeilig
+   ({name} ersetzt das Versand-Tool). Ohne Telefonnummer keine Zeile. */
+function intNummer(n) {
+  var s = String(n || '').replace(/[^0-9+]/g, '');
+  return s.indexOf('+') === 0 ? s : s.indexOf('00') === 0 ? '+' + s.slice(2) : s.indexOf('0') === 0 ? '+49' + s.slice(1) : s;
+}
+function csvExport() {
+  var zeilen = ['nummer,name,nachricht'], ohne = [];
+  tours.filter(function (t) { return t.Kennzeichen; }).forEach(function (t) {
+    var text = 'Hallo {name}, ' + nachricht(t).split('\n').join(' | ');
+    [t.Fahrer, t.Beifahrer1, t.Beifahrer2, t.Beifahrer3, t.Beifahrer4, t.Beifahrer5].filter(Boolean).forEach(function (n) {
+      var nr = intNummer(telefon(n));
+      if (nr) zeilen.push(nr + ',' + n.replace(/,/g, ' ') + ',' + text); else ohne.push(n);
+    });
+  });
+  if (zeilen.length < 2) { status('Keine Empfänger mit Telefonnummer für den CSV-Export'); return; }
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([zeilen.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'Touren_' + $('datum').value + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  status('CSV mit ' + (zeilen.length - 1) + ' Empfängern erstellt' + (ohne.length ? ' · ohne Nummer: ' + ohne.join(', ') : '')
+    + (dirty ? ' · Achtung: Änderungen noch nicht gespeichert' : ''));
+}
+$('csv-btn').onclick = csvExport;
+$('pdf-btn').onclick = function () {
+  if (!data) return;
+  var tag = $('datum').value;
+  status('Erstelle PDF …');
+  google.script.run.withFailureHandler(fehler).withSuccessHandler(function (b64) {
+    var bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    a.download = 'Tagestouren_' + tag + '.pdf';
+    document.body.appendChild(a); a.click(); a.remove();
+    status('PDF erstellt' + (dirty ? ' (mit ungespeicherten Änderungen)' : ''));
+  }).api(PIN, 'tagesPdf', [tag, tours]);
+};
+var ST_KEY = { Fahrzeuge: 'fahrzeuge', Personal: 'personal', Einsatzarten: 'einsatzarten', Auftraggeber: 'auftraggeber' };
+$('st-xlsx').onclick = function () {
+  if (!window.XLSX) { status('Excel-Bibliothek nicht geladen – bitte Seite neu laden'); return; }
+  var wb = XLSX.utils.book_new();
+  Object.keys(ST_KEY).forEach(function (t) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data[ST_KEY[t]], { header: data.spalten[t] }), t);
+  });
+  XLSX.writeFile(wb, 'Stammdaten_' + $('datum').value + '.xlsx');
+  status('Stammdaten exportiert' + (stDirty ? ' · Achtung: ungespeicherte Änderungen sind nicht enthalten' : ''));
+};
+function stammdaten(tab) {
+  if (tab && tab !== stTab && stDirty && !confirm('Ungespeicherte Stammdaten verwerfen?')) return;
+  if (tab) { stTab = tab; stBasis = data[ST_KEY[tab]]; stRows = data[ST_KEY[tab]].map(function (r) { return Object.assign({}, r); }); stDirty = false; }
+  var cols = data.spalten[stTab], head = $('st-head'), tb = $('st-rows');
+  Array.prototype.forEach.call(document.querySelectorAll('#st [role=tab]'), function (b) {
+    b.setAttribute('aria-selected', String(b.getAttribute('data-t') === stTab));
+  });
+  head.innerHTML = '<tr>' + cols.map(function (c) { return '<th>' + c.replace('_', ' ') + '</th>'; }).join('') + '<th></th></tr>';
+  tb.innerHTML = '';
+  stRows.forEach(function (row, i) {
+    var tr = document.createElement('tr');
+    cols.forEach(function (c) {
+      var td = document.createElement('td'), el, werte = data.auswahl[c];
+      if (werte) {
+        el = document.createElement('select');
+        werte.forEach(function (w) { var o = document.createElement('option'); o.textContent = w; el.appendChild(o); });
+      } else {
+        el = document.createElement('input');
+        if (c === 'zGG_kg' || c === 'Beifahrer') { el.type = 'number'; el.min = '0'; }
+        if (c === 'Telefon') el.type = 'tel';
+        if (c === 'Nicht_bei') { el.setAttribute('list', 'dl-ag'); el.placeholder = 'überall'; }
+      }
+      el.value = row[c] == null ? '' : row[c];
+      el.setAttribute('aria-label', c + ' ' + (row[cols[0]] || 'neue Zeile'));
+      el.addEventListener('change', function () { row[c] = el.value.trim(); stDirty = true; });
+      td.appendChild(el); tr.appendChild(td);
+    });
+    var x = document.createElement('td'), b = document.createElement('button');
+    b.textContent = '✕'; b.setAttribute('aria-label', (row[cols[0]] || 'Zeile') + ' löschen');
+    b.onclick = function () { stRows.splice(i, 1); stDirty = true; stammdaten(); };
+    x.appendChild(b); tr.appendChild(x); tb.appendChild(tr);
+  });
+}
+Array.prototype.forEach.call(document.querySelectorAll('#st [role=tab]'), function (b) {
+  b.onclick = function () { stammdaten(b.getAttribute('data-t')); };
+});
+$('st-btn').onclick = function () {
+  var zu = $('st').hidden; $('st').hidden = !zu; $('st-btn').setAttribute('aria-expanded', String(zu));
+  if (zu && data) stDirty ? stammdaten() : stammdaten(stTab);
+};
+$('st-plus').onclick = function () {
+  var neu = {};
+  data.spalten[stTab].forEach(function (c) { neu[c] = data.auswahl[c] ? data.auswahl[c][0] : ''; });
+  if (stTab === 'Personal') { neu.Monteur = 'nein'; }
+  if (stTab === 'Einsatzarten') { neu.Beifahrer = '1'; neu.Monteur_noetig = 'nein'; }
+  stRows.push(neu); stDirty = true; stammdaten();
+  var inp = $('st-rows').lastChild.querySelector('input'); if (inp) inp.focus();
+};
+$('st-save').onclick = function () {
+  status('Speichere ' + stTab + ' …');
+  google.script.run.withFailureHandler(fehler).withSuccessHandler(function (r) {
+    data[ST_KEY[stTab]] = r; stDirty = false; listen(); stammdaten(stTab); render(); status(stTab + ' gespeichert');
+  }).api(PIN, 'saveTable', [stTab, stRows, stBasis]);
+};
+
+$('ber-btn').onclick = function () {
+  var zu = $('ber').hidden; $('ber').hidden = !zu; $('ber-btn').setAttribute('aria-expanded', String(zu));
+};
+$('ag-druck').onclick = function () {
+  var tag = $('ag-datum').value, woche = $('ag-zeitraum').value === 'w', wer = $('ag-name').value;
+  if (!tag) return;
+  var plus = function (iso, n) { var x = new Date(iso + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+  var von = woche ? plus(tag, -((new Date(tag + 'T12:00:00Z').getUTCDay() + 6) % 7)) : tag.slice(0, 8) + '01';
+  var bis = woche ? plus(von, 6) : plus(plus(von, 32).slice(0, 8) + '01', -1);
+  var tage = [];
+  for (var d = von; d <= bis; d = plus(d, 1)) tage.push(d);
+  var de = function (iso) { return iso.slice(8) + '.' + iso.slice(5, 7) + '.'; };
+  status('Erstelle Auftraggeber-Bericht …');
+  google.script.run.withFailureHandler(fehler).withSuccessHandler(function (p) {
+    var namen = (wer ? [wer] : Object.keys(p)).sort(function (a, b) { return a.localeCompare(b, 'de'); });
+    var we = function (t) { return new Date(t + 'T12:00:00Z').getUTCDay() % 6 === 0 ? 'we' : ''; };
+    var kopf = function (titel) {
+      return '<tr><th class="nm2">' + titel + '</th>' + tage.map(function (t) {
+        return '<th class="' + we(t) + '">' + Number(t.slice(8)) + '<br>' + 'SoMoDiMiDoFrSa'.substr(new Date(t + 'T12:00:00Z').getUTCDay() * 2, 2) + '</th>';
+      }).join('') + '<th class="sum">Summe</th></tr>';
+    };
+    /* eine Tabellenzeile: Bezeichnung, Anzahl je Tag (1 = x), Summe */
+    var zeile = function (label, proTag, fett) {
+      var s = 0;
+      var zellen = tage.map(function (t) {
+        var n = proTag[t] || 0; s += n;
+        return '<td class="' + we(t) + '">' + (n ? (fett || n > 1 ? n : 'x') : '') + '</td>';
+      }).join('');
+      return '<tr' + (fett ? ' style="font-weight:700"' : '') + '><td class="nm2">' + esc(label) + '</td>' + zellen + '<td class="sum">' + s + '</td></tr>';
+    };
+    var titel = de(von) + '–' + de(bis) + bis.slice(0, 4);
+    var bloecke = namen.map(function (a) {
+      var x = p[a] || { arten: {}, touren: {} }, summe = {}, gesamt = 0;
+      Object.keys(x.arten).forEach(function (art) {
+        Object.keys(x.arten[art]).forEach(function (t) { summe[t] = (summe[t] || 0) + x.arten[art][t]; gesamt += x.arten[art][t]; });
+      });
+      var arten = Object.keys(x.arten).sort().map(function (art) { return zeile(art, x.arten[art], true); }).join('');
+      var touren = Object.keys(x.touren).sort(function (m, n) { return m.localeCompare(n, 'de', { numeric: true }); }).map(function (k) {
+        var tr = x.touren[k];
+        return zeile((tr.TourNr ? tr.TourNr + ' – ' : '') + tr.Name + ' (' + tr.Einsatzart + ')', tr.tage);
+      }).join('');
+      return '<div class="ag-block"><h2>' + esc(a) + ' · Touren ' + titel + ': ' + gesamt + '</h2>'
+        + '<table><thead>' + kopf('Einsatzart') + '</thead><tbody>' + (arten || '') + zeile('Summe', summe, true) + '</tbody></table>'
+        + (touren ? '<table class="ag-touren"><thead>' + kopf('Tour') + '</thead><tbody>' + touren + '</tbody></table>' : '<p>Keine Touren im Zeitraum.</p>')
+        + '<p>x = gefahren · gezählt: gespeicherte Touren mit Fahrzeug und Fahrer</p></div>';
+    }).join('');
+    $('bericht').innerHTML = bloecke || '<h2>Keine Touren ' + titel + '</h2>';
+    document.body.classList.add('bericht');
+    /* jede Auftraggeber-Seite: größte Schrift, mit der sie noch auf eine Seite passt */
+    Array.prototype.forEach.call(document.querySelectorAll('#bericht .ag-block'), function (b) {
+      var lo = 6, hi = 13;
+      for (var k = 0; k < 8; k++) { var m = (lo + hi) / 2; b.style.fontSize = m + 'pt'; if (b.offsetHeight > 715) hi = m; else lo = m; }
+      b.style.fontSize = lo + 'pt';
+    });
+    window.print();
+    status('Auftraggeber-Bericht erstellt');
+  }).api(PIN, 'getAuftragsBericht', [von, bis]);
+};
+
+$('frei-btn').onclick = function () {
+  var zu = $('frei-sek').hidden; $('frei-sek').hidden = !zu; $('frei-btn').setAttribute('aria-expanded', String(zu));
+};
+$('kal-btn').onclick = function () {
+  var zu = $('kal').hidden; $('kal').hidden = !zu; $('kal-btn').setAttribute('aria-expanded', String(zu));
+};
+$('k-name').onchange = kalender;
+$('k-monat').onchange = kalender;
+$('k-alt').onchange = alleAbwesenheiten;
+$('k-form').onsubmit = function (e) {
+  e.preventDefault();
+  var a = { Name: $('k-name').value, Von: $('k-von').value, Bis: $('k-bis').value, Grund: $('k-grund').value.trim() };
+  if (a.Von > a.Bis) { status('Von liegt nach Bis'); return; }
+  google.script.run.withFailureHandler(fehler).withSuccessHandler(function (r) {
+    data.abwesenheiten = r; kalender(); livePruefen(); status('Abwesenheit eingetragen');
+  }).api(PIN, 'addAbwesenheit', [a]);
+};
+
+/* nur was planTeams braucht, damit die Prüfung schnell hin- und zurückgeht */
+function planDaten() {
+  return { personal: data.personal, fahrzeuge: data.fahrzeuge, einsatzarten: data.einsatzarten, abwesenheiten: data.abwesenheiten, verlauf: data.verlauf };
+}
+function planen() {
+  stand++;
+  status('Fülle auf …');
+  google.script.run.withFailureHandler(fehler).withSuccessHandler(function (r) {
+    merken(); tours = r; setDirty(true); render(true); /* "ersetzt"-Hinweise stehen lassen */
+    var n = r.filter(function (t) { return t.Hinweis; }).length;
+    status('Aufgefüllt: ' + (n ? n + ' Touren mit Hinweis' : 'alle Teams in Ordnung'));
+  }).api(PIN, 'planTeams', [tours, planDaten(), $('datum').value]);
+}
+
+/* Live-Prüfung: kurz nach jeder Änderung prüfen (ändert nichts), nur die Hinweis-Spalte neu schreiben */
+var stand = 0, pruefTimer;
+function livePruefen() {
+  if (!data) return;
+  clearTimeout(pruefTimer);
+  var meins = ++stand;
+  pruefTimer = setTimeout(function () {
+    google.script.run.withSuccessHandler(function (r) {
+      if (meins !== stand) return; /* inzwischen weiter geändert */
+      r.forEach(function (t, i) {
+        if (!tours[i]) return;
+        tours[i].Hinweis = t.Hinweis;
+        var td = $('rows').children[i] && $('rows').children[i].querySelector('td.hinweis');
+        if (td) td.textContent = t.Hinweis || '';
+      });
+    }).api(PIN, 'planTeams', [tours, planDaten(), $('datum').value, true]);
+  }, 500);
+}
+
+$('auffuellen').onclick = function () {
+  var liste = $('fuell-liste'); liste.innerHTML = '';
+  tours.forEach(function (t, i) {
+    if (!t.Kennzeichen) return;
+    var l = document.createElement('label'), c = document.createElement('input');
+    c.type = 'checkbox'; c.checked = true; c.value = i; l.style.display = 'block';
+    l.appendChild(c);
+    l.appendChild(document.createTextNode(' ' + [t.Kennzeichen, t.TourNr, t.Name, t.Fahrer].filter(Boolean).join(' · ')));
+    liste.appendChild(l);
+  });
+  $('fuell').hidden = false; $('fuell').scrollIntoView();
+};
+var fuellHaken = function (an) { Array.prototype.forEach.call($('fuell-liste').querySelectorAll('input'), function (c) { c.checked = an; }); };
+$('fuell-alle').onclick = function () { fuellHaken(true); };
+$('fuell-keine').onclick = function () { fuellHaken(false); };
+$('fuell-ab').onclick = function () { $('fuell').hidden = true; };
+$('fuell-los').onclick = function () {
+  stand++;
+  Array.prototype.forEach.call($('fuell-liste').querySelectorAll('input'), function (c) { tours[Number(c.value)]._fuellen = c.checked; });
+  $('fuell').hidden = true;
+  planen();
+};
+$('plus').onclick = function () { merken(); tours.push({}); setDirty(true); render(); };
+$('speichern').onclick = function () {
+  if (geladen !== $('datum').value) { status('Tag wird noch geladen – bitte kurz warten'); return; }
+  status('Speichere …');
+  var sauber = tours.map(function (t) { var c = Object.assign({}, t); delete c.Hinweis; return c; });
+  google.script.run.withFailureHandler(fehler).withSuccessHandler(function (r) {
+    setDirty(false); basis = r.tag;
+    if (!$('hol').hidden) versionen();
+    data.personal = r.personal; data.fahrzeuge = r.fahrzeuge; data.auftraggeber = r.auftraggeber; listen();
+    if (!stDirty) stammdaten(stTab);
+    status('Gespeichert' + (r.neu.length ? ' · neu in den Stammdaten (bitte ergänzen): ' + r.neu.join(', ') : ''));
+  })
+    .api(PIN, 'saveDay', [geladen, sauber, basis]);
+};
+var alt;
+$('datum').addEventListener('focus', function () { alt = $('datum').value; });
+$('datum').addEventListener('change', function () {
+  if (dirty && !confirm('Ungespeicherte Änderungen verwerfen?')) { $('datum').value = alt; return; }
+  setDirty(false); laden();
+});
+/* Druck: alles auf eine A4-Seite quer (281 x 194 mm nutzbar = ca. 1062 x 733 px) verkleinern, auch bei Strg+P */
+function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+$('ber-druck').onclick = function () {
+  var m = $('ber-monat').value;
+  if (!m || !data) return;
+  status('Erstelle Monatsbericht …');
+  google.script.run.withFailureHandler(fehler).withSuccessHandler(function (p) {
+    var j = Number(m.slice(0, 4)), mo = Number(m.slice(5, 7)), anzahl = new Date(Date.UTC(j, mo, 0)).getUTCDate();
+    var tage = [];
+    for (var d = 1; d <= anzahl; d++) tage.push(m + '-' + (d < 10 ? '0' : '') + d);
+    var wt = function (iso) { return new Date(iso + 'T12:00:00Z').getUTCDay(); };
+    var namen = {};
+    data.personal.forEach(function (x) { if (x.Aktiv !== 'nein') namen[x.Name] = 1; });
+    Object.keys(p).forEach(function (n) { namen[n] = 1; });
+    var titel = new Date(m + '-15T12:00:00Z').toLocaleDateString('de-DE', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    var kopf = '<tr><th class="nm">Mitarbeiter</th>' + tage.map(function (t) {
+      return '<th class="' + (wt(t) % 6 === 0 ? 'we' : '') + '">' + Number(t.slice(8)) + '<br>' + 'SoMoDiMiDoFrSa'.substr(wt(t) * 2, 2) + '</th>';
+    }).join('') + '<th class="sum">x</th><th class="sum">Fahr.</th><th class="sum">o</th></tr>';
+    var zeilen = Object.keys(namen).sort(function (a, b) { return a.localeCompare(b, 'de'); }).map(function (n) {
+      var x = p[n] || { eintraege: [], abwesend: [], arbeitstage: 0, fahrtage: 0 };
+      var da = {}, weg = {}, o = 0;
+      x.eintraege.forEach(function (e) { da[e.Datum] = 1; });
+      x.abwesend.forEach(function (a) { tage.forEach(function (t) { if (t >= a.Von && t <= a.Bis) weg[t] = 1; }); });
+      var zellen = tage.map(function (t) {
+        var z = da[t] ? 'x' : weg[t] ? 'o' : '';
+        if (z === 'o') o++;
+        return '<td class="' + (wt(t) % 6 === 0 ? 'we' : '') + '">' + z + '</td>';
+      }).join('');
+      return '<tr><td class="nm">' + esc(n) + '</td>' + zellen + '<td class="sum">' + x.arbeitstage + '</td><td class="sum">' + x.fahrtage + '</td><td class="sum">' + o + '</td></tr>';
+    }).join('');
+    $('bericht').innerHTML = '<h2>Anwesenheit ' + esc(titel) + '</h2><table><thead>' + kopf + '</thead><tbody>' + zeilen + '</tbody></table>'
+      + '<p>x = gearbeitet (laut gespeicherter Tourenplanung) · o = abwesend · Fahr. = Tage als Fahrer</p>';
+    document.body.classList.add('bericht');
+    window.print();
+    status('Monatsbericht ' + titel + ' erstellt');
+  }).api(PIN, 'getMonat', [m]);
+};
+
+/* Unter der Tabelle: freies Personal und freie Fahrzeuge, nach Kategorie */
+function freiDrucken() {
+  if (!data) return;
+  var tag = $('datum').value, belegt = {};
+  tours.forEach(function (t) {
+    ['Kennzeichen', 'Fahrer', 'Beifahrer1', 'Beifahrer2', 'Beifahrer3', 'Beifahrer4', 'Beifahrer5'].forEach(function (f) { if (t[f]) belegt[t[f]] = 1; });
+  });
+  var weg = {};
+  data.abwesenheiten.forEach(function (a) { if (a.Von <= tag && tag <= a.Bis) weg[a.Name] = 1; });
+  var zeile = function (titel, namen) {
+    return namen.length ? '<p><b>' + esc(titel) + ' (' + namen.length + '):</b> ' + esc(namen.sort(function (a, b) { return a.localeCompare(b, 'de'); }).join(', ')) + '</p>' : '';
+  };
+  var leute = data.personal.filter(function (p) { return p.Aktiv !== 'nein' && !belegt[p.Name] && !weg[p.Name]; });
+  var rolle = function (r) { return leute.filter(function (p) { return p.Rolle === r; }).map(function (p) { return p.Name; }); };
+  var autos = data.fahrzeuge.filter(function (x) { return !belegt[x.Kennzeichen] && x.Leihfahrzeug !== 'ja'; });
+  var klasse = function (von, bis) {
+    return autos.filter(function (x) { var kg = Number(x.zGG_kg) || 0; return von === 0 ? !kg : kg > von && kg <= bis; }).map(function (x) { return x.Kennzeichen; });
+  };
+  $('frei').innerHTML = '<h3>Freies Personal</h3>'
+    + (zeile('Fahrer', rolle('Fahrer')) + zeile('Fahrer/Beifahrer', rolle('Beides')) + zeile('Beifahrer', rolle('Beifahrer')) || '<p>keins</p>')
+    + zeile('Abwesend, nicht frei', Object.keys(weg))
+    + '<h3>Freie Fahrzeuge</h3>'
+    + (zeile('bis 3,5 t', klasse(1, 3500)) + zeile('bis 7,5 t', klasse(3500, 7500)) + zeile('über 7,5 t', klasse(7500, Infinity))
+      + zeile('Gewicht unbekannt', klasse(0)) || '<p>keine</p>');
+  $('frei-liste').innerHTML = $('frei').innerHTML;
+}
+
+window.addEventListener('beforeprint', function () {
+  if (document.body.classList.contains('bericht')) return;
+  document.body.style.zoom = '';
+  document.body.classList.add('drucken');
+  Array.prototype.forEach.call(document.querySelectorAll('#rows input, #rows select'), function (el) {
+    var s = document.createElement('span'); s.className = 'drucktext'; s.textContent = el.value; el.parentNode.appendChild(s);
+  });
+  /* Zeilen ohne Fahrzeug und ohne Personal nicht drucken */
+  Array.prototype.forEach.call($('rows').children, function (tr, i) {
+    var t = tours[i] || {};
+    var leer = !t.Kennzeichen && !['Fahrer', 'Beifahrer1', 'Beifahrer2', 'Beifahrer3', 'Beifahrer4', 'Beifahrer5'].some(function (f) { return t[f]; });
+    tr.classList.toggle('nichtdrucken', leer);
+  });
+  /* Spalten ohne Inhalt in den gedruckten Zeilen weglassen */
+  var kopfZeile = $('rows').parentNode.querySelector('thead tr');
+  FELDER.forEach(function (f, k) {
+    var leer = !tours.some(function (t, i) { var tr = $('rows').children[i]; return tr && !tr.classList.contains('nichtdrucken') && t[f[0]]; });
+    kopfZeile.children[k].classList.toggle('spalteleer', leer);
+    Array.prototype.forEach.call($('rows').children, function (tr) { tr.children[k].classList.toggle('spalteleer', leer); });
+  });
+  freiDrucken();
+  var tab = $('rows').parentNode, kopf = document.querySelector('header'), frei = $('frei');
+  var z = Math.min(2, 1040 / Math.max(tab.offsetWidth, frei.offsetWidth), 715 / (kopf.offsetHeight + 12 + tab.offsetHeight + frei.offsetHeight + 10));
+  document.body.style.zoom = String(z);
+});
+window.addEventListener('afterprint', function () {
+  document.body.classList.remove('drucken', 'bericht');
+  Array.prototype.forEach.call(document.querySelectorAll('.drucktext'), function (s) { s.remove(); });
+  Array.prototype.forEach.call(document.querySelectorAll('.spalteleer'), function (el) { el.classList.remove('spalteleer'); });
+  document.body.style.zoom = '';
+});
+window.addEventListener('beforeunload', function (e) { if (dirty || stDirty) { e.preventDefault(); e.returnValue = ''; } });
+
+var heute = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+$('datum').value = heute.toISOString().slice(0, 10);
+/* Rückgängig: bis zu 50 Schritte, gilt bis zum nächsten Laden */
+var undo = [];
+function merken() { undo.push(JSON.stringify(tours)); if (undo.length > 50) undo.shift(); $('undo').disabled = false; }
+$('undo').onclick = function () {
+  if (!undo.length) return;
+  stand++;
+  tours = JSON.parse(undo.pop()); $('undo').disabled = !undo.length;
+  setDirty(true); render(); status('Rückgängig gemacht');
+};
+document.addEventListener('keydown', function (e) {
+  var feld = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !feld) { e.preventDefault(); $('undo').click(); }
+});
+function ersetzen(neu, text) {
+  merken(); stand++;
+  tours = neu.map(function (t) { var c = Object.assign({}, t); delete c.Datum; delete c.Hinweis; return c; });
+  setDirty(true); render(); status(text + ' – noch nicht gespeichert');
+}
+$('hol-btn').onclick = function () {
+  var zu = $('hol').hidden; $('hol').hidden = !zu; $('hol-btn').setAttribute('aria-expanded', String(zu));
+  if (zu) versionen();
+};
+$('hol-tag').onclick = function () {
+  var d = $('hol-datum').value;
+  if (!d) return;
+  if (d === geladen) { status('Das ist der gerade geöffnete Tag'); return; }
+  status('Lade ' + d + ' …');
+  google.script.run.withFailureHandler(fehler).withSuccessHandler(function (r) {
+    if (!r.length) { status('Am ' + d + ' ist nichts gespeichert'); return; }
+    ersetzen(r, 'Tourenliste vom ' + d + ' übernommen');
+  }).api(PIN, 'getTag', [d]);
+};
+function versionen() {
+  var l = $('hol-liste'), tag = geladen;
+  if (!tag) return;
+  l.innerHTML = '<li>Lade …</li>';
+  google.script.run.withFailureHandler(fehler).withSuccessHandler(function (v) {
+    if (tag !== geladen) return;
+    l.innerHTML = v.length ? '' : '<li>Noch keine älteren Stände – sie entstehen bei jedem Speichern.</li>';
+    v.forEach(function (x) {
+      var li = document.createElement('li'), b = document.createElement('button');
+      li.textContent = x.Zeit + ' – ' + x.tours.length + ' Touren ';
+      b.textContent = 'Zurückholen';
+      b.setAttribute('aria-label', 'Stand vom ' + x.Zeit + ' zurückholen');
+      b.onclick = function () { ersetzen(x.tours, 'Stand vom ' + x.Zeit + ' zurückgeholt'); };
+      li.appendChild(b); l.appendChild(li);
+    });
+  }).api(PIN, 'getVersionen', [tag]);
+}
+
+$('pin-form').onsubmit = function (e) {
+  e.preventDefault();
+  PIN = $('pin').value.trim();
+  try { sessionStorage.setItem('tp-pin', PIN); } catch (x) {}
+  $('pin-box').hidden = true;
+  laden();
+};
+try { PIN = sessionStorage.getItem('tp-pin') || ''; } catch (x) {}
+if (PIN) laden(); else pinZeigen('');
+</script>
+<div id="bericht"></div>
+</body>
+</html>

@@ -45,6 +45,14 @@ main>section{padding:12px calc(16px + env(safe-area-inset-right)) calc(96px + en
   #liste{position:sticky;top:calc(53px + env(safe-area-inset-top));max-height:calc(100vh - 53px - env(safe-area-inset-top));overflow:auto;border-right:1px solid var(--linie)}
 }
 @media (max-width:899px){body.zeigt-detail #liste,body:not(.zeigt-detail) #detail{display:none}}
+/* Reiter „Touren“: die Tourenplanung über die ganze Breite */
+body.touren main{grid-template-columns:minmax(0,1fr)}
+body.touren #liste{display:block!important;position:static;max-height:none;overflow:visible;border:0;padding-bottom:0}
+body.touren #detail{display:none!important}
+body.touren #zurueck{display:none}
+#touren-rahmen{display:block;border-top:1px solid var(--linie)}
+#touren-rahmen[hidden]{display:none}
+#touren-rahmen iframe{display:block;width:100%;height:var(--touren-hoehe,80vh);border:0;background:#f3f5f8}
 .karte{background:var(--flaeche);border-radius:14px;padding:16px;margin-bottom:12px}
 .karte.klickbar{cursor:pointer;display:block;width:100%;text-align:left;border:0}
 .karte.klickbar:hover,.karte.gewaehlt{background:var(--flaeche2)}
@@ -549,13 +557,9 @@ const Aktionen = {
   },
   verlaufLoeschen(v) { entferne('verlauf', v, { fallId: v.fallId }); nachAenderung(); },
   async anlageHinzufuegen(fallId, datei) {
-    const blob = await verkleinere(datei);
-    if (blob.size > 25 * 1024 * 1024) { toast(`„${datei.name}“ ist größer als 25 MB und wurde nicht übernommen`); return null; }
-    const name = blob === datei ? datei.name : datei.name.replace(/\.[^.]+$/, '') + '.jpg';
-    const a = merke('anlagen', { id: uuid(), fallId, anzeigename: name, mimeType: blob.type || 'application/octet-stream', groesseBytes: blob.size,
-      hinzugefuegtAm: jetztIso(), vorhanden: false });
-    await Dateien.lege(a.id, blob);
-    vermerke(fallId, 'ANLAGE', `Anlage hinzugefügt: ${name}`);
+    const a = await legeAnlage(fallId, datei);
+    if (!a) return null;
+    vermerke(fallId, 'ANLAGE', `Anlage hinzugefügt: ${a.anzeigename}`);
     nachAenderung();
     return a;
   },
@@ -791,8 +795,34 @@ async function anmeldung(falsch = false) {
 }
 
 // ============================== Oberfläche ==============================
+/** Speichert eine Datei als Anlage zu einem Fall oder Fahrzeug (Bilder verkleinert). @return die Anlage oder null */
+async function legeAnlage(fallId, datei, praefix = '') {
+  const blob = await verkleinere(datei);
+  if (blob.size > 25 * 1024 * 1024) { toast(`„${datei.name}“ ist größer als 25 MB und wurde nicht übernommen`); return null; }
+  const name = praefix + (blob === datei ? datei.name : datei.name.replace(/\.[^.]+$/, '') + '.jpg');
+  const a = merke('anlagen', { id: uuid(), fallId, anzeigename: name, mimeType: blob.type || 'application/octet-stream', groesseBytes: blob.size, hinzugefuegtAm: jetztIso(), vorhanden: false });
+  await Dateien.lege(a.id, blob);
+  return a;
+}
+/** Öffnet eine Anlage: in den Apps mit dem passenden Programm, im Browser in einem neuen Tab. */
+async function oeffneAnlage(a) {
+  try {
+    const u = await Dateien.adresse(a);
+    if (!u) toast('Die Datei wurde noch nicht in die Cloud übertragen.');
+    else if (window.desktop) await window.desktop.oeffneDatei(a.anzeigename, new Uint8Array(await (await Dateien.hole(a.id)).arrayBuffer()));
+    else window.open(u, '_blank');
+  } catch { toast('Die Datei konnte nicht geladen werden.'); }
+}
+/** Ein Formularfeld aus [name, label, art]: art ist ein Objekt (Auswahl) oder Wörter wie 'pflicht date tel email geld zahl lang'. */
+function formularFeld(e, [name, label, art = ''], liste = '') {
+  const wert = esc(e[name] ?? ''), pflicht = typeof art === 'string' && art.includes('pflicht') ? 'required' : '';
+  if (typeof art === 'object') return `<label class="feld">${label}<select name="${name}">${Object.entries(art).map(([k, t]) => `<option value="${k}" ${String(e[name] ?? '') === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
+  if (art.includes('lang')) return `<label class="feld">${label}<textarea name="${name}" ${pflicht}>${wert}</textarea></label>`;
+  const typ = art.includes('date') ? 'type="date"' : art.includes('tel') ? 'type="tel"' : art.includes('email') ? 'type="email"' : art.includes('zahl') ? 'inputmode="numeric"' : art.includes('geld') ? 'inputmode="decimal"' : '';
+  return `<label class="feld">${label}<input name="${name}" ${typ} ${pflicht} ${liste ? `list="${liste}"` : ''} value="${wert}"><span class="fehlertext" data-fehler="${name}" hidden></span></label>`;
+}
 const ANSICHT = { filter: 'OFFEN', suche: '', notiz: '', bereich: 'firmen', firmenSuche: '', firmenStatus: '', firmaFuerNeuenFall: '' };
-try { const b = localStorage.getItem('crm-bereich'); if (b && ['uebersicht', 'firmen', 'faelle', 'termine', 'finanzen', 'fuhrpark', 'postfach'].includes(b)) ANSICHT.bereich = b; } catch {}
+try { const b = localStorage.getItem('crm-bereich'); if (b && ['uebersicht', 'firmen', 'faelle', 'termine', 'touren', 'finanzen', 'fuhrpark', 'postfach'].includes(b)) ANSICHT.bereich = b; } catch {}
 function route() {
   const [, art = '', id = ''] = location.hash.split('/');
   return { art, id };
@@ -820,6 +850,8 @@ function zeichne() {
 }
 
 function zeichneListe(r = route()) {
+  zeigeTouren(ANSICHT.bereich === 'touren');
+  if (ANSICHT.bereich === 'touren') { $('#liste').innerHTML = bereichsReiter(); return; }
   if (ANSICHT.bereich !== 'faelle') {
     const el = $('#liste'), fokus = document.activeElement && document.activeElement.id === 'firmen-suche';
     if (ANSICHT.bereich === 'postfach' && !MAIL.konto) ANSICHT.bereich = 'firmen';
@@ -961,14 +993,7 @@ $('#detail').addEventListener('click', async e => {
   const akt = e.target.closest('[data-akt]'), anlage = e.target.closest('[data-anlage]'), anlageWeg = e.target.closest('[data-anlage-weg]'), verlaufWeg = e.target.closest('[data-verlauf-weg]');
   if (anlageWeg) { const a = S.anlagen[anlageWeg.dataset.anlageWeg]; bestaetige('Anlage entfernen?', `„${a.anzeigename}“ wird aus dem Fall gelöscht.`, 'Entfernen', () => Aktionen.anlageLoeschen(a)); return; }
   if (anlage) {
-    const a = S.anlagen[anlage.dataset.anlage];
-    try {
-      const u = await Dateien.adresse(a);
-      if (!u) toast('Die Datei wurde noch nicht in die Cloud übertragen.');
-      else if (window.desktop) await window.desktop.oeffneDatei(a.anzeigename, new Uint8Array(await (await Dateien.hole(a.id)).arrayBuffer()));
-      else window.open(u, '_blank');
-    }
-    catch { toast('Die Datei konnte nicht geladen werden.'); }
+    oeffneAnlage(S.anlagen[anlage.dataset.anlage]);
     return;
   }
   const antworten = e.target.closest('[data-antworten]');
@@ -1105,7 +1130,7 @@ function zeichneFormular(r) {
     if (art && typeof art === 'object') return `<label class="feld">${label}<select name="${name}">${Object.entries(art).map(([k, t]) => `<option value="${k}" ${String(f[name] ?? '') === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
     if (art === 'lang') return `<label class="feld">${label}<textarea name="${name}">${wert}</textarea></label>`;
     const typ = { date: 'type="date"', tel: 'type="tel"', email: 'type="email"', geld: 'inputmode="decimal"' }[art] || '';
-    const liste = name === 'fahrzeug' && alle('fahrzeuge').length ? 'list="fahrzeug-liste"' : name === 'fahrer' && alle('fahrzeuge').some(z => z.fahrer) ? 'list="fahrer-liste"' : '';
+    const liste = name === 'fahrzeug' ? 'list="fahrzeug-liste"' : ['fahrer', 'beifahrer1', 'beifahrer2'].includes(name) ? 'list="fahrer-liste"' : '';
     return `<label class="feld">${label}<input name="${name}" ${typ} ${liste} value="${wert}"><span class="fehlertext" data-fehler="${name}" hidden></span></label>`;
   };
   const el = $('#detail'); el.dataset.id = r.art + r.id;
@@ -1113,10 +1138,11 @@ function zeichneFormular(r) {
     <div class="zeile eng" style="margin-bottom:12px"><h2 class="gross fuell">${alt ? 'Fall bearbeiten' : 'Neuer Schadensfall'}</h2>
       <button type="button" class="knopf text" id="abbrechen">Abbrechen</button><button class="knopf voll">Speichern</button></div>
     <p class="fehlertext" id="form-fehler" hidden></p>
-    ${FELDER.map(([titel, felder]) => `<div class="karte block"><h3>${titel}</h3>${titel === 'Auftraggeber' ? auftraggeberAuswahl() : ''}${felder.map(feld).join('')}</div>`).join('')}
-    <datalist id="fahrzeug-liste">${fahrzeugListe().filter(z => z.status !== 'STILLGELEGT').map(z => `<option value="${esc(z.kennzeichen)}">${esc(z.bezeichnung || '')}</option>`).join('')}</datalist>
-    <datalist id="fahrer-liste">${[...new Set(alle('fahrzeuge').map(z => z.fahrer).filter(Boolean))].map(n => `<option value="${esc(n)}">`).join('')}</datalist></form>`;
+    ${FELDER.map(([titel, felder]) => `<div class="karte block"><h3>${titel}</h3>${titel === 'Auftraggeber' ? auftraggeberAuswahl() : ''}${titel === 'Transport' ? '<button type="button" class="knopf text" id="aus-touren" style="padding-left:0">Aus der Tourenplanung übernehmen (Tag = Schadensdatum)</button>' : ''}${felder.map(feld).join('')}</div>`).join('')}
+    <datalist id="fahrzeug-liste">${[...new Map([...fahrzeugListe().filter(z => z.status !== 'STILLGELEGT').map(z => z.kennzeichen), ...(S.tpFahrzeuge || [])].map(k => [kzNormal(k), k])).values()].map(k => `<option value="${esc(k)}">`).join('')}</datalist>
+    <datalist id="fahrer-liste">${mitarbeiterNamen().map(n => `<option value="${esc(n)}">`).join('')}</datalist></form>`;
   formularStand = formularWerte();
+  $('#aus-touren').onclick = () => tpInsFormular();
   const auswahl = $('#ag-auswahl');
   if (auswahl) auswahl.onchange = () => {
     const e = S.auftraggeber[auswahl.value]; if (!e) return;
@@ -1183,6 +1209,8 @@ function zeichneEinstellungen() {
     <div class="karte block"><h3>CRM</h3><p class="leise" style="margin-bottom:8px">Die Sicherung des bisherigen Browser-CRM (JSON) einlesen. Firmen mit gleichem Namen werden zusammengeführt, nichts wird doppelt angelegt.</p>
       <div class="zeile"><label class="knopf" id="crm-import-knopf">Sicherung des Browser-CRM importieren<input type="file" id="crm-import" accept=".json,application/json" hidden></label>
       <button class="knopf" id="crm-csv">CRM für Excel exportieren (6 CSV-Dateien)</button></div></div>
+    <div class="karte block"><h3>Tourenplanung</h3><p class="leise" style="margin-bottom:8px">Die Tourenplanung (Reiter „Touren“) hat eigene Stammdaten. Hier gleichst du Fahrzeuge und Auftraggeber mit dem CRM ab; Mitarbeiter erscheinen unter Fuhrpark → Mitarbeiter und als Vorschläge für Fahrer.</p>
+      <div class="zeile"><button class="knopf" id="tp-abgleich-knopf">Stammdaten abgleichen</button>${tpPin() ? '<button class="knopf text" id="tp-trennen">Verbindung trennen</button>' : '<button class="knopf text" id="tp-verbinden-knopf">Verbinden</button>'}</div></div>
     <div class="karte block"><h3>Daten</h3><button class="knopf" id="csv">Fallliste für Excel exportieren (CSV)</button>
       <p class="leise" style="margin:10px 0 6px">Nach Tests: alle Angebote und Rechnungen samt erfasster Zahlungen entfernen – auf allen Geräten. Die Nummern beginnen danach wieder bei der Startnummer.</p>
       <button class="knopf text gefahr" id="belege-leeren">Alle Angebote und Rechnungen löschen</button></div>
@@ -1204,6 +1232,9 @@ $('#detail').addEventListener('click', e => {
   const tage = e.target.closest('[data-wv-tage]');
   if (tage) { S.einstellungen.wiedervorlageTage = Number(tage.dataset.wvTage); speichere(); zeichneEinstellungen(); return; }
   switch (e.target.id) {
+    case 'tp-abgleich-knopf': tpAbgleich(); break;
+    case 'tp-verbinden-knopf': tpAnmelden(() => zeichne()); break;
+    case 'tp-trennen': tpTrennen(); zeichne(); toast('Verbindung zur Tourenplanung getrennt'); break;
     default: {
       const einrichten = e.target.closest('[data-mail-einrichten]'), entfernen = e.target.closest('[data-mail-entfernen]');
       if (einrichten) mailKontoDialog(einrichten.dataset.mailEinrichten);
@@ -1231,16 +1262,14 @@ $('#detail').addEventListener('click', e => {
     case 'crm-csv': {
       if (!alle('auftraggeber').length) { toast('Es gibt noch keine Firmen zum Exportieren'); break; }
       for (const [name, inhalt] of Object.entries(crmCsvDateien())) {
-        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([inhalt], { type: 'text/csv;charset=utf-8' })), download: `CRM_${name}_${heute()}.csv` });
-        a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        ladeHerunter(`CRM_${name}_${heute()}.csv`, inhalt);
       }
       break;
     }
     case 'csv': {
       if (!faelle().length) { toast('Es gibt noch keine Fälle zum Exportieren'); break; }
       const zahl = {}; for (const a of alle('anlagen')) zahl[a.fallId] = (zahl[a.fallId] || 0) + 1;
-      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csvErstellen(faelle(), zahl)], { type: 'text/csv;charset=utf-8' })), download: `Schadensfaelle_${heute()}.csv` });
-      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); break;
+      ladeHerunter(`Schadensfaelle_${heute()}.csv`, csvErstellen(faelle(), zahl)); break;
     }
   }
 });
@@ -1294,7 +1323,7 @@ function firmaTreffer(e, such) {
   return null;
 }
 
-const BEREICHE = { uebersicht: 'Übersicht', firmen: 'Firmen', faelle: 'Schäden', termine: 'Termine', finanzen: 'Finanzen', fuhrpark: 'Fuhrpark', postfach: 'Postfach' };
+const BEREICHE = { uebersicht: 'Übersicht', firmen: 'Firmen', faelle: 'Schäden', termine: 'Termine', touren: 'Touren', finanzen: 'Finanzen', fuhrpark: 'Fuhrpark', postfach: 'Postfach' };
 function bereichsReiter() {
   const w = wiedervorlagen(), faellig = w.ueberfaellig.length + w.heute.length;
   const offen = Object.values(mails()).filter(m => !istZugeordnet(m)).length;
@@ -1406,6 +1435,7 @@ function zeichneFirma(id) {
       ${!e.telefon && !e.email && !e.website && !e.notizen ? '<p class="leise">Telefon, E-Mail, Website und Notizen über ✎ eintragen.</p>' : ''}
       ${MAIL.konto ? '<button class="knopf" style="margin-top:8px" data-oeffne="mailto:' + esc(e.email || '') + '">✉ E-Mail schreiben</button>' : ''}</div>
     <div class="karte" id="kennzahlen"><dl>${kennzahlen.map(([l, w]) => `<dt>${esc(l)}</dt><dd>${esc(w)}</dd>`).join('')}</dl></div>
+    <div class="karte block"><h3>Touren (Tourenplanung)</h3><div id="firma-touren"></div></div>
     ${bereich('Verkaufschancen', 'chancen', chancen)}
     ${bereich('Ansprechpartner', 'ansprechpartner', kontakte)}
     ${bereich('Adressen', 'adressen', adressen)}
@@ -1415,6 +1445,7 @@ function zeichneFirma(id) {
     ${bereich('Dokumente', 'dokumente', dokumente)}
     ${bereich('Angebote und Rechnungen', 'belege', vonFirma('belege', id).sort((x, y) => String(y.datum).localeCompare(String(x.datum))).map(x => belegKarte(x)).join(''), 'Rechnung')}
     ${bereich('Schadensfälle', 'faelle', faelleDerFirma, 'Neuer Fall')}`;
+  tpFirmaInfo(e);
 }
 
 // ---------- Dialoge für Firmen und Einträge ----------
@@ -1442,14 +1473,7 @@ function crmDialog(tabelle, eintrag, firmaId, danach) {
   const centFeld = tabelle === 'chancen' ? 'wertCent' : 'betragCent';
   const e = eintrag ? { ...eintrag, betrag: eintrag[centFeld] != null ? geldOhneSymbol(eintrag[centFeld]) : '' } : { ...(CRM_VORGABEN[tabelle] || (() => ({})))() };
   const namen = tabelle === 'aktivitaeten' || tabelle === 'aufgaben' ? kontakteVon(firmaId).map(k => k.name) : [];
-  const feld = ([name, label, art = '']) => {
-    const wert = esc(e[name] ?? ''), pflicht = typeof art === 'string' && art.includes('pflicht') ? 'required' : '';
-    if (typeof art === 'object') return `<label class="feld">${label}<select name="${name}">${Object.entries(art).map(([k, t]) => `<option value="${k}" ${String(e[name] ?? '') === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
-    if (art.includes('lang')) return `<label class="feld">${label}<textarea name="${name}" ${pflicht}>${wert}</textarea></label>`;
-    const typ = art.includes('date') ? 'type="date"' : art.includes('tel') ? 'type="tel"' : art.includes('email') ? 'type="email"' : art.includes('geld') ? 'inputmode="decimal"' : '';
-    const liste = name === 'kontakt' && namen.length ? 'list="crm-kontakte"' : '';
-    return `<label class="feld">${label}<input name="${name}" ${typ} ${pflicht} ${liste} value="${wert}"><span class="fehlertext" data-fehler="${name}" hidden></span></label>`;
-  };
+  const feld = f => formularFeld(e, f, f[0] === 'kontakt' && namen.length ? 'crm-kontakte' : '');
   dialog(`<form method="dialog" id="crm-form"><h2>${neu ? (tabelle === 'aktivitaeten' ? 'Kontakt festhalten' : (tabelle === 'auftraggeber' ? 'Neue Firma' : 'Neu: ' + titel)) : titel}</h2>
     ${felder.map(feld).join('')}${tabelle === 'aktivitaeten' && neu ? '<label class="feld">Wiedervorlage am (optional)<input name="folgeAm" type="date"></label><label class="feld">Was ist dann zu tun?<input name="folgeText"></label>' : ''}
     ${tabelle === 'auftraggeber' && !neu && auftraggeberListe().length > 1 ? `<details><summary class="knopf text" style="display:inline-flex">Mit anderer Firma zusammenführen …</summary>
@@ -1916,6 +1940,228 @@ $('#liste').addEventListener('input', e => {
   if (e.target.id === 'beleg-suche') { ANSICHT.belegSuche = e.target.value; zeichneListe(); const f = $('#beleg-suche'); f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
 });
 
+// ============================== Touren (Tourenplanung) ==============================
+/**
+ * Die Tourenplanung (früher eigene Seite aysetransport.github.io/tourenplanung) läuft unverändert als touren.html
+ * mit ihrem eigenen Cloud-Skript (Google-Tabelle) – alle bisherigen Daten bleiben dort. Der Rahmen wird nur einmal
+ * geladen und beim Wechsel der Reiter nur versteckt, damit ungespeicherte Eingaben nicht verloren gehen.
+ */
+function zeigeTouren(an) {
+  document.body.classList.toggle('touren', an);
+  let rahmen = $('#touren-rahmen');
+  if (!an) { if (rahmen) rahmen.hidden = true; return; }
+  if (!rahmen) {
+    rahmen = Object.assign(document.createElement('div'), { id: 'touren-rahmen' });
+    rahmen.innerHTML = '<iframe src="touren.html" title="Tourenplanung" id="touren-frame"></iframe>';
+    document.body.appendChild(rahmen);
+  }
+  rahmen.hidden = false;
+  toureHoehe();
+}
+function toureHoehe() {
+  const rahmen = $('#touren-rahmen'); if (!rahmen || rahmen.hidden) return;
+  rahmen.style.setProperty('--touren-hoehe', Math.max(320, window.innerHeight - rahmen.getBoundingClientRect().top - 1) + 'px');
+}
+window.addEventListener('resize', toureHoehe);
+
+// ---------- Querverbindungen zur Tourenplanung ----------
+/**
+ * Die Tourenplanung hat ihre Stammdaten (Fahrzeuge, Personal, Einsatzarten, Auftraggeber) und die Touren je Tag in
+ * ihrer Google-Tabelle. Das CRM liest sie mit derselben PIN (gilt für die Sitzung, wie in der Tourenplanung selbst),
+ * gleicht Fahrzeuge und Auftraggeber ab und zeigt Touren bei Fahrzeug, Firma und Schadensfall an.
+ */
+const TP = { url: 'https://script.google.com/macros/s/AKfycby5KUa5VlCeza6mLZCDt1hajWjMGLXFjD_fW847ERpWn12DC2xZZfOlezVpBUv63WTG2g/exec', tage: {}, berichte: {} };
+const tpPin = () => { try { return sessionStorage.getItem('tp-pin') || ''; } catch { return ''; } };
+async function tpApi(name, args) {
+  const pin = tpPin();
+  if (!pin) throw new Error('TP_ANMELDEN');
+  const r = await (await fetch(TP.url, { method: 'POST', body: JSON.stringify({ pin, name, args }) })).json();
+  if (r.error) {
+    if (/PIN/i.test(r.error) && !/GESPERRT/.test(r.error)) { tpTrennen(); throw new Error('TP_ANMELDEN'); }
+    throw new Error(String(r.error).replace(/^.*GESPERRT: /, ''));
+  }
+  return r.ok;
+}
+/** Ein Tag der Tourenplanung (mit allen Stammdaten); 5 Minuten zwischengespeichert. */
+async function tpTag(tag, frisch = false) {
+  const c = TP.tage[tag];
+  if (!frisch && c && Date.now() - c.zeit < 300000) return c.d;
+  const d = await tpApi('getDay', [tag]);
+  TP.tage[tag] = { d, zeit: Date.now() };
+  // Mitarbeiter für Vorschläge und die Liste merken (nur auf diesem Gerät)
+  S.tpPersonal = (d.personal || []).map(p => ({ Name: p.Name, Rolle: p.Rolle, Telefon: p.Telefon ? String(p.Telefon) : '' })).filter(p => p.Name);
+  S.tpFahrzeuge = (d.fahrzeuge || []).map(f => String(f.Kennzeichen || '')).filter(Boolean);
+  speichere();
+  return d;
+}
+/** Lädt einen Tag; ohne PIN erst anmelden und danach `nochmal` aufrufen. Liefert null, wenn es (noch) nicht geht. */
+async function tpLaden(tag, nochmal, frisch = false) {
+  try { return await tpTag(tag, frisch); }
+  catch (e) { if (e.message === 'TP_ANMELDEN') tpAnmelden(nochmal); else toast('Tourenplanung nicht erreichbar: ' + e.message); return null; }
+}
+const tpTrennen = () => { try { sessionStorage.removeItem('tp-pin'); } catch {} TP.tage = {}; TP.berichte = {}; };
+/** Fragt die PIN der Tourenplanung ab (gilt auch für den Reiter „Touren“) und ruft danach `dann` auf. */
+function tpAnmelden(dann) {
+  dialog(`<form method="dialog" id="tp-form"><h2>Tourenplanung verbinden</h2>
+    <p class="leise">Die PIN der Tourenplanung. Sie gilt, bis die App geschlossen wird – auch im Reiter „Touren“.</p>
+    <p class="fehlertext" id="tp-fehler" hidden></p>
+    <label class="feld">PIN<input id="tp-pin" type="password" inputmode="numeric" autocomplete="current-password" required></label>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Verbinden</button></div></form>`);
+  $('#tp-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const pin = $('#tp-pin').value.trim(), fehler = $('#tp-fehler');
+    try { sessionStorage.setItem('tp-pin', pin); } catch {}
+    try { await tpTag(heute(), true); $('#dialog').close(); toast('Mit der Tourenplanung verbunden'); if (dann) dann(); }
+    catch (e) { fehler.textContent = e.message === 'TP_ANMELDEN' ? 'Die PIN war falsch.' : 'Keine Verbindung zur Tourenplanung: ' + e.message; fehler.hidden = false; }
+  };
+}
+const tpVerbinden = (text = 'Mit der Tourenplanung verbinden') => `<button class="knopf text" data-tp-verbinden>${esc(text)}</button>`;
+const tpPersonen = t => ['Fahrer', 'Beifahrer1', 'Beifahrer2', 'Beifahrer3', 'Beifahrer4', 'Beifahrer5'].map(k => t[k]).filter(Boolean);
+const tpTourText = t => [t.TourNr && 'Tour ' + t.TourNr, t.Auftraggeber, t.Name, t.Uhrzeit && 'ab ' + t.Uhrzeit, t.Einsatzart].filter(Boolean).join(' · ');
+
+/** Füllt einen Platzhalter, sobald die Daten der Tourenplanung da sind (ohne Verbindung: Knopf zum Verbinden). */
+async function tpFuelle(id, arbeit) {
+  const el = () => document.getElementById(id);
+  if (!el()) return;
+  if (!tpPin()) { el().innerHTML = tpVerbinden(); return; }
+  el().innerHTML = '<p class="leise">Lade aus der Tourenplanung …</p>';
+  try { const html = await arbeit(); if (el()) el().innerHTML = html; }
+  catch (e) { if (el()) el().innerHTML = e.message === 'TP_ANMELDEN' ? tpVerbinden() : `<p class="leise">Tourenplanung nicht erreichbar: ${esc(e.message)}</p>`; }
+}
+
+/** Fahrzeug: heutige Tour laut Tourenplanung. */
+function tpFahrzeugInfo(z) {
+  tpFuelle('fz-touren', async () => {
+    const d = await tpTag(heute()), kz = kzNormal(z.kennzeichen);
+    const touren = (d.tours || []).filter(t => kzNormal(t.Kennzeichen) === kz);
+    const imStamm = (d.fahrzeuge || []).some(f => kzNormal(f.Kennzeichen) === kz);
+    return (touren.length ? touren.map(t => `<div class="vorlage"><b>${esc(tpTourText(t))}</b><br><span class="leise">${esc(tpPersonen(t).join(', ') || 'noch ohne Team')}</span></div>`).join('')
+      : '<p class="leise">Heute nicht eingeplant.</p>') + (imStamm ? '' : '<p class="leise">Dieses Fahrzeug fehlt in den Stammdaten der Tourenplanung – über ⚙ → Tourenplanung abgleichen.</p>');
+  });
+}
+
+/** Firma: Touren diesen und letzten Monat laut Tourenplanung (Auftraggeber-Bericht). */
+function tpFirmaInfo(firma) {
+  tpFuelle('firma-touren', async () => {
+    const monat = d => d.toISOString().slice(0, 7), jetzt = new Date(), vor = new Date(jetzt.getFullYear(), jetzt.getMonth() - 1, 15);
+    const zeile = async m => {
+      const von = m + '-01', bis = isoTag(new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0));
+      const k = von + bis, c = TP.berichte[k];
+      const p = c && Date.now() - c.zeit < 600000 ? c.p : (TP.berichte[k] = { p: await tpApi('getAuftragsBericht', [von, bis]), zeit: Date.now() }).p;
+      const name = Object.keys(p || {}).find(n => normal(n) === normal(firma.name));
+      if (!name) return { m, summe: 0, arten: [] };
+      const arten = Object.entries(p[name].arten || {}).map(([art, tage]) => [art, Object.values(tage).reduce((a, b) => a + b, 0)]).filter(([, n]) => n);
+      return { m, summe: arten.reduce((a, [, n]) => a + n, 0), arten };
+    };
+    const [dies, letzter] = await Promise.all([zeile(monat(new Date(jetzt.getFullYear(), jetzt.getMonth(), 15))), zeile(monat(vor))]);
+    const text = z => `<b>${z.summe}</b> Tour${z.summe === 1 ? '' : 'en'}${z.arten.length ? ' <span class="leise">(' + esc(z.arten.map(([a, n]) => `${n}× ${a}`).join(', ')) + ')</span>' : ''}`;
+    if (!dies.summe && !letzter.summe) return '<p class="leise">In der Tourenplanung diesen und letzten Monat keine Touren für diese Firma.</p>';
+    return `<dl><dt>Dieser Monat</dt><dd>${text(dies)}</dd><dt>Letzter Monat</dt><dd>${text(letzter)}</dd></dl>`;
+  });
+}
+
+/** Schadensfall: Tour, Fahrzeug, Fahrer und Beifahrer des Schadenstags aus der Tourenplanung übernehmen. */
+async function tpInsFormular() {
+  const form = $('#fall-form'), wert = n => form.querySelector(`[name="${n}"]`).value.trim(), setze = (n, w) => { if (w) form.querySelector(`[name="${n}"]`).value = w; };
+  const tag = wert('schadensdatum') || heute();
+  const d = await tpLaden(tag, tpInsFormular);
+  if (!d) return;
+  const touren = (d.tours || []).filter(t => t.Kennzeichen || t.Fahrer);
+  if (!touren.length) { toast(`Am ${datumText(tag)} gibt es in der Tourenplanung keine Touren.`); return; }
+  const kz = kzNormal(wert('fahrzeug')), nr = wert('tour').toLowerCase();
+  const passend = touren.filter(t => (kz && kzNormal(t.Kennzeichen) === kz) || (nr && String(t.TourNr || '').toLowerCase() === nr));
+  const uebernehmen = t => {
+    setze('fahrzeug', t.Kennzeichen); setze('tour', [t.TourNr, t.Name].filter(Boolean).join(' – '));
+    setze('fahrer', t.Fahrer); setze('beifahrer1', t.Beifahrer1); setze('beifahrer2', t.Beifahrer2);
+    if (t.Auftraggeber && !wert('auftraggeber')) {
+      const firma = firmaZumNamen(t.Auftraggeber);
+      setze('auftraggeber', firma ? firma.name : t.Auftraggeber);
+    }
+    toast('Aus der Tourenplanung übernommen');
+  };
+  const liste = passend.length ? passend : touren;
+  if (liste.length === 1) { uebernehmen(liste[0]); return; }
+  dialog(`<h2>Welche Tour am ${esc(datumText(tag))}?</h2><div id="tp-wahl">${liste.map((t, i) =>
+    `<button class="vorlage" data-tp-tour="${i}"><b>${esc(t.Kennzeichen || 'ohne Fahrzeug')} · ${esc(tpTourText(t))}</b><br><span class="leise">${esc(tpPersonen(t).join(', '))}</span></button>`).join('')}</div>
+    <div class="dialog-knoepfe"><button class="knopf text" data-zu>Abbrechen</button></div>`);
+  $('#tp-wahl').onclick = e => { const b = e.target.closest('[data-tp-tour]'); if (!b) return; $('#dialog').close(); uebernehmen(liste[Number(b.dataset.tpTour)]); };
+}
+
+/** Mitarbeiter der Tourenplanung: wer ist heute wo eingeteilt, wer fehlt. */
+async function tpMitarbeiter() {
+  const tag = heute(), d = await tpLaden(tag, tpMitarbeiter);
+  if (!d) return;
+  const einsatz = {};
+  for (const t of d.tours || []) for (const n of tpPersonen(t)) einsatz[n] = t;
+  const weg = {};
+  for (const a of d.abwesenheiten || []) if (a.Von <= tag && tag <= a.Bis) weg[a.Name] = a.Grund || 'abwesend';
+  const personen = [...(d.personal || [])].filter(p => p.Name).sort((a, b) => String(a.Name).localeCompare(String(b.Name), 'de'));
+  dialog(`<h2>Mitarbeiter heute (${esc(datumText(tag))})</h2>
+    <p class="leise">Aus der Tourenplanung. Ändern unter Reiter „Touren“ → Stammdaten bzw. Abwesenheiten.</p>
+    <div id="tp-personal">${personen.map(p => {
+      const t = einsatz[p.Name], tel = p.Telefon ? String(p.Telefon) : '';
+      return `<div class="zeile eng" style="margin:6px 0"><div class="fuell"><b>${esc(p.Name)}</b> <span class="leise">${esc(p.Rolle || '')}</span><br>
+        <span class="${weg[p.Name] ? '' : 'leise'}" style="${weg[p.Name] ? 'color:var(--rot-t)' : ''}">${esc(weg[p.Name] ? weg[p.Name] : t ? (t.Kennzeichen || '') + ' · ' + tpTourText(t) : 'nicht eingeteilt')}</span></div>
+        ${tel ? `<a class="knopf text" href="tel:${esc(tel.replace(/[^\d+]/g, ''))}">☎ ${esc(tel)}</a>` : ''}</div>`;
+    }).join('') || '<p class="leise">Keine Mitarbeiter in den Stammdaten.</p>'}</div>
+    <div class="dialog-knoepfe"><button class="knopf voll" data-zu>Schließen</button></div>`);
+}
+
+/**
+ * Stammdaten abgleichen: Fahrzeuge und Auftraggeber der Tourenplanung kommen ins CRM; aktive Fahrzeuge des CRM
+ * (und auf Wunsch aktive Firmen) kommen in die Tourenplanung. Vorher wird gezeigt, was passiert.
+ */
+async function tpAbgleich() {
+  const d = await tpLaden(heute(), tpAbgleich, true);
+  if (!d) return;
+  const kzCrm = new Set(alle('fahrzeuge').map(z => kzNormal(z.kennzeichen)));
+  const kzTp = new Set((d.fahrzeuge || []).map(f => kzNormal(f.Kennzeichen)).filter(Boolean));
+  const fzInsCrm = (d.fahrzeuge || []).filter(f => f.Kennzeichen && !kzCrm.has(kzNormal(f.Kennzeichen)));
+  const fzInsTp = fahrzeugListe().filter(z => z.status !== 'STILLGELEGT' && z.kennzeichen && !kzTp.has(kzNormal(z.kennzeichen)));
+  const agTp = new Set((d.auftraggeber || []).map(a => normal(a.Auftraggeber)).filter(Boolean));
+  const agInsCrm = [...new Map((d.auftraggeber || []).filter(a => a.Auftraggeber && !firmaZumNamen(a.Auftraggeber)).map(a => [normal(a.Auftraggeber), a])).values()];
+  const agInsTp = auftraggeberListe().filter(f => f.status === 'AKTIV' && !agTp.has(normal(f.name)));
+  const liste = (titel, namen) => `<h3>${titel} (${namen.length})</h3>${namen.length ? `<p>${esc(namen.join(', '))}</p>` : '<p class="leise">Nichts zu tun.</p>'}`;
+  dialog(`<form method="dialog" id="tp-abgleich"><h2>Stammdaten mit der Tourenplanung abgleichen</h2>
+    ${liste('Fahrzeuge aus der Tourenplanung ins CRM', fzInsCrm.map(f => f.Kennzeichen))}
+    ${liste('Fahrzeuge aus dem CRM-Fuhrpark in die Tourenplanung', fzInsTp.map(z => z.kennzeichen))}
+    ${liste('Auftraggeber aus der Tourenplanung als Firmen ins CRM', agInsCrm.map(a => a.Auftraggeber))}
+    ${agInsTp.length ? `<label class="auswahl"><input type="checkbox" id="tp-ag-hin"> Auch die ${agInsTp.length} aktiven CRM-Firmen als Auftraggeber in die Tourenplanung übernehmen</label>` : ''}
+    <p class="leise">Mitarbeiter pflegt die Tourenplanung (Reiter „Touren“ → Stammdaten); das CRM zeigt sie unter Fuhrpark → Mitarbeiter und schlägt sie als Fahrer vor.</p>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Abgleichen</button></div></form>`);
+  $('#tp-abgleich').onsubmit = async ev => {
+    ev.preventDefault();
+    const agHin = $('#tp-ag-hin') && $('#tp-ag-hin').checked;
+    $('#dialog').close();
+    try {
+      for (const f of fzInsCrm) {
+        const zgg = Number(String(f.zGG_kg || '').replace(/\D/g, '')) || null;
+        const rest = Object.entries(f).filter(([k, v]) => !['Kennzeichen', 'zGG_kg'].includes(k) && v !== '' && v != null).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`);
+        FuhrparkAktionen.speichern({ kennzeichen: f.Kennzeichen, art: zgg && zgg > 3500 ? 'LKW' : 'TRANSPORTER', status: 'AKTIV', zgg, notiz: rest.length ? 'Aus der Tourenplanung – ' + rest.join(', ') : 'Aus der Tourenplanung' });
+      }
+      for (const a of agInsCrm) Aktionen.firmaSpeichern({ name: String(a.Auftraggeber).trim(), status: 'AKTIV', notizen: 'Aus der Tourenplanung übernommen' });
+      const neueZeile = (tab, werte) => {
+        const z = {};
+        for (const c of d.spalten[tab] || []) z[c] = d.auswahl && d.auswahl[c] ? d.auswahl[c][0] : '';
+        return Object.assign(z, werte);
+      };
+      if (fzInsTp.length) {
+        const zeilen = fzInsTp.map(z => neueZeile('Fahrzeuge', { Kennzeichen: z.kennzeichen, ...((d.spalten.Fahrzeuge || []).includes('zGG_kg') && z.zgg ? { zGG_kg: String(z.zgg) } : {}) }));
+        await tpApi('saveTable', ['Fahrzeuge', [...d.fahrzeuge, ...zeilen], d.fahrzeuge]);
+      }
+      if (agHin && agInsTp.length) {
+        const zeilen = agInsTp.map(f => neueZeile('Auftraggeber', { Auftraggeber: f.name }));
+        await tpApi('saveTable', ['Auftraggeber', [...d.auftraggeber, ...zeilen], d.auftraggeber]);
+      }
+      TP.tage = {};
+      toast(`Abgeglichen: ${fzInsCrm.length + agInsCrm.length} ins CRM, ${fzInsTp.length + (agHin ? agInsTp.length : 0)} in die Tourenplanung`, 6000);
+      // Die Tourenplanung im Reiter „Touren“ neu laden, damit sie die neuen Stammdaten zeigt
+      const frame = $('#touren-frame'); if (frame && frame.contentWindow) try { frame.contentWindow.location.reload(); } catch {}
+    } catch (e) { toast('Abgleich nicht vollständig: ' + (e.message === 'TP_ANMELDEN' ? 'PIN der Tourenplanung fehlt' : e.message), 7000); }
+  };
+}
+document.addEventListener('click', e => { if (e.target.closest('[data-tp-verbinden]')) tpAnmelden(() => zeichne()); });
+
 // ============================== Fuhrpark ==============================
 const FAHRZEUG_ART = { TRANSPORTER: 'Transporter', LKW: 'LKW', PKW: 'PKW', ANHAENGER: 'Anhänger', SONSTIGES: 'Sonstiges' };
 const FAHRZEUG_STATUS = { AKTIV: ['Im Einsatz', 'gruen'], WERKSTATT: ['In der Werkstatt', 'gelb'], RESERVE: ['Reserve', 'grau'], STILLGELEGT: ['Abgemeldet / verkauft', 'grau'] };
@@ -1939,7 +2185,7 @@ const FAHRZEUG_FELDER = [
 const ZAHL_FELDER = ['kmStand', 'wartungKm', 'zgg', 'leergewicht', 'leistungKw', 'achsen'];
 
 const fahrzeugListe = () => alle('fahrzeuge').sort((a, b) => (a.status === 'STILLGELEGT') - (b.status === 'STILLGELEGT') || String(a.kennzeichen).localeCompare(String(b.kennzeichen), 'de'));
-const fahrzeugName = z => [z.kennzeichen, z.bezeichnung || [z.marke, z.modell].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
+const markeTyp = z => [z.marke, z.modell].filter(Boolean).join(' ');
 const fahrzeugStatus = z => FAHRZEUG_STATUS[z.status] || FAHRZEUG_STATUS.AKTIV;
 const eintraegeVon = id => alle('fahrzeugeintraege').filter(x => x.fahrzeugId === id).sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || (b.kmStand || 0) - (a.kmStand || 0));
 const kzNormal = t => String(t || '').toUpperCase().replace(/[^A-Z0-9ÄÖÜ]/g, '');
@@ -2000,14 +2246,7 @@ const FuhrparkAktionen = {
     nachAenderung();
   },
   eintragLoeschen(x) { entferne('fahrzeugeintraege', x, { firmaId: '', fahrzeugId: x.fahrzeugId, geaendertAm: jetztIso() }); nachAenderung(); },
-  async dokument(fahrzeugId, art, datei) {
-    const blob = await verkleinere(datei);
-    if (blob.size > 25 * 1024 * 1024) { toast(`„${datei.name}“ ist größer als 25 MB und wurde nicht übernommen`); return; }
-    const name = `${art} – ` + (blob === datei ? datei.name : datei.name.replace(/\.[^.]+$/, '') + '.jpg');
-    const a = merke('anlagen', { id: uuid(), fallId: fahrzeugId, anzeigename: name, mimeType: blob.type || 'application/octet-stream', groesseBytes: blob.size, hinzugefuegtAm: jetztIso(), vorhanden: false });
-    await Dateien.lege(a.id, blob);
-    nachAenderung();
-  },
+  async dokument(fahrzeugId, art, datei) { if (await legeAnlage(fahrzeugId, datei, `${art} – `)) nachAenderung(); },
 };
 
 function zeichneFuhrpark(r) {
@@ -2020,7 +2259,7 @@ function zeichneFuhrpark(r) {
     const f = fristenVon(z)[0];
     return `<button class="karte klickbar ${r && r.art === 'fahrzeug' && r.id === z.id ? 'gewaehlt' : ''}" data-fahrzeug="${z.id}">
       <div class="zeile eng"><span class="titel fuell">${esc(z.kennzeichen || '(ohne Kennzeichen)')}</span><span class="marke ${fahrzeugStatus(z)[1]}">${esc(fahrzeugStatus(z)[0])}</span></div>
-      <div class="leise">${esc([FAHRZEUG_ART[z.art], z.bezeichnung || [z.marke, z.modell].filter(Boolean).join(' '), z.fahrer && 'Fahrer: ' + z.fahrer, z.kmStand != null && zahlText(z.kmStand, 'km')].filter(Boolean).join(' · '))}</div>
+      <div class="leise">${esc([FAHRZEUG_ART[z.art], z.bezeichnung || markeTyp(z), z.fahrer && 'Fahrer: ' + z.fahrer, z.kmStand != null && zahlText(z.kmStand, 'km')].filter(Boolean).join(' · '))}</div>
       ${f ? `<div class="zeile eng" style="margin-top:6px"><span class="marke ${fristFarbe(f)}">⏱ ${esc(f.label)}: ${esc(fristText(f))}</span></div>` : ''}
       ${wartungKmFaellig(z) ? `<div class="zeile eng" style="margin-top:4px"><span class="marke gelb">🔧 Wartung bei ${esc(zahlText(z.wartungKm, 'km'))}</span></div>` : ''}</button>`;
   }).join('');
@@ -2033,7 +2272,8 @@ function zeichneFuhrpark(r) {
       <button class="chip" data-fuhrpark-status="FRIST" aria-pressed="${st === 'FRIST'}">Frist fällig</button>${Object.entries(FAHRZEUG_STATUS).map(([k, [l]]) =>
       `<button class="chip" data-fuhrpark-status="${k}" aria-pressed="${st === k}">${l}</button>`).join('')}</div>
     <div class="zeile"><button class="knopf voll fab" data-neues-fahrzeug>＋ Neues Fahrzeug</button><button class="knopf" data-fuhrpark-csv>CSV</button>
-      <label class="knopf">Importieren<input type="file" id="fuhrpark-import" accept=".json,application/json" hidden></label></div>
+      <label class="knopf">Importieren<input type="file" id="fuhrpark-import" accept=".json,application/json" hidden></label>
+      <button class="knopf" data-tp-mitarbeiter>Mitarbeiter</button><button class="knopf" data-tp-abgleich>Mit Tourenplanung abgleichen</button></div>
     <div id="fahrzeuge">${karten || `<div class="leer">🚐<b>${alle('fahrzeuge').length ? 'Keine Treffer' : 'Noch keine Fahrzeuge'}</b>${alle('fahrzeuge').length ? 'In dieser Ansicht gibt es keine Fahrzeuge.' : 'Lege deine Fahrzeuge an – mit Fahrzeugschein, TÜV-, SP- und UVV-Fristen, Werkstatt, Tanken und Kosten.'}</div>`}</div>`;
 }
 
@@ -2045,12 +2285,13 @@ function zeichneFahrzeug(id) {
   el.innerHTML = `
     <div class="karte">
       <div class="zeile eng"><h2 class="gross fuell">${esc(z.kennzeichen)}</h2><button class="symbol" data-fz="bearbeiten" aria-label="Fahrzeug bearbeiten">✎</button></div>
-      <p class="leise">${esc([FAHRZEUG_ART[z.art], z.bezeichnung, [z.marke, z.modell].filter(Boolean).join(' ')].filter(Boolean).join(' · '))}</p>
+      <p class="leise">${esc([FAHRZEUG_ART[z.art], z.bezeichnung, markeTyp(z)].filter(Boolean).join(' · '))}</p>
       <div class="zeile" style="margin-top:10px"><span class="marke ${fahrzeugStatus(z)[1]}">${esc(fahrzeugStatus(z)[0])}</span>
         ${z.fahrer ? `<span class="leise">Fahrer: ${esc(z.fahrer)}</span>` : ''}<span class="fuell"></span>${z.kmStand != null ? `<b>${esc(zahlText(z.kmStand, 'km'))}</b>` : ''}</div>
       <div class="zeile" style="margin-top:10px"><button class="knopf voll" data-fz="eintrag">＋ Eintrag (Werkstatt, Tanken, km …)</button>
         <button class="knopf" data-fz="tanken">⛽ Tanken</button><button class="knopf" data-fz="km">📍 km-Stand</button></div>
     </div>
+    <div class="karte block"><h3>Heute in der Tourenplanung</h3><div id="fz-touren"></div></div>
     <div class="karte block"><h3>Fristen</h3>
       ${fr.length || wartungKmFaellig(z) ? `<div id="fristen">${fr.map(f => `<div class="zeile eng" style="margin:4px 0"><span class="fuell">${esc(f.label)}</span><span class="marke ${fristFarbe(f)}">${esc(fristText(f))}</span></div>`).join('')}
         ${z.wartungKm != null ? `<div class="zeile eng" style="margin:4px 0"><span class="fuell">Wartung nach km</span><span class="marke ${wartungKmFaellig(z) ? 'gelb' : 'grau'}">bei ${esc(zahlText(z.wartungKm, 'km'))}</span></div>` : ''}</div>`
@@ -2061,7 +2302,7 @@ function zeichneFahrzeug(id) {
       ${dl([['Kosten gesamt', geld(k.gesamt)], ['Kosten pro km', k.proKm != null ? geld(Math.round(k.proKm)) : ''], ['Ø Verbrauch', k.verbrauch != null ? k.verbrauch.toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' l / 100 km' : ''],
         ['Leasing-/Kreditrate', z.leasingRateCent != null ? geld(z.leasingRateCent) + ' im Monat' : '']])}</div>
     <div class="karte block"><h3>Fahrzeugschein</h3>
-      ${dl([['Halter', z.halter], ['Marke / Typ', [z.marke, z.modell].filter(Boolean).join(' ')], ['FIN', z.fin], ['Erstzulassung', datumText(z.erstzulassung)], ['HSN / TSN', [z.hsn, z.tsn].filter(Boolean).join(' / ')],
+      ${dl([['Halter', z.halter], ['Marke / Typ', markeTyp(z)], ['FIN', z.fin], ['Erstzulassung', datumText(z.erstzulassung)], ['HSN / TSN', [z.hsn, z.tsn].filter(Boolean).join(' / ')],
         ['Zul. Gesamtmasse', zahlText(z.zgg, 'kg')], ['Leergewicht', zahlText(z.leergewicht, 'kg')], ['Leistung', z.leistungKw ? `${zahlText(z.leistungKw, 'kW')} (${Math.round(z.leistungKw * 1.35962)} PS)` : ''],
         ['Kraftstoff', z.kraftstoff], ['Schadstoffklasse', z.schadstoffklasse], ['Achsen', zahlText(z.achsen)], ['Farbe', z.farbe], ['Nr. Teil II', z.teil2Nr]]) || '<p class="leise">Noch keine Angaben aus dem Fahrzeugschein.</p>'}
       ${dl([['Versicherung', [z.versicherung, z.versicherungsNr].filter(Boolean).join(' · ')], ['Leasing / Bank', z.leasinggeber], ['Notizen', z.notiz]])}</div>
@@ -2083,19 +2324,17 @@ function zeichneFahrzeug(id) {
   for (const a of dok.filter(a => a.mimeType.startsWith('image/'))) {
     Dateien.adresse(a).then(u => { const ziel = el.querySelector(`[data-bild="${a.id}"]`); if (u && ziel) ziel.innerHTML = `<img src="${u}" alt="">`; }).catch(() => {});
   }
+  tpFahrzeugInfo(z);
 }
+
+/** Alle bekannten Namen von Mitarbeitern: Tourenplanung (Personal) und feste Fahrer im Fuhrpark. */
+const mitarbeiterNamen = () => [...new Set([...(S.tpPersonal || []).map(p => p.Name), ...alle('fahrzeuge').map(z => z.fahrer)].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
 
 /** Formular für ein Fahrzeug (Stammdaten, Fristen, Fahrzeugschein, Versicherung). */
 function fahrzeugDialog(z) {
   const neu = !z, e = z ? { ...z, leasingRate: z.leasingRateCent != null ? geldOhneSymbol(z.leasingRateCent) : '' } : { art: 'TRANSPORTER', status: 'AKTIV' };
-  const feld = ([name, label, art = '']) => {
-    const wert = esc(e[name] ?? '');
-    if (typeof art === 'object') return `<label class="feld">${label}<select name="${name}">${Object.entries(art).map(([k, t]) => `<option value="${k}" ${String(e[name] ?? '') === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
-    if (art.includes('lang')) return `<label class="feld">${label}<textarea name="${name}">${wert}</textarea></label>`;
-    const typ = art.includes('date') ? 'type="date"' : art.includes('zahl') ? 'inputmode="numeric"' : art.includes('geld') ? 'inputmode="decimal"' : '';
-    return `<label class="feld">${label}<input name="${name}" ${typ} ${art.includes('pflicht') ? 'required' : ''} value="${wert}"><span class="fehlertext" data-fehler="${name}" hidden></span></label>`;
-  };
-  dialog(`<form method="dialog" id="fahrzeug-form"><h2>${neu ? 'Neues Fahrzeug' : 'Fahrzeug bearbeiten'}</h2>
+  const feld = f => formularFeld(e, f, f[0] === 'fahrer' ? 'fz-fahrer-liste' : '');
+  dialog(`<form method="dialog" id="fahrzeug-form"><datalist id="fz-fahrer-liste">${mitarbeiterNamen().map(n => `<option value="${esc(n)}">`).join('')}</datalist><h2>${neu ? 'Neues Fahrzeug' : 'Fahrzeug bearbeiten'}</h2>
     ${FAHRZEUG_FELDER.map(([titel, felder], i) => `<h3>${titel}</h3>${i === 2 ? '<p class="leise">Die Angaben stehen im Fahrzeugschein – die Buchstaben in Klammern zeigen das Feld.</p>' : ''}${felder.map(feld).join('')}`).join('')}
     <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
   $('#fahrzeug-form').onsubmit = ev => {
@@ -2195,6 +2434,8 @@ $('#liste').addEventListener('click', e => {
   if (z) { gehe('#/fahrzeug/' + z.dataset.fahrzeug); return; }
   if (st) { ANSICHT.fuhrparkStatus = st.dataset.fuhrparkStatus; zeichneListe(); return; }
   if (e.target.closest('[data-neues-fahrzeug]')) { fahrzeugDialog(null); return; }
+  if (e.target.closest('[data-tp-mitarbeiter]')) { tpMitarbeiter(); return; }
+  if (e.target.closest('[data-tp-abgleich]')) { tpAbgleich(); return; }
   if (e.target.closest('[data-fuhrpark-csv]')) { const d = fuhrparkCsv(); ladeHerunter(`Fahrzeuge_${heute()}.csv`, d.Fahrzeuge); setTimeout(() => ladeHerunter(`Fahrzeugakte_${heute()}.csv`, d.Fahrzeugakte), 400); }
 });
 $('#liste').addEventListener('change', async e => {
@@ -2219,13 +2460,7 @@ $('#detail').addEventListener('click', async e => {
   if (eintrag) { fahrzeugEintragDialog(z, S.fahrzeugeintraege[eintrag.dataset.fzEintrag]); return; }
   if (dokWeg) { const a = S.anlagen[dokWeg.dataset.fzDokWeg]; bestaetige('Dokument entfernen?', `„${a.anzeigename}“ wird gelöscht.`, 'Entfernen', () => { entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id); nachAenderung(); }); return; }
   if (dok) {
-    const a = S.anlagen[dok.dataset.fzDok];
-    try {
-      const u = await Dateien.adresse(a);
-      if (!u) toast('Die Datei wurde noch nicht in die Cloud übertragen.');
-      else if (window.desktop) await window.desktop.oeffneDatei(a.anzeigename, new Uint8Array(await (await Dateien.hole(a.id)).arrayBuffer()));
-      else window.open(u, '_blank');
-    } catch { toast('Die Datei konnte nicht geladen werden.'); }
+    oeffneAnlage(S.anlagen[dok.dataset.fzDok]);
     return;
   }
   if (!akt) return;
