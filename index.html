@@ -12,6 +12,9 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigat
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
 <link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<!-- iPhone/iPad: als App vom Home-Bildschirm im Vollbild -->
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ayse CRM"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="theme-color" content="#F8F9FF">
 <style>
 :root{
   --bg:#F8F9FF;--flaeche:#F2F3FA;--flaeche2:#ECEEF4;--hoch:#E1E2E8;--text:#191C20;--leise:#43474E;--rand:#C3C7CF;--linie:#DFE2EB;
@@ -32,14 +35,14 @@ html,body{margin:0;background:var(--bg);color:var(--text)}
 body{min-height:100vh}
 h1,h2,h3,p{margin:0}
 button,input,select,textarea{font:inherit;color:inherit}
-header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--linie)}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 10px calc(16px + env(safe-area-inset-left));background:var(--bg);border-bottom:1px solid var(--linie)}
 header h1{font-size:20px;font-weight:500;flex:1}
 main{display:grid;grid-template-columns:minmax(0,1fr);max-width:1280px;margin:0 auto}
-main>section{padding:12px 16px 96px;min-width:0}
+main>section{padding:12px calc(16px + env(safe-area-inset-right)) calc(96px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));min-width:0}
 @media (min-width:900px){
   main{grid-template-columns:minmax(340px,420px) minmax(0,1fr);align-items:start}
   main>section{padding-bottom:32px}
-  #liste{position:sticky;top:53px;max-height:calc(100vh - 53px);overflow:auto;border-right:1px solid var(--linie)}
+  #liste{position:sticky;top:calc(53px + env(safe-area-inset-top));max-height:calc(100vh - 53px - env(safe-area-inset-top));overflow:auto;border-right:1px solid var(--linie)}
 }
 @media (max-width:899px){body.zeigt-detail #liste,body:not(.zeigt-detail) #detail{display:none}}
 .karte{background:var(--flaeche);border-radius:14px;padding:16px;margin-bottom:12px}
@@ -75,7 +78,7 @@ main>section{padding:12px 16px 96px;min-width:0}
 .symbol{border:0;background:transparent;cursor:pointer;padding:8px;border-radius:999px;font-size:18px;line-height:1}
 .symbol:hover{background:var(--flaeche2)}
 :focus-visible{outline:2px solid var(--primaer);outline-offset:2px}
-.fab{position:fixed;right:16px;bottom:16px;z-index:4;box-shadow:0 3px 10px rgba(0,0,0,.25);padding:14px 20px;border-radius:16px}
+.fab{position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));z-index:4;box-shadow:0 3px 10px rgba(0,0,0,.25);padding:14px 20px;border-radius:16px}
 @media (min-width:900px){.fab{position:static;box-shadow:none;border-radius:999px;padding:9px 18px;margin-bottom:12px}}
 .wv{border-radius:14px;padding:16px;margin-bottom:12px;background:var(--flaeche2)}
 .wv.rot{background:var(--rot-f);color:var(--rot-t)}.wv.gelb{background:var(--gelb-f);color:var(--gelb-t)}
@@ -110,7 +113,7 @@ dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
 .vorlage:hover{background:var(--flaeche2)}
 .leer{text-align:center;padding:40px 16px;color:var(--leise)}
 .leer b{display:block;color:var(--text);font-size:16px;margin:10px 0 4px}
-#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:20;background:#2E3135;color:#EFF0F7;padding:12px 18px;border-radius:8px;max-width:calc(100vw - 32px);box-shadow:0 3px 10px rgba(0,0,0,.3)}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:20;background:#2E3135;color:#EFF0F7;padding:12px 18px;border-radius:8px;max-width:calc(100vw - 32px);box-shadow:0 3px 10px rgba(0,0,0,.3)}
 #sync{font-size:12px;padding:4px 10px;border-radius:999px;border:0;cursor:pointer}
 .reiter{display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--rand)}
 .reiter-knopf{flex:1;border:0;background:transparent;padding:10px 4px;cursor:pointer;border-bottom:3px solid transparent;font-weight:500;color:var(--leise)}
