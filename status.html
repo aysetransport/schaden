@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Lieferstatus</title>
+<style>
+:root{--bg:#F8F9FF;--karte:#fff;--text:#191C20;--leise:#5b6068;--primaer:#2F5D8A;--linie:#DFE2EB;--gruen:#1E7B3A;--gelb:#b8860b;--rot:#93000A}
+@media (prefers-color-scheme:dark){:root{--bg:#111418;--karte:#1D2024;--text:#E1E2E8;--leise:#C3C7CF;--primaer:#9CCAFF;--linie:#32353A;--gruen:#7DD992;--gelb:#f2c94c;--rot:#FFB4AB}}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-x:hidden}
+main{max-width:520px;margin:0 auto;padding:24px 16px 48px}
+.karte{background:var(--karte);border:1px solid var(--linie);border-radius:20px;padding:20px;margin-top:16px}
+h1{font-size:22px;font-weight:600;margin:0}.leise{color:var(--leise);font-size:14px}
+.schritte{display:flex;gap:6px;margin:18px 0 6px}.schritt{flex:1;height:8px;border-radius:4px;background:var(--linie)}.schritt.an{background:var(--primaer)}.schritt.fertig{background:var(--gruen)}
+.status{font-size:26px;font-weight:700;margin:6px 0}.status.ERLEDIGT{color:var(--gruen)}.status.STORNIERT,.status.PROBLEM{color:var(--rot)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:14px 0 0}dt{color:var(--leise)}dd{margin:0;overflow-wrap:anywhere}
+.sterne{display:flex;gap:4px;justify-content:center;margin:12px 0}.sterne button{font-size:40px;line-height:1;background:none;border:0;color:var(--linie);cursor:pointer;padding:4px;min-width:48px;min-height:48px}
+.sterne button.an{color:var(--gelb)}textarea{width:100%;min-height:90px;border:1px solid var(--linie);border-radius:12px;padding:10px;font:inherit;background:var(--bg);color:var(--text)}
+.knopf{display:block;width:100%;margin-top:12px;padding:14px;border:0;border-radius:999px;background:var(--primaer);color:#fff;font:600 16px system-ui,sans-serif;cursor:pointer}
+@media (prefers-color-scheme:dark){.knopf{color:#00325a}}.knopf:disabled{opacity:.5}
+.fehler{color:var(--rot)}
+</style>
+</head>
+<body>
+<main>
+  <h1>📦 Ihr Lieferstatus</h1>
+  <div id="inhalt" class="karte" aria-live="polite"><p class="leise">Wird geladen …</p></div>
+</main>
+<script>
+(() => {
+  const p = new URLSearchParams(location.search), code = p.get('s') || '', url = p.get('c') || '';
+  const inhalt = document.getElementById('inhalt');
+  const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const datum = d => { const [j, m, t] = String(d || '').slice(0, 10).split('-'); return j && m && t ? new Date(j, m - 1, t).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' }) : ''; };
+  const zeit = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' Uhr'; };
+  // Nur die Google-Apps-Script-Cloud der Firma wird angesprochen.
+  const erlaubt = (() => { try { const u = new URL(url); return u.protocol === 'https:' && /^script\.google(usercontent)?\.com$/.test(u.hostname); } catch { return false; } })()
+    || (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+  async function api(fn, ...args) {
+    const r = await fetch(url, { method: 'POST', body: JSON.stringify({ fn, args }) });
+    const j = await r.json(); if (j.error) throw new Error(j.error); return j.ok;
+  }
+  const fehler = text => { inhalt.innerHTML = `<p class="fehler">${esc(text)}</p><p class="leise">Bitte wenden Sie sich an Ihren Ansprechpartner.</p>`; };
+  if (!code || !url || !erlaubt) { fehler('Dieser Link ist unvollständig.'); return; }
+  let wahl = 0;
+  function zeige(s) {
+    const stufe = { GEPLANT: 1, UNTERWEGS: 2, ANGEKOMMEN: 2, PROBLEM: 2, ERLEDIGT: 3 }[s.status] || 1;
+    inhalt.innerHTML = `${s.kunde ? `<p class="leise">Für ${esc(s.kunde)}</p>` : ''}<div class="status ${esc(s.status)}">${esc(s.statusText)}</div>
+      ${s.status === 'STORNIERT' ? '' : `<div class="schritte" aria-hidden="true">${[1, 2, 3].map(i => `<div class="schritt ${i <= stufe ? (stufe === 3 ? 'fertig' : 'an') : ''}"></div>`).join('')}</div><div class="leise" style="display:flex;justify-content:space-between"><span>Geplant</span><span>Unterwegs</span><span>Zugestellt</span></div>`}
+      <dl>${s.datum ? `<dt>Termin</dt><dd>${esc(datum(s.datum))}</dd>` : ''}${s.zeitfenster ? `<dt>Zeitfenster</dt><dd>${esc(s.zeitfenster)}</dd>` : ''}
+        ${s.abgeliefertAm ? `<dt>Zugestellt</dt><dd>${esc(zeit(s.abgeliefertAm))}${s.empfaenger ? ' · angenommen von ' + esc(s.empfaenger) : ''}</dd>` : ''}
+        ${s.im_auftrag ? `<dt>Im Auftrag von</dt><dd>${esc(s.im_auftrag)}</dd>` : ''}</dl>
+      ${s.bewertbar ? `<div style="margin-top:20px;border-top:1px solid var(--linie);padding-top:16px"><b>Wie zufrieden waren Sie mit der Lieferung?</b>
+        <div class="sterne" role="radiogroup" aria-label="Bewertung">${[1, 2, 3, 4, 5].map(i => `<button type="button" role="radio" aria-checked="false" aria-label="${i} von 5 Sternen" data-stern="${i}">★</button>`).join('')}</div>
+        <textarea id="text" maxlength="1000" placeholder="Möchten Sie uns noch etwas mitteilen? (freiwillig)"></textarea>
+        <button class="knopf" id="senden" disabled>Bewertung senden</button></div>`
+      : s.bewertung ? `<p style="margin-top:16px">Vielen Dank für Ihre Bewertung: <b style="color:var(--gelb)">${'★'.repeat(s.bewertung)}${'☆'.repeat(5 - s.bewertung)}</b></p>` : ''}`;
+    if (!s.bewertbar) return;
+    inhalt.querySelector('.sterne').onclick = e => {
+      const b = e.target.closest('[data-stern]'); if (!b) return; wahl = Number(b.dataset.stern);
+      inhalt.querySelectorAll('[data-stern]').forEach(x => { const an = Number(x.dataset.stern) <= wahl; x.classList.toggle('an', an); x.setAttribute('aria-checked', String(Number(x.dataset.stern) === wahl)); });
+      document.getElementById('senden').disabled = false;
+    };
+    document.getElementById('senden').onclick = async e => {
+      e.target.disabled = true; e.target.textContent = 'Wird gesendet …';
+      try { await api('bewerten', code, wahl, document.getElementById('text').value); zeige({ ...s, bewertbar: false, bewertung: wahl }); }
+      catch (x) { e.target.disabled = false; e.target.textContent = 'Bewertung senden'; alert(x.message); }
+    };
+  }
+  api('sendungsstatus', code).then(zeige).catch(x => fehler(x.message === 'Failed to fetch' ? 'Keine Verbindung – bitte später erneut versuchen.' : x.message));
+})();
+</script>
+</body>
+</html>

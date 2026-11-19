@@ -170,7 +170,7 @@ kbd{font:600 12px ui-monospace,monospace;background:var(--flaeche2);border:1px s
 .tp-frei{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .tp-frei h3{font-size:14px;color:var(--primaer);margin:0 0 6px}.tp-frei p{margin:3px 0}
 @media (max-width:1560px){
-  .tour{grid-template-columns:28px repeat(4,minmax(0,1fr)) auto}
+  .tour{grid-template-columns:28px repeat(4,minmax(0,1fr)) auto;grid-auto-flow:row dense}
   .tour .tf.kz{grid-column:2/4}.tour .tf.nr{grid-column:4/5}.tour .tf.zeit{grid-column:5/6}
   .tour .tf.ag{grid-column:2/4}.tour .tf.name{grid-column:4/6}
   .tour .tf.art{grid-column:2/4}.tour .tf.fahrer{grid-column:4/6}
@@ -217,7 +217,7 @@ pre.vorschau{white-space:pre-wrap;font:inherit;background:var(--flaeche2);paddin
 .kal-wt{font-size:12px;font-weight:600;color:var(--leise);text-align:center;padding:2px 0}
 .kal-zelle{background:var(--flaeche);border:1px solid var(--linie);border-radius:8px;min-height:96px;padding:4px;cursor:pointer;overflow:hidden;min-width:0}
 .kal-gitter.woche .kal-zelle{min-height:260px}
-.kal-zelle.fremd{opacity:.45}.kal-zelle.we{background:var(--flaeche2)}.kal-zelle.heute{outline:2px solid var(--primaer)}
+.kal-zelle.fremd{opacity:.85}.kal-zelle.fremd .kal-kopf b{color:var(--leise)}.kal-zelle.we{background:var(--flaeche2)}.kal-zelle.heute{outline:2px solid var(--primaer)}
 .kal-zelle:hover{border-color:var(--primaer)}
 .kal-kopf{font-size:13px;margin-bottom:2px}
 .kal-eintrag{font-size:11.5px;line-height:1.3;border-radius:5px;padding:1px 4px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -269,6 +269,8 @@ pre.vorschau{white-space:pre-wrap;font:inherit;background:var(--flaeche2);paddin
 .symbol{border:0;background:transparent;cursor:pointer;padding:8px;border-radius:999px;font-size:18px;line-height:1}
 .symbol:hover{background:var(--flaeche2)}
 :focus-visible{outline:2px solid var(--primaer);outline-offset:2px}
+.sprung{position:fixed;left:8px;top:-60px;z-index:100;padding:10px 16px;border-radius:999px;border:0;background:var(--primaer);color:#fff;font:inherit}.sprung:focus{top:8px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 .wv{border-radius:14px;padding:16px;margin-bottom:12px;background:var(--flaeche2)}
 .wv.rot{background:var(--rot-f);color:var(--rot-t)}.wv.gelb{background:var(--gelb-f);color:var(--gelb-t)}
 .wv .knopf:not(.voll){border-color:currentColor;color:inherit}
@@ -340,6 +342,7 @@ dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
 </style>
 </head>
 <body>
+<button class="sprung" onclick="const z=document.getElementById('liste');z.setAttribute('tabindex','-1');z.focus()">Zum Inhalt springen</button>
 <header>
   <button class="symbol" id="menue-knopf" aria-label="Menü">☰</button>
   <button class="symbol" id="zurueck" aria-label="Zurück" hidden>←</button>
@@ -868,7 +871,7 @@ async function api(fn, ...args) {
   return j.ok;
 }
 const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber', ...CRM_TABELLEN];
-const CLOUD_API = 9;
+const CLOUD_API = 10;
 const VERALTET = 'Das Cloud-Skript ist veraltet – bitte die neue Code.gs bereitstellen.';
 const offeneAnzahl = () => TABELLEN.reduce((n, t) => n + offene(t).length, 0);
 const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
@@ -1758,7 +1761,9 @@ function zeichneEinstellungen() {
     <div class="karte block"><h3>Kosten (für Gewinn & Verlust)</h3><p class="leise" style="margin-bottom:8px">Werden genutzt, wenn keine Lohnabrechnung, kein Stundenlohn bzw. keine Fahrzeugkosten im Monat vorliegen.</p>
       ${[['personalTag', 'Personalkosten je Mitarbeiter und Arbeitstag (€)', '200'], ['fahrzeugTag', 'Fahrzeugkosten je Einsatztag (€)', '90'], ['zuschlag', 'Arbeitgeber-Zuschlag auf Lohn (%)', '30'],
         ['selbstbeteiligung', 'Selbstbeteiligung je Schaden bei Versicherung (€, leer = voller Betrag)', ''], ['gemein', 'Gemeinkosten in % vom Erlös (Büro, Miete …)', '0']]
-        .map(([k, l, ph]) => `<label class="feld">${l}<input data-kosten="${k}" inputmode="decimal" placeholder="${ph}" value="${esc((e.kosten || {})[k] ?? '')}"></label>`).join('')}</div>
+        .map(([k, l, ph]) => `<label class="feld">${l}<input data-kosten="${k}" inputmode="decimal" placeholder="${ph}" value="${esc((e.kosten || {})[k] ?? '')}"></label>`).join('')}
+      <label class="feld">Finanzen und Gewinn & Verlust erst ab (leer = alle Daten)<input type="date" data-einst="finanzAb" value="${esc(e.finanzAb || '')}"></label>
+      <p class="leise">Vorher fehlen z. B. Rechnungen, Löhne oder Fahrzeugkosten – Umsatz, Kosten, Gewinn & Verlust, Top & Flop und Geld-Statistiken zählen dann erst ab diesem Tag. Touren, Schäden und Personal bleiben vollständig.</p></div>
     <div class="karte block"><h3>Arbeitszeit und Kalender</h3>
       <label class="feld">Bundesland (Feiertage)<select data-einst-wahl="bundesland">${Object.entries(BUNDESLAENDER).map(([k, l]) => `<option value="${k}" ${(e.bundesland || 'NW') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="feld">Gesetzlicher Mindestlohn (€/Std.)<input data-einst="mindestlohn" inputmode="decimal" placeholder="13,90" value="${esc(e.mindestlohn || '')}"></label>
@@ -2195,14 +2200,14 @@ $('#detail').addEventListener('click', e => {
 
 // ============================== Angebote, Rechnungen, Zahlstatus ==============================
 // Belege (Tabelle „belege“): art ANGEBOT oder RECHNUNG, Positionen als JSON-Text, Beträge in Cent.
-const BELEG_ART = { ANGEBOT: ['Angebot', 'A'], RECHNUNG: ['Rechnung', 'R'] };
+const BELEG_ART = { ANGEBOT: ['Angebot', 'A'], RECHNUNG: ['Rechnung', 'R'], GUTSCHRIFT: ['Gutschrift', 'G'] };
 const BELEG_STATUS = {
   ENTWURF: ['Entwurf', 'grau'], OFFEN: ['Offen', 'blau'], TEILBEZAHLT: ['Teilbezahlt', 'gelb'], BEZAHLT: ['Bezahlt', 'gruen'], STORNIERT: ['Storniert', 'grau'],
   ANGENOMMEN: ['Angenommen', 'gruen'], ABGELEHNT: ['Abgelehnt', 'rot'],
 };
 const MAHNSTUFEN = ['Zahlungserinnerung', '1. Mahnung', '2. Mahnung', 'Letzte Mahnung'];
 const rechnungsDaten = () => Object.assign({ name: '', strasse: '', plzOrt: '', telefon: '', email: '', steuer: '', ustId: '', iban: '', bic: '', bank: '',
-  zahlungsziel: 14, mwst: 19, fuss: '', startRechnung: 1, startAngebot: 1 }, S.einstellungen.rechnung || {});
+  zahlungsziel: 14, mwst: 19, fuss: '', startRechnung: 1, startAngebot: 1, startGutschrift: 1 }, S.einstellungen.rechnung || {});
 
 const positionen = b => { try { const p = JSON.parse(b.positionen || '[]'); return Array.isArray(p) ? p : []; } catch { return []; } };
 function belegSummen(b) {
@@ -2210,10 +2215,23 @@ function belegSummen(b) {
   const mwst = Math.round(netto * (Number(b.mwstProzent ?? 19) || 0) / 100);
   return { netto, mwst, brutto: netto + mwst };
 }
-const offenCent = b => Math.max(0, belegSummen(b).brutto - (b.bezahltCent || 0));
-const istRechnungOffen = b => b.art === 'RECHNUNG' && ['OFFEN', 'TEILBEZAHLT'].includes(b.status);
+/** Gutschriften zu einer Rechnung (festgeschrieben, nicht storniert) – mindern ihren offenen Betrag. */
+const gutschriftenZu = r => alle('belege').filter(g => g.art === 'GUTSCHRIFT' && g.bezug === r.id && !['ENTWURF', 'STORNIERT'].includes(g.status));
+const gutgeschriebenCent = r => gutschriftenZu(r).reduce((n, g) => n + belegSummen(g).brutto, 0);
+const offenCent = b => (b.art === 'GUTSCHRIFT' ? 0 : Math.max(0, belegSummen(b).brutto - (b.bezahltCent || 0) - (b.art === 'RECHNUNG' ? gutgeschriebenCent(b) : 0)));
+const istRechnungOffen = b => b.art === 'RECHNUNG' && ['OFFEN', 'TEILBEZAHLT'].includes(b.status) && offenCent(b) > 0;
+/** Stichtag aus ⚙ → Kosten: Finanzzahlen erst ab diesem Tag (davor unvollständige Daten). */
+const finanzAb = () => (/^\d{4}-\d{2}-\d{2}$/.test(S.einstellungen.finanzAb || '') ? S.einstellungen.finanzAb : '');
+const abFinanz = zr => (finanzAb() && zr.von < finanzAb() ? { ...zr, von: finanzAb(), gekuerzt: true } : zr);
+const finanzHinweis = zr => (zr.gekuerzt ? `<p class="leise">ℹ Finanzzahlen ab ${datumText(finanzAb())} (⚙ → Kosten).</p>` : '');
+/** Umsatz netto: Rechnungen minus Gutschriften (ohne Entwürfe und Stornos). */
+const zaehltUmsatz = b => (b.art === 'RECHNUNG' || b.art === 'GUTSCHRIFT') && !['ENTWURF', 'STORNIERT'].includes(b.status) && (!finanzAb() || String(b.datum) >= finanzAb());
+const umsatzNetto = b => (zaehltUmsatz(b) ? (b.art === 'GUTSCHRIFT' ? -1 : 1) * belegSummen(b).netto : 0);
 const istUeberfaellig = b => istRechnungOffen(b) && b.faelligAm && b.faelligAm < heute();
 function belegMarke(b) {
+  if (b.art === 'RECHNUNG' && ['OFFEN', 'TEILBEZAHLT'].includes(b.status) && offenCent(b) === 0 && gutgeschriebenCent(b)) return ['Gutgeschrieben', 'grau'];
+  if (b.art === 'GUTSCHRIFT' && b.status === 'OFFEN') return ['Erstellt', 'blau'];
+  if (b.art === 'GUTSCHRIFT' && b.status === 'BEZAHLT') return ['Ausgezahlt / verrechnet', 'gruen'];
   if (istUeberfaellig(b)) return ['Überfällig' + (b.mahnstufe ? ' · ' + MAHNSTUFEN[Math.min(b.mahnstufe, 4) - 1] : ''), 'rot'];
   return BELEG_STATUS[b.status] || BELEG_STATUS.OFFEN;
 }
@@ -2223,7 +2241,7 @@ function belegMarke(b) {
  */
 function naechsteBelegNummer(art, jahr = new Date().getFullYear()) {
   const praefix = `${BELEG_ART[art][1]}${jahr}-`;
-  const start = Math.max(1, Math.floor(Number(rechnungsDaten()[art === 'RECHNUNG' ? 'startRechnung' : 'startAngebot']) || 1));
+  const start = Math.max(1, Math.floor(Number(rechnungsDaten()[{ RECHNUNG: 'startRechnung', ANGEBOT: 'startAngebot' }[art] || 'startGutschrift']) || 1));
   const hoechste = alle('belege').filter(b => b.art === art && String(b.nummer || '').startsWith(praefix))
     .reduce((n, b) => Math.max(n, Number(String(b.nummer).slice(praefix.length)) || 0), start - 1);
   return praefix + String(hoechste + 1).padStart(4, '0');
@@ -2250,6 +2268,12 @@ const BelegAktionen = {
     const bezahlt = (b.bezahltCent || 0) + cent, voll = bezahlt >= belegSummen(b).brutto;
     this.speichern({ ...b, bezahltCent: bezahlt, bezahltAm: am, status: voll ? 'BEZAHLT' : 'TEILBEZAHLT' });
     Aktionen.crmSpeichern('aktivitaeten', { firmaId: b.firmaId, datum: am, art: 'SONSTIGES', kontakt: '', text: `Zahlung ${geld(cent)} zu ${b.nummer} erhalten${voll ? ' – vollständig bezahlt' : ''}` });
+  },
+  /** Gutschrift zu einer Rechnung: voll = alle Positionen (Storno per Gutschrift), sonst leer zum Ausfüllen. */
+  gutschrift(rechnung, voll) {
+    return this.neu('GUTSCHRIFT', rechnung.firmaId, { positionen: voll ? rechnung.positionen : '[]', mwstProzent: rechnung.mwstProzent, bezug: rechnung.id, fallId: rechnung.fallId || '', faelligAm: plusTage(heute(), 14),
+      einleitung: `zu unserer Rechnung ${rechnung.nummer} vom ${datumText(rechnung.datum)} schreiben wir Ihnen ${voll ? 'den vollen Betrag' : 'folgende Beträge'} gut:`,
+      schluss: 'Den Betrag verrechnen wir mit offenen Forderungen bzw. überweisen ihn auf Ihr Konto.' });
   },
   zuRechnung(angebot) {
     const id = this.neu('RECHNUNG', angebot.firmaId, { positionen: angebot.positionen, mwstProzent: angebot.mwstProzent, bezug: angebot.id, fallId: angebot.fallId || '' });
@@ -2289,7 +2313,7 @@ function belegHtml(b) {
     <div class="empf">${esc(firmaName(firma))}<br>${k ? 'z. Hd. ' + esc(k.name) + '<br>' : ''}${adr ? esc(adr.strasse) + '<br>' + esc([adr.plz, adr.ort].filter(Boolean).join(' ')) : ''}</div>
     <table class="info"><tr><td>${esc(BELEG_ART[b.art][0])}-Nr.:</td><td>${esc(b.nummer)}</td></tr><tr><td>Datum:</td><td>${datumText(b.datum)}</td></tr>
       ${firma.kundennummer ? `<tr><td>Kunden-Nr.:</td><td>${esc(firma.kundennummer)}</td></tr>` : ''}${firma.ustId ? `<tr><td>Ihre USt-IdNr.:</td><td>${esc(firma.ustId)}</td></tr>` : ''}
-      ${b.art === 'RECHNUNG' ? `<tr><td>Fällig am:</td><td>${datumText(b.faelligAm)}</td></tr>` : `<tr><td>Gültig bis:</td><td>${datumText(b.faelligAm)}</td></tr>`}</table>
+      ${b.art === 'RECHNUNG' ? `<tr><td>Fällig am:</td><td>${datumText(b.faelligAm)}</td></tr>` : b.art === 'GUTSCHRIFT' ? (S.belege[b.bezug] ? `<tr><td>Zu Rechnung:</td><td>${esc(S.belege[b.bezug].nummer)} vom ${datumText(S.belege[b.bezug].datum)}</td></tr>` : '') : `<tr><td>Gültig bis:</td><td>${datumText(b.faelligAm)}</td></tr>`}</table>
     <h1>${b.status === 'STORNIERT' ? 'Storno – ' : ''}${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</h1>
     <p>${k ? `Guten Tag ${esc(k.name)},` : 'Sehr geehrte Damen und Herren,'}</p><p>${ersetze(b.einleitung)}</p>
     <table class="pos"><tr><th>Pos.</th><th>Leistung</th><th class="r">Menge</th><th class="r">Einzelpreis</th><th class="r">Gesamt</th></tr>${zeilen}</table>
@@ -2321,35 +2345,35 @@ function belegDrucken(b) { druckeHtml(belegHtml(b)); }
 
 // ---------- Übersicht und Finanzen (Liste) ----------
 function finanzKennzahlen() {
-  const b = alle('belege'), rechnungen = b.filter(x => x.art === 'RECHNUNG' && x.status !== 'STORNIERT' && x.status !== 'ENTWURF');
+  const b = alle('belege'), rechnungen = b.filter(x => x.art === 'RECHNUNG' && x.status !== 'STORNIERT' && x.status !== 'ENTWURF'), mitGs = b.filter(zaehltUmsatz);
   const monat = heute().slice(0, 7), jahr = heute().slice(0, 4);
-  const umsatz = l => l.reduce((n, x) => n + belegSummen(x).netto, 0);
+  const umsatz = l => l.reduce((n, x) => n + umsatzNetto(x), 0);
   const proFirma = {};
-  for (const r of rechnungen.filter(x => String(x.datum).startsWith(jahr))) proFirma[r.firmaId] = (proFirma[r.firmaId] || 0) + belegSummen(r).netto;
+  for (const r of mitGs.filter(x => String(x.datum).startsWith(jahr))) proFirma[r.firmaId] = (proFirma[r.firmaId] || 0) + umsatzNetto(r);
   return {
     offen: rechnungen.filter(istRechnungOffen).reduce((n, x) => n + offenCent(x), 0),
     offenAnzahl: rechnungen.filter(istRechnungOffen).length,
     ueberfaellig: rechnungen.filter(istUeberfaellig).reduce((n, x) => n + offenCent(x), 0),
     ueberfaelligAnzahl: rechnungen.filter(istUeberfaellig).length,
-    monat: umsatz(rechnungen.filter(x => String(x.datum).startsWith(monat))),
-    jahr: umsatz(rechnungen.filter(x => String(x.datum).startsWith(jahr))),
+    monat: umsatz(mitGs.filter(x => String(x.datum).startsWith(monat))),
+    jahr: umsatz(mitGs.filter(x => String(x.datum).startsWith(jahr))),
     angebote: b.filter(x => x.art === 'ANGEBOT' && x.status === 'OFFEN').reduce((n, x) => n + belegSummen(x).netto, 0),
     topFirmen: Object.entries(proFirma).sort((x, y) => y[1] - x[1]).slice(0, 5),
   };
 }
-const BELEG_FILTER = { OFFEN: 'Offen', UEBERFAELLIG: 'Überfällig', BEZAHLT: 'Bezahlt', ANGEBOTE: 'Angebote', ENTWURF: 'Entwürfe', ALLE: 'Alle' };
+const BELEG_FILTER = { OFFEN: 'Offen', UEBERFAELLIG: 'Überfällig', BEZAHLT: 'Bezahlt', ANGEBOTE: 'Angebote', GUTSCHRIFTEN: 'Gutschriften', ENTWURF: 'Entwürfe', ALLE: 'Alle' };
 function belegKarte(b, r) {
   const m = belegMarke(b), s = belegSummen(b);
   return `<button class="karte klickbar ${r && r.art === 'beleg' && r.id === b.id ? 'gewaehlt' : ''}" data-beleg="${b.id}">
     <div class="zeile eng"><span class="titel fuell">${esc(b.nummer)} · ${esc((S.auftraggeber[b.firmaId] || {}).name || '')}</span><span class="marke ${m[1]}">${esc(m[0])}</span></div>
     <div class="zeile eng"><span class="leise fuell">${esc(BELEG_ART[b.art][0])} vom ${datumText(b.datum)}${istRechnungOffen(b) ? ' · fällig ' + datumText(b.faelligAm) : ''}</span>
-      <b>${geld(s.brutto)}</b></div>${istRechnungOffen(b) && b.bezahltCent ? `<div class="leise">offen ${geld(offenCent(b))}</div>` : ''}</button>`;
+      <b>${b.art === 'GUTSCHRIFT' ? '− ' : ''}${geld(s.brutto)}</b></div>${istRechnungOffen(b) && b.bezahltCent ? `<div class="leise">offen ${geld(offenCent(b))}</div>` : ''}</button>`;
 }
 function zeichneFinanzen(r) {
   const k = finanzKennzahlen(), f = ANSICHT.belegFilter || 'OFFEN', such = String(ANSICHT.belegSuche || '').trim().toLowerCase();
   const liste = alle('belege').filter(b => {
     if (such) return [b.nummer, (S.auftraggeber[b.firmaId] || {}).name, b.notiz, positionen(b).map(p => p.bez).join(' ')].join(' ').toLowerCase().includes(such);
-    return f === 'ALLE' ? true : f === 'ANGEBOTE' ? b.art === 'ANGEBOT' : f === 'ENTWURF' ? b.status === 'ENTWURF'
+    return f === 'ALLE' ? true : f === 'ANGEBOTE' ? b.art === 'ANGEBOT' : f === 'GUTSCHRIFTEN' ? b.art === 'GUTSCHRIFT' : f === 'ENTWURF' ? b.status === 'ENTWURF'
       : f === 'BEZAHLT' ? b.status === 'BEZAHLT' : f === 'UEBERFAELLIG' ? istUeberfaellig(b) : istRechnungOffen(b);
   }).sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || String(b.nummer).localeCompare(String(a.nummer)));
   return seitenkopf('Finanzen', '<button class="knopf voll" data-neuer-beleg="RECHNUNG">＋ Rechnung</button>', `<button class="knopf" data-neuer-beleg="ANGEBOT">＋ Angebot</button>
@@ -2373,19 +2397,21 @@ function zeichneBeleg(id) {
   const rechnung = b.art === 'RECHNUNG', gesperrt = ['BEZAHLT', 'STORNIERT'].includes(b.status);
   el.dataset.id = 'beleg' + id;
   el.innerHTML = `<div class="karte"><div class="zeile eng"><h2 class="gross fuell">${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</h2><span class="marke ${m[1]}">${esc(m[0])}</span></div>
-      <p class="leise"><a href="#/firma/${b.firmaId}">${esc(firmaName(firma))}</a>${b.bezug && S.belege[b.bezug] ? ` · aus <a href="#/beleg/${b.bezug}">${esc(S.belege[b.bezug].nummer)}</a>` : ''}</p>
+      <p class="leise"><a href="#/firma/${b.firmaId}">${esc(firmaName(firma))}</a>${b.bezug && S.belege[b.bezug] ? ` · ${b.art === 'GUTSCHRIFT' ? 'zu' : 'aus'} <a href="#/beleg/${b.bezug}">${esc(S.belege[b.bezug].nummer)}</a>` : ''}${rechnung && gutschriftenZu(b).length ? ` · Gutschriften: ${gutschriftenZu(b).map(g => `<a href="#/beleg/${g.id}">${esc(g.nummer)}</a>`).join(', ')}` : ''}</p>
       <div class="zeile" style="margin-top:8px">
         <button class="knopf voll" data-beleg-akt="pdf">PDF speichern</button><button class="knopf" data-beleg-akt="drucken">Drucken</button>
         ${MAIL.konto ? '<button class="knopf" data-beleg-akt="mail">Per E-Mail senden</button>' : ''}
         ${rechnung && istRechnungOffen(b) ? '<button class="knopf" data-beleg-akt="zahlung">Zahlung erfassen</button>' : ''}
         ${rechnung && istUeberfaellig(b) && MAIL.konto ? `<button class="knopf" data-beleg-akt="mahnung">${esc(MAHNSTUFEN[Math.min(b.mahnstufe || 0, 3)])} senden</button>` : ''}
-        ${!rechnung && !['ANGENOMMEN', 'ABGELEHNT'].includes(b.status) ? '<button class="knopf" data-beleg-akt="zurechnung">In Rechnung umwandeln</button><button class="knopf" data-beleg-akt="abgelehnt">Abgelehnt</button>' : ''}
+        ${rechnung && !['ENTWURF', 'STORNIERT'].includes(b.status) ? '<button class="knopf" data-beleg-akt="gutschrift">↩ Gutschrift</button>' : ''}
+        ${b.art === 'GUTSCHRIFT' && b.status === 'OFFEN' ? '<button class="knopf" data-beleg-akt="ausgezahlt">Als ausgezahlt / verrechnet markieren</button>' : ''}
+        ${b.art === 'ANGEBOT' && !['ANGENOMMEN', 'ABGELEHNT'].includes(b.status) ? '<button class="knopf" data-beleg-akt="zurechnung">In Rechnung umwandeln</button><button class="knopf" data-beleg-akt="abgelehnt">Abgelehnt</button>' : ''}
         ${b.status === 'ENTWURF' ? '<button class="knopf" data-beleg-akt="festschreiben">Als versendet markieren</button>' : ''}
         ${rechnung && b.status !== 'STORNIERT' ? '<button class="knopf text gefahr" data-beleg-akt="storno">Stornieren</button>' : ''}
         ${b.status === 'ENTWURF' ? '<button class="knopf text gefahr" data-beleg-akt="loeschen">Löschen</button>' : ''}</div></div>
     <form id="beleg-form" class="karte block">
       <div class="zeile"><label class="feld fuell">Datum<input type="date" name="datum" value="${esc(b.datum || '')}" ${gesperrt ? 'disabled' : ''}></label>
-        <label class="feld fuell">${rechnung ? 'Fällig am' : 'Gültig bis'}<input type="date" name="faelligAm" value="${esc(b.faelligAm || '')}" ${gesperrt ? 'disabled' : ''}></label>
+        <label class="feld fuell">${rechnung ? 'Fällig am' : b.art === 'GUTSCHRIFT' ? 'Auszahlung bis' : 'Gültig bis'}<input type="date" name="faelligAm" value="${esc(b.faelligAm || '')}" ${gesperrt ? 'disabled' : ''}></label>
         <label class="feld" style="width:90px">MwSt. %<input name="mwstProzent" inputmode="numeric" value="${esc(b.mwstProzent ?? 19)}" ${gesperrt ? 'disabled' : ''}></label></div>
       <label class="feld">Einleitung<textarea name="einleitung" ${gesperrt ? 'disabled' : ''}>${esc(b.einleitung || '')}</textarea></label>
       <h3>Positionen</h3>
@@ -2397,6 +2423,7 @@ function zeichneBeleg(id) {
       ${gesperrt ? '' : `<div class="zeile"><button type="button" class="knopf" data-pos-neu>＋ Position</button>
         ${preise.length ? `<select id="aus-preisliste"><option value="">＋ aus Preisliste …</option>${preise.map(p => `<option value="${p.id}">${esc(p.bezeichnung)} (${p.betragCent != null ? geld(p.betragCent) : '–'})</option>`).join('')}</select>` : ''}</div>`}
       <dl style="margin-top:10px"><dt>Summe netto</dt><dd>${geld(s.netto)}</dd><dt>MwSt.</dt><dd>${geld(s.mwst)}</dd><dt><b>Gesamt</b></dt><dd><b>${geld(s.brutto)}</b></dd>
+        ${rechnung && gutgeschriebenCent(b) ? `<dt>Gutgeschrieben</dt><dd>− ${geld(gutgeschriebenCent(b))}</dd>${b.bezahltCent ? '' : `<dt>Offen</dt><dd>${geld(offenCent(b))}</dd>`}` : ''}
         ${b.bezahltCent ? `<dt>Bezahlt${b.bezahltAm ? ' am ' + datumText(b.bezahltAm) : ''}</dt><dd>${geld(b.bezahltCent)}</dd><dt>Offen</dt><dd>${geld(offenCent(b))}</dd>` : ''}</dl>
       <label class="feld">Schlusstext (${'{FAELLIG}'} = Fälligkeitsdatum)<textarea name="schluss" ${gesperrt ? 'disabled' : ''}>${esc(b.schluss || '')}</textarea></label>
       <label class="feld">Interne Notiz<input name="notiz" value="${esc(b.notiz || '')}"></label>
@@ -2422,7 +2449,7 @@ async function belegMail(b, art = 'beleg') {
     const s = belegSummen(b);
     const texte = art === 'mahnung'
       ? [`${MAHNSTUFEN[Math.min(b.mahnstufe || 0, 3)]}: ${BELEG_ART[b.art][0]} ${b.nummer}`, `unsere Rechnung ${b.nummer} vom ${datumText(b.datum)} über ${geld(s.brutto)} war am ${datumText(b.faelligAm)} fällig. Offen sind noch ${geld(offenCent(b))}.\n\nSicher ist die Zahlung nur übersehen worden. Bitte überweisen Sie den offenen Betrag innerhalb von 7 Tagen. Sollte sich die Zahlung mit diesem Schreiben überschnitten haben, betrachten Sie es bitte als gegenstandslos.\n\nDie Rechnung finden Sie noch einmal im Anhang.`]
-      : [`${BELEG_ART[b.art][0]} ${b.nummer}`, `anbei erhalten Sie unser${b.art === 'RECHNUNG' ? 'e Rechnung' : ' Angebot'} ${b.nummer} über ${geld(s.brutto)}${b.art === 'RECHNUNG' ? `, zahlbar bis ${datumText(b.faelligAm)}` : ''}.`];
+      : [`${BELEG_ART[b.art][0]} ${b.nummer}`, `anbei erhalten Sie unser${{ RECHNUNG: 'e Rechnung', GUTSCHRIFT: 'e Gutschrift' }[b.art] || ' Angebot'} ${b.nummer} über ${geld(s.brutto)}${b.art === 'RECHNUNG' ? `, zahlbar bis ${datumText(b.faelligAm)}` : ''}.`];
     mailAnFirma({ firmaId: b.firmaId, an: (k && k.email) || firma.email || '', betreff: texte[0], inhalt: texte[1],
       anhaenge: [{ name: belegDateiname(b), mimeType: 'application/pdf', base64: pdf }],
       nachSenden: () => {
@@ -2473,6 +2500,17 @@ $('#detail').addEventListener('click', async e => {
     case 'zurechnung': gehe('#/beleg/' + BelegAktionen.zuRechnung(aktuell)); break;
     case 'abgelehnt': BelegAktionen.speichern({ ...aktuell, status: 'ABGELEHNT' }); break;
     case 'festschreiben': BelegAktionen.speichern({ ...aktuell, status: 'OFFEN' }); break;
+    case 'ausgezahlt': BelegAktionen.speichern({ ...aktuell, status: 'BEZAHLT', bezahltAm: heute(), bezahltCent: belegSummen(aktuell).brutto }); break;
+    case 'gutschrift': {
+      const offen = offenCent(aktuell);
+      dialog(`<h2>Gutschrift zu ${esc(aktuell.nummer)}</h2><p class="leise">Die Rechnung bleibt bestehen; die Gutschrift mindert Umsatz und offenen Betrag, sobald sie als versendet markiert ist.</p>
+        <button class="vorlage" id="gs-voll"><b>Ganze Rechnung gutschreiben (Storno)</b><br><span class="leise">alle Positionen, ${geld(belegSummen(aktuell).brutto)} brutto</span></button>
+        <button class="vorlage" id="gs-teil"><b>Teilbetrag gutschreiben</b><br><span class="leise">z. B. Preisnachlass, Reklamation, doppelt berechnet${offen ? ' · noch offen: ' + geld(offen) : ''}</span></button>
+        <div class="dialog-knoepfe"><button class="knopf text" data-zu>Abbrechen</button></div>`);
+      const los = voll => { $('#dialog').close(); gehe('#/beleg/' + BelegAktionen.gutschrift(aktuell, voll)); toast('Gutschrift als Entwurf angelegt – prüfen und „Als versendet markieren“'); };
+      $('#gs-voll').onclick = () => los(true); $('#gs-teil').onclick = () => los(false);
+      break;
+    }
     case 'storno': bestaetige(`${aktuell.nummer} stornieren?`, 'Die Rechnung bleibt erhalten, zählt aber nicht mehr zum Umsatz und zu den offenen Posten.', 'Stornieren', () => BelegAktionen.speichern({ ...aktuell, status: 'STORNIERT' })); break;
     case 'loeschen': bestaetige(`${aktuell.nummer} löschen?`, 'Der Entwurf wird gelöscht.', 'Löschen', () => { BelegAktionen.loeschen(aktuell); gehe('#/firma/' + aktuell.firmaId); }); break;
   }
@@ -3034,7 +3072,7 @@ function fristenMatrixDialog(nurFaellig = false) {
   dialog(`<div class="breit-dialog"><h2>🎓 Fristen- und Schulungsmatrix</h2>
     <p class="leise">${alleZ.length} aktive Mitarbeiter · <span class="marke rot">${rot} überfällig</span> <span class="marke gelb">${gelb} in ${FRIST_VORLAUF} Tagen</span> · Datum antippen = zum Mitarbeiter, leer = nicht eingetragen.</p>
     <label class="auswahl"><input type="checkbox" id="matrix-faellig" ${nurFaellig ? 'checked' : ''}> nur Mitarbeiter mit fälligen Fristen</label>
-    <div class="matrix-rahmen">${z.length ? fristenMatrixHtml(z) : '<p class="leise">Nichts fällig.</p>'}</div>
+    <div class="matrix-rahmen" tabindex="0">${z.length ? fristenMatrixHtml(z) : '<p class="leise">Nichts fällig.</p>'}</div>
     <div class="dialog-knoepfe"><button type="button" class="knopf" id="matrix-druck">🖨 Drucken</button><button type="button" class="knopf voll" data-zu>Schließen</button></div></div>`);
   $('#matrix-faellig').onchange = e => fristenMatrixDialog(e.target.checked);
   $('#matrix-druck').onclick = () => druckeHtml(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Fristenmatrix</title><style>@page{size:A4 landscape;margin:10mm}body{font:9pt Arial,sans-serif}
@@ -3498,6 +3536,56 @@ function tourEingabe(t, el) {
   if (JSON.stringify(neu) !== JSON.stringify(t)) TourAktionen.speichern(neu);
 }
 
+// ---------- Endkunde: Lieferavis, Statuslink, Bewertung ----------
+const neuerStatusCode = () => { const z = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789', r = crypto.getRandomValues(new Uint8Array(20)); return Array.from(r, x => z[x % z.length]).join(''); };
+/** Öffentlicher Link für den Endkunden: Status ohne Anmeldung, nach der Lieferung mit Bewertung. */
+const statusLink = t => `${new URL('status.html', appAdresse()).href}?s=${t.statusCode}&c=${encodeURIComponent(apiUrl() || '')}`;
+function sicherStatusCode(t) {
+  if (t.statusCode) return t;
+  return merke('touren', { ...S.touren[t.id], statusCode: neuerStatusCode(), geaendertAm: jetztIso() });
+}
+function lieferavisText(t, mitLink = true) {
+  const firma = S.einstellungen.firma || rechnungsDaten().name || 'Ihr Lieferteam', ag = tourAuftraggeberName(t);
+  return `Guten Tag${t.kundeName ? ' ' + t.kundeName : ''},\nIhre Lieferung${ag ? ' von ' + ag : ''} kommt am ${datumMitTag(t.datum)}${t.zeitfenster ? ' zwischen ' + t.zeitfenster.replace(/\s*[–-]\s*/, ' und ') : t.uhrzeit ? ' ab ca. ' + t.uhrzeit + ' Uhr' : ''}.`
+    + `${t.kundeAdresse ? '\nAdresse: ' + t.kundeAdresse : ''}\nBitte sorgen Sie dafür, dass jemand vor Ort ist.${mitLink && mitCloud() ? '\nAktueller Status: ' + statusLink(t) : ''}\nViele Grüße\n${firma}`;
+}
+function bewertungAnfrageText(t) {
+  const firma = S.einstellungen.firma || rechnungsDaten().name || 'Ihr Lieferteam';
+  return `Guten Tag${t.kundeName ? ' ' + t.kundeName : ''},\nvielen Dank! Ihre Lieferung wurde zugestellt. Wie zufrieden waren Sie? Hier können Sie uns mit 1 bis 5 Sternen bewerten (dauert 10 Sekunden):\n${statusLink(t)}\nViele Grüße\n${firma}`;
+}
+const sterne = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+function tourKundeDialog(t) {
+  const e = S.touren[t.id] || t, fertig = e.status === 'ERLEDIGT' || !!e.abgeliefertAm;
+  dialog(`<form method="dialog" id="kunde-form"><h2>📦 Endkunde und Lieferavis</h2><p class="leise">${esc(datumText(e.datum))} · ${esc(tourText(e))}</p>
+    <label class="feld">Name des Endkunden<input name="kundeName" value="${esc(e.kundeName || '')}" autocomplete="off"></label>
+    <div class="zeile"><label class="feld fuell">Telefon (für SMS/WhatsApp)<input name="kundeTelefon" type="tel" value="${esc(e.kundeTelefon || '')}"></label>
+      <label class="feld fuell">E-Mail<input name="kundeEmail" type="email" value="${esc(e.kundeEmail || '')}"></label></div>
+    <label class="feld">Lieferadresse<input name="kundeAdresse" value="${esc(e.kundeAdresse || '')}"></label>
+    <label class="feld">Zeitfenster (z. B. 8–12 Uhr)<input name="zeitfenster" value="${esc(e.zeitfenster || '')}"></label>
+    ${e.bewertung ? `<div class="karte block" style="margin:8px 0"><b style="color:#b8860b;font-size:18px">${sterne(e.bewertung)}</b> <span class="leise">Kundenbewertung vom ${esc(datumText(String(e.bewertetAm || '').slice(0, 10)))}</span>${e.bewertungText ? `<p>„${esc(e.bewertungText)}“</p>` : ''}</div>` : ''}
+    <h3>${fertig ? 'Nach der Lieferung' : 'Lieferavis senden'}</h3>
+    <div class="zeile" style="flex-wrap:wrap;gap:8px">
+      <button type="button" class="knopf tonal" data-avis="sms">SMS</button><button type="button" class="knopf tonal" data-avis="wa">💬 WhatsApp</button><button type="button" class="knopf tonal" data-avis="mail">✉ E-Mail</button>
+      ${mitCloud() ? '<button type="button" class="knopf" data-avis="link">🔗 Statuslink teilen</button>' : ''}</div>
+    <p class="leise">${fertig ? 'Sendet die Bitte um eine Bewertung (1–5 Sterne) mit dem Statuslink.' : 'Sendet Termin, Zeitfenster und den Statuslink – darüber sieht der Kunde ohne Anmeldung, ob die Lieferung geplant, unterwegs oder zugestellt ist, und kann danach bewerten.'}${mitCloud() ? '' : ' Statuslink und Bewertung brauchen die Cloud.'}</p>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Schließen</button><button class="knopf voll">Speichern</button></div></form>`);
+  const f = $('#kunde-form');
+  const sichern = () => { const w = Object.fromEntries([...new FormData(f)].map(([k, v]) => [k, String(v).trim()])); return merke('touren', { ...S.touren[t.id], ...w, geaendertAm: jetztIso() }); };
+  f.onsubmit = ev => { ev.preventDefault(); sichern(); $('#dialog').close(); nachAenderung(); toast('Gespeichert'); };
+  f.onclick = ev => {
+    const b = ev.target.closest('[data-avis]'); if (!b) return;
+    let x = sichern(); if (mitCloud()) x = sicherStatusCode(x); nachAenderung();
+    const text = fertig ? bewertungAnfrageText(x) : lieferavisText(x), art = b.dataset.avis;
+    if ((art === 'sms' || art === 'wa') && !x.kundeTelefon) { toast('Bitte zuerst die Telefonnummer eintragen.'); return; }
+    if (art === 'mail' && !x.kundeEmail) { toast('Bitte zuerst die E-Mail-Adresse eintragen.'); return; }
+    if (art === 'sms') oeffne(`sms:${intNummer(x.kundeTelefon)}${/iPhone|iPad|iPod/.test(navigator.userAgent) ? '&' : '?'}body=${encodeURIComponent(text)}`);
+    if (art === 'wa') whatsapp(x.kundeTelefon, text);
+    if (art === 'mail') oeffne(`mailto:${encodeURIComponent(x.kundeEmail).replace(/%40/g, '@')}?subject=${encodeURIComponent(fertig ? 'Wie war Ihre Lieferung?' : 'Ihr Liefertermin am ' + datumText(x.datum))}&body=${encodeURIComponent(text)}`);
+    if (art === 'link') teile('Lieferstatus', statusLink(x));
+  };
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-tour-kunde]'); if (b && S.touren[b.dataset.tourKunde]) tourKundeDialog(S.touren[b.dataset.tourKunde]); });
+
 /** Text einer Tour für WhatsApp/SMS. */
 function tourNachricht(t) {
   const ag = S.auftraggeber[t.auftraggeberId], adr = ag ? rechnungsAdresse(ag.id) : null;
@@ -3652,6 +3740,7 @@ function tourMehr(t) {
     <label class="feld">Hinweis für das Team<textarea id="tour-notiz">${esc(t.notiz || '')}</textarea></label>
     <div class="liste-knoepfe">
       <button class="vorlage" data-tm="details"><b>⏱ Status, Zeiten und Kilometer</b><br><span class="leise">${esc(tourStatus(t)[0])}${t.beginn ? ' · ' + esc(t.beginn) : ''}${t.ende ? '–' + esc(t.ende) : ''}${tourKm(t) != null ? ' · ' + tourKm(t) + ' km' : ''}</span></button>
+      <button class="vorlage" data-tm="kunde"><b>📦 Endkunde, Lieferavis & Statuslink</b><br><span class="leise">${t.kundeName ? esc(t.kundeName) + ' · ' : ''}${t.bewertung ? sterne(t.bewertung) : t.statusCode ? 'Statuslink verschickt' : 'SMS/WhatsApp/E-Mail an den Kunden, Bewertung nach Lieferung'}</span></button>
       ${teamVon(t).length ? '<button class="vorlage" data-tm="senden"><b>📨 Einzeln senden (WhatsApp/SMS je Person)</b></button>' : ''}
       <button class="vorlage" data-tm="begleitschein"><b>📄 Begleitschein / Liefernachweis drucken</b></button>
       ${tourAdresse(t) ? `<button class="vorlage" data-tm="navi"><b>🧭 Navigation</b><br><span class="leise">${esc(tourAdresse(t))}</span></button>` : ''}
@@ -3674,7 +3763,7 @@ function tourMehr(t) {
     if (notiz !== (t.notiz || '')) TourAktionen.speichern({ ...t, notiz });
     if (fall) { gehe('#/fall/' + fall.dataset.tmFall); return; }
     const tn = S.touren[t.id] || t;
-    ({ ok: () => {}, schaden: () => schadenAusTour(t), details: () => tourDetailsDialog(tn), begleitschein: () => begleitscheinDrucken([tn]), senden: () => tourSenden(tn), navi: () => navigation(tourAdresse(t)), abliefern: () => abliefernDialog(tn),
+    ({ ok: () => {}, schaden: () => schadenAusTour(t), details: () => tourDetailsDialog(tn), begleitschein: () => begleitscheinDrucken([tn]), senden: () => tourSenden(tn), kunde: () => tourKundeDialog(tn), navi: () => navigation(tourAdresse(t)), abliefern: () => abliefernDialog(tn),
       aufgabe: () => aufgabeDialog(null, { bezugArt: 'tour', bezugId: t.id, titel: '', faelligAm: t.datum }), storno: () => tourStatusSetzen(tn, tn.status === 'STORNIERT' ? 'GEPLANT' : 'STORNIERT'), firma: () => gehe('#/firma/' + t.auftraggeberId), fahrzeug: () => gehe('#/fahrzeug/' + fahrzeugZumKz(t.kennzeichen).id),
       kopie: () => TourAktionen.neu(t.datum, { kennzeichen: '', tourNr: t.tourNr, auftraggeberId: t.auftraggeberId, auftraggeber: t.auftraggeber, name: t.name, uhrzeit: t.uhrzeit, einsatzart: t.einsatzart }),
       morgen: () => tagWaehlen('Tour kopieren auf', plusTage(t.datum, 1), tag => { TourAktionen.neu(tag, { kennzeichen: t.kennzeichen, tourNr: t.tourNr, auftraggeberId: t.auftraggeberId, auftraggeber: t.auftraggeber, name: t.name, uhrzeit: t.uhrzeit, einsatzart: t.einsatzart }); toast('Kopiert auf ' + datumText(tag)); }),
@@ -3781,7 +3870,7 @@ function firmaTourenHtml(firma) {
   const dies = tourenVonFirma(firma, m0.von, heute()).filter(tourGefahren), letzter = tourenVonFirma(firma, m1.von, m1.bis).filter(tourGefahren);
   const geplant = tourenVonFirma(firma, plusTage(heute(), 1), plusTage(heute(), 14)), offen = tourenVonFirma(firma).filter(t => tourGefahren(t) && t.datum <= heute() && !(t.belegId && S.belege[t.belegId] && !S.belege[t.belegId].geloescht));
   const jahr = tourenVonFirma(firma, heute().slice(0, 4) + '-01-01', heute()).filter(tourGefahren);
-  const umsatz = vonFirma('belege', firma.id).filter(b => b.art === 'RECHNUNG' && String(b.datum).startsWith(heute().slice(0, 4))).reduce((n, b) => n + belegSummen(b).netto, 0);
+  const umsatz = vonFirma('belege', firma.id).filter(b => String(b.datum).startsWith(heute().slice(0, 4))).reduce((n, b) => n + umsatzNetto(b), 0);
   const leute = {}; for (const t of tourenVonFirma(firma, plusTage(heute(), -90), heute())) for (const id of teamVon(t)) leute[id] = (leute[id] || 0) + 1;
   const top = Object.entries(leute).sort((a, b) => b[1] - a[1]).slice(0, 6).filter(([id]) => maVon(id));
   if (!tourenVonFirma(firma).length) return '<p class="leise">Noch keine Touren für diese Firma.</p>';
@@ -3902,7 +3991,7 @@ function auswertungTabelle(art, von, bis) {
     const touren = alle('touren').filter(t => t.datum >= von && t.datum <= bis && tourGefahren(t));
     const nach = {}; for (const t of touren) { const k = t.auftraggeberId || 'name:' + normal(t.auftraggeber); (nach[k] = nach[k] || []).push(t); }
     const zeilen = Object.entries(nach).map(([k, l]) => {
-      const f = S.auftraggeber[k], umsatz = f ? vonFirma('belege', f.id).filter(b => b.art === 'RECHNUNG' && b.datum >= von && b.datum <= bis).reduce((n, b) => n + belegSummen(b).netto, 0) : 0;
+      const f = S.auftraggeber[k], umsatz = f ? vonFirma('belege', f.id).filter(b => b.datum >= von && b.datum <= bis).reduce((n, b) => n + umsatzNetto(b), 0) : 0;
       const offen = l.filter(t => !(t.belegId && S.belege[t.belegId] && !S.belege[t.belegId].geloescht)).length;
       return { id: f ? f.id : '', link: f ? 'firma' : '', werte: [tourAuftraggeberName(l[0]) || '(ohne)', l.length, new Set(l.map(t => t.datum)).size, offen, umsatz ? geld(umsatz) : '', umsatz && l.length ? geld(Math.round(umsatz / l.length)) : '',
         Object.entries(l.reduce((o, t) => { o[t.einsatzart || '–'] = (o[t.einsatzart || '–'] || 0) + 1; return o; }, {})).map(([a, n]) => `${n}× ${a}`).join(', ')], sort: l.length };
@@ -4089,6 +4178,7 @@ const QUELLEN = {
       erloes: ['Erlös', t => tourRechnung(t).erloes, 'geld'], kosten: ['Kosten gesamt', t => tourRechnung(t).kosten, 'geld'], kostenPersonal: ['Personalkosten', t => tourRechnung(t).personal, 'geld'],
       kostenFahrzeug: ['Fahrzeugkosten', t => tourRechnung(t).fahrzeug, 'geld'], kostenSchaden: ['Schadenkosten', t => tourRechnung(t).schaeden, 'geld'], db: ['Deckungsbeitrag (Gewinn/Verlust)', t => tourRechnung(t).db, 'geld'],
       dbSchnitt: ['Ø Deckungsbeitrag je Tour', t => tourRechnung(t).db, 'geld', 'schnitt'], erloesSchnitt: ['Ø Erlös je Tour', t => tourRechnung(t).erloes, 'geld', 'schnitt'],
+      bewertung: ['Ø Kundenbewertung (Sterne)', t => t.bewertung || null, 'zahl', 'schnitt'], bewertet: ['Bewertete Lieferungen', t => (t.bewertung ? 1 : 0), 'zahl'],
       km: ['Kilometer (Fahrtenbuch)', t => tourKm(t) || 0, 'zahl'], dauer: ['Ø Dauer (Std.)', t => { const b = zeitMin(t.beginn), e = zeitMin(t.ende); return b != null && e != null && e > b ? (e - b) / 60 : null; }, 'zahl', 'schnitt'],
       problem: ['Touren mit Problem', t => (t.status === 'PROBLEM' ? 1 : 0)], unterschrift: ['Mit Unterschrift', t => (anlagenVon(t.id).some(a => /^Unterschrift/.test(a.anzeigename)) ? 1 : 0)] } },
   schaeden: { titel: 'Schadensfälle', datum: f => f.schadensdatum || f.meldedatum || (f.erstelltAm || '').slice(0, 10), zeilen: () => faelle(),
@@ -4112,9 +4202,9 @@ const QUELLEN = {
     dims: { mitarbeiter: ['Mitarbeiter', x => maName(x.a.mitarbeiterId) || '(gelöscht)'], grund: ['Grund', x => grundArt(x.a.grund)] },
     masse: { tage: ['Tage', () => 1], urlaub: ['Urlaubstage', x => (grundArt(x.a.grund) === 'Urlaub' ? 1 : 0)], krank: ['Krankheitstage', x => (grundArt(x.a.grund) === 'Krank' ? 1 : 0)],
       faelle: ['Abwesenheiten (Anzahl)', x => x.a.id, 'zahl', 'eindeutig'] } },
-  rechnungen: { titel: 'Rechnungen', datum: b => b.datum, zeilen: () => alle('belege').filter(b => b.art === 'RECHNUNG' && b.status !== 'STORNIERT'),
-    dims: { auftraggeber: ['Auftraggeber', b => (S.auftraggeber[b.firmaId] || {}).name || '(gelöscht)'], status: ['Status', b => belegMarke(b)[0]], mahnstufe: ['Mahnstufe', b => String(b.mahnstufe || 0)] },
-    masse: { anzahl: ['Anzahl', () => 1], netto: ['Umsatz netto', b => belegSummen(b).netto, 'geld'], brutto: ['Umsatz brutto', b => belegSummen(b).brutto, 'geld'], offen: ['Offen', offenCent, 'geld'],
+  rechnungen: { titel: 'Rechnungen', datum: b => b.datum, zeilen: () => alle('belege').filter(b => (b.art === 'RECHNUNG' && b.status !== 'STORNIERT') || (b.art === 'GUTSCHRIFT' && zaehltUmsatz(b))),
+    dims: { auftraggeber: ['Auftraggeber', b => (S.auftraggeber[b.firmaId] || {}).name || '(gelöscht)'], art: ['Art', b => BELEG_ART[b.art][0]], status: ['Status', b => belegMarke(b)[0]], mahnstufe: ['Mahnstufe', b => String(b.mahnstufe || 0)] },
+    masse: { anzahl: ['Anzahl', () => 1], netto: ['Umsatz netto', b => (b.art === 'GUTSCHRIFT' ? -1 : 1) * belegSummen(b).netto, 'geld'], brutto: ['Umsatz brutto', b => (b.art === 'GUTSCHRIFT' ? -1 : 1) * belegSummen(b).brutto, 'geld'], offen: ['Offen', offenCent, 'geld'],
       bezahlt: ['Bezahlt', b => b.bezahltCent || 0, 'geld'], ueberfaellig: ['Überfällig', b => (istUeberfaellig(b) ? offenCent(b) : 0), 'geld'],
       zahlTage: ['Ø Tage bis zur Zahlung', b => (b.bezahltAm && b.datum ? tageZwischen(b.datum, b.bezahltAm) : null), 'zahl', 'schnitt'], schnitt: ['Ø Rechnungsbetrag (netto)', b => belegSummen(b).netto, 'geld', 'schnitt'] } },
   angebote: { titel: 'Angebote', datum: b => b.datum, zeilen: () => alle('belege').filter(b => b.art === 'ANGEBOT'),
@@ -4173,7 +4263,8 @@ const tageZwischen = (a, b) => Math.round((alsTag(b) - alsTag(a)) / 864e5);
 
 /** Wertet eine Quelle aus: { schluessel → { wert, anzahl } } je Gruppe (bzw. Gruppe×Gruppe2). */
 function statistikRechnen(quelleK, massK, dimK, dim2K, von, bis, filter) {
-  const q = QUELLEN[quelleK], [, mf, , agg = 'summe'] = q.masse[massK], dim = q.dims[dimK], dim2 = dim2K ? q.dims[dim2K] : null;
+  const q = QUELLEN[quelleK], [, mf, art, agg = 'summe'] = q.masse[massK], dim = q.dims[dimK], dim2 = dim2K ? q.dims[dim2K] : null;
+  if ((art === 'geld' || ['rechnungen', 'angebote', 'fahrzeugkosten', 'lohn'].includes(quelleK)) && finanzAb() && von < finanzAb()) von = finanzAb();
   const ergebnis = new Map();
   const zeilen = q.zeilen(von, bis).filter(r => q.ohneZeit || (q.datum(r) && q.datum(r) >= von && q.datum(r) <= bis))
     .filter(r => !filter || !filter.dim || [].concat(q.dims[filter.dim][1](r)).includes(filter.wert));
@@ -4302,7 +4393,7 @@ function statistikHtml(st, zr) {
   if (!t.zeilen.length) return '<div class="leer"><b>Keine Daten im Zeitraum</b>Zeitraum, Quelle oder Filter ändern.</div>';
   if (t.kreuz) {
     const max = Math.max(...t.zeilen.flatMap(z => z.werte.map(w => Math.abs(Number(w) || 0))));
-    return `<div class="tabelle-rahmen"><table class="tabelle kreuz" id="statistik-tabelle"><tr><th>${esc(dimL)}</th>${t.spalten.map(k => `<th class="r">${esc(dimText(st.d2, k))}</th>`).join('')}<th class="r">Summe</th></tr>
+    return `<div class="tabelle-rahmen" tabindex="0"><table class="tabelle kreuz" id="statistik-tabelle"><tr><th>${esc(dimL)}</th>${t.spalten.map(k => `<th class="r">${esc(dimText(st.d2, k))}</th>`).join('')}<th class="r">Summe</th></tr>
       ${t.zeilen.map(z => `<tr><td>${esc(dimText(st.d, z.k))}</td>${z.werte.map(w => `<td class="r" style="${w ? `background:color-mix(in srgb, var(--primaer) ${Math.round(Math.abs(w) / max * 45)}%, transparent)` : ''}">${w == null ? '' : esc(wertText(t.art, w))}</td>`).join('')}<td class="r"><b>${esc(wertText(t.art, z.summe))}</b></td></tr>`).join('')}</table></div>`;
   }
   const spalteV = st.sort === 'v' && t.b;
@@ -4310,7 +4401,7 @@ function statistikHtml(st, zr) {
   const summe = t.zeilen.reduce((n, z) => n + (Number(z.wert) || 0), 0), summeB = t.b ? t.zeilen.reduce((n, z) => n + (Number(z.b) || 0), 0) : 0;
   const agg = q.masse[st.m][3];
   const vTitel = t.b ? `${QUELLEN[st.v.q].masse[st.v.m][0]} ${VERHAELTNIS[st.v.art][0]} ${q.masse[st.m][0]}` : '';
-  return `<div class="tabelle-rahmen"><table class="tabelle" id="statistik-tabelle"><tr><th>#</th><th>${esc(dimL)}</th><th class="r">${esc(q.masse[st.m][0])}</th>${t.b ? `<th class="r">${esc(QUELLEN[st.v.q].masse[st.v.m][0])}</th><th class="r">${esc(vTitel)}</th>` : ''}<th class="balken-spalte"></th></tr>
+  return `<div class="tabelle-rahmen" tabindex="0"><table class="tabelle" id="statistik-tabelle"><tr><th>#</th><th>${esc(dimL)}</th><th class="r">${esc(q.masse[st.m][0])}</th>${t.b ? `<th class="r">${esc(QUELLEN[st.v.q].masse[st.v.m][0])}</th><th class="r">${esc(vTitel)}</th>` : ''}<th class="balken-spalte"></th></tr>
     ${t.zeilen.map((z, i) => `<tr class="klickbar" data-statistik-zeile="${esc(z.k)}"><td class="leise">${i + 1}</td><td>${esc(dimText(st.d, z.k))}</td><td class="r">${esc(wertText(t.art, z.wert))}</td>
       ${t.b ? `<td class="r">${esc(wertText(t.vArt === 'prozent' ? 'zahl' : QUELLEN[st.v.q].masse[st.v.m][2] || 'zahl', z.b))}</td><td class="r"><b>${esc(wertText(t.vArt, z.v))}</b></td>` : ''}
       <td class="balken-spalte" title="${esc(dimText(st.d, z.k))}: ${esc(wertText(spalteV ? t.vArt : t.art, spalteV ? z.v : z.wert))}">${balken(spalteV ? z.v : z.wert, max)}</td></tr>`).join('')}
@@ -4334,8 +4425,8 @@ function mitarbeiterBewertung(von, bis) {
   return zeilen.sort((x, y) => x.punkte - y.punkte);
 }
 function bestenlistenHtml(zr) {
-  const ma = mitarbeiterBewertung(zr.von, zr.bis);
-  const touren = alle('touren').filter(t => tourGefahren(t) && t.datum >= zr.von && t.datum <= zr.bis).map(t => ({ t, r: tourRechnung(t) }));
+  const ma = mitarbeiterBewertung(zr.von, zr.bis), zf = abFinanz(zr);
+  const touren = alle('touren').filter(t => tourGefahren(t) && t.datum >= zf.von && t.datum <= zf.bis).map(t => ({ t, r: tourRechnung(t) }));
   const gruppen = Object.values(touren.reduce((o, x) => { const k = tourGruppe(x.t); (o[k] = o[k] || { k, l: [] }).l.push(x); return o; }, {}))
     .map(g => ({ k: g.k, n: g.l.length, db: g.l.reduce((n, x) => n + x.r.db, 0), schaeden: g.l.reduce((n, x) => n + schaedenVonTour(x.t).length, 0) }));
   const firmen = Object.values(touren.reduce((o, x) => { const k = tourAuftraggeberName(x.t) || '(ohne)'; (o[k] = o[k] || { k, id: x.t.auftraggeberId, n: 0, erloes: 0, kosten: 0, schaeden: 0 }); o[k].n++; o[k].erloes += x.r.erloes; o[k].kosten += x.r.kosten; o[k].schaeden += schaedenVonTour(x.t).length; return o; }, {}))
@@ -4368,31 +4459,32 @@ function bestenlistenHtml(zr) {
 
 // ---------- Gewinn & Verlust ----------
 function guvHtml(zr) {
+  zr = abFinanz(zr);
   const touren = alle('touren').filter(t => tourGefahren(t) && t.datum >= zr.von && t.datum <= zr.bis);
   const monate = {};
   for (const t of touren) {
     const m = t.datum.slice(0, 7), r = tourRechnung(t), x = monate[m] = monate[m] || { touren: 0, erloes: 0, personal: 0, fahrzeug: 0, schaeden: 0, gemein: 0, ohnePreis: 0 };
     x.touren++; x.erloes += r.erloes; x.personal += r.personal; x.fahrzeug += r.fahrzeug; x.schaeden += r.schaeden; x.gemein += r.gemein; if (!r.erloes) x.ohnePreis++;
   }
-  const umsatz = alle('belege').filter(b => b.art === 'RECHNUNG' && b.status !== 'STORNIERT' && b.datum >= zr.von && b.datum <= zr.bis);
+  const umsatz = alle('belege').filter(b => zaehltUmsatz(b) && b.datum >= zr.von && b.datum <= zr.bis);
   const lohn = alle('personaleintraege').filter(x => x.art === 'LOHN' && x.datum >= zr.von.slice(0, 7) + '-01' && x.datum <= zr.bis).reduce((n, x) => n + (x.kostenCent ?? x.bruttoCent ?? 0), 0);
   const fzKosten = alle('fahrzeugeintraege').filter(x => x.datum >= zr.von && x.datum <= zr.bis).reduce((n, x) => n + (x.betragCent || 0), 0);
   const schaedenIst = faelle().filter(f => (f.schadensdatum || f.meldedatum || '') >= zr.von && (f.schadensdatum || f.meldedatum || '') <= zr.bis).reduce((n, f) => n + schadenKosten(f), 0);
   const s = Object.values(monate).reduce((a, x) => { for (const k in x) a[k] = (a[k] || 0) + x[k]; return a; }, {});
   const ergebnis = (s.erloes || 0) - (s.personal || 0) - (s.fahrzeug || 0) - (s.schaeden || 0) - (s.gemein || 0);
-  const umsatzNetto = umsatz.reduce((n, b) => n + belegSummen(b).netto, 0);
+  const umsatzSumme = umsatz.reduce((n, b) => n + umsatzNetto(b), 0);
   const kz = (w, l, rot) => `<div class="kennzahl ${rot ? 'rot' : ''}"><b>${esc(w)}</b><span>${esc(l)}</span></div>`;
-  return `<div class="kennzahlen vier">${kz(geld(s.erloes || 0), 'Erlös aus Touren')}${kz(geld((s.personal || 0) + (s.fahrzeug || 0) + (s.schaeden || 0) + (s.gemein || 0)), 'Kosten der Touren')}
+  return `${finanzHinweis(zr)}<div class="kennzahlen vier">${kz(geld(s.erloes || 0), 'Erlös aus Touren')}${kz(geld((s.personal || 0) + (s.fahrzeug || 0) + (s.schaeden || 0) + (s.gemein || 0)), 'Kosten der Touren')}
       ${kz(geld(ergebnis), ergebnis >= 0 ? 'Gewinn (Deckungsbeitrag)' : 'Verlust', ergebnis < 0)}${kz(s.erloes ? (ergebnis / s.erloes * 100).toFixed(1).replace('.', ',') + ' %' : '–', 'Marge')}</div>
-    <div class="tabelle-rahmen"><table class="tabelle" id="guv"><tr><th>Monat</th><th class="r">Touren</th><th class="r">Erlös</th><th class="r">Personal</th><th class="r">Fahrzeuge</th><th class="r">Schäden</th>${kostenAnnahmen().gemein ? '<th class="r">Gemeinkosten</th>' : ''}<th class="r">Ergebnis</th><th class="r">je Tour</th></tr>
+    <div class="tabelle-rahmen" tabindex="0"><table class="tabelle" id="guv"><tr><th>Monat</th><th class="r">Touren</th><th class="r">Erlös</th><th class="r">Personal</th><th class="r">Fahrzeuge</th><th class="r">Schäden</th>${kostenAnnahmen().gemein ? '<th class="r">Gemeinkosten</th>' : ''}<th class="r">Ergebnis</th><th class="r">je Tour</th></tr>
       ${Object.keys(monate).sort().map(m => { const x = monate[m], e = x.erloes - x.personal - x.fahrzeug - x.schaeden - x.gemein;
         return `<tr><td>${esc(ZEIT_DIMS.monat[2](m))}${x.ohnePreis ? ` <span class="leise">(${x.ohnePreis} ohne Preis)</span>` : ''}</td><td class="r">${x.touren}</td><td class="r">${geld(x.erloes)}</td><td class="r">${geld(x.personal)}</td><td class="r">${geld(x.fahrzeug)}</td><td class="r">${geld(x.schaeden)}</td>
           ${kostenAnnahmen().gemein ? `<td class="r">${geld(x.gemein)}</td>` : ''}<td class="r" style="${e < 0 ? 'color:var(--rot-t)' : ''}"><b>${geld(e)}</b></td><td class="r">${geld(Math.round(e / x.touren))}</td></tr>`; }).join('')}</table></div>
     <div class="karte block"><h3>Abgleich mit den Ist-Zahlen</h3><dl>
-      <dt>Rechnungen (netto)</dt><dd>${geld(umsatzNetto)} (${umsatz.length} Rechnungen)</dd>
+      <dt>Rechnungen − Gutschriften (netto)</dt><dd>${geld(umsatzSumme)} (${umsatz.length} Belege)</dd>
       <dt>Lohnkosten laut Abrechnungen</dt><dd>${lohn ? geld(lohn) : 'keine Lohnabrechnungen im Zeitraum'}</dd>
       <dt>Fahrzeugakte</dt><dd>${geld(fzKosten)}</dd><dt>Schadenkosten (Fälle im Zeitraum)</dt><dd>${geld(schaedenIst)}</dd>
-      <dt>Ergebnis Ist (vereinfacht)</dt><dd><b>${geld(umsatzNetto - lohn - fzKosten - schaedenIst)}</b> <span class="leise">Rechnungen − Lohn − Fahrzeugakte − Schäden (ohne Leasing, Miete, Versicherung …)</span></dd></dl>
+      <dt>Ergebnis Ist (vereinfacht)</dt><dd><b>${geld(umsatzSumme - lohn - fzKosten - schaedenIst)}</b> <span class="leise">Rechnungen − Lohn − Fahrzeugakte − Schäden (ohne Leasing, Miete, Versicherung …)</span></dd></dl>
       <p class="leise" style="margin-top:8px">Touren-Rechnung: Erlös aus Rechnung bzw. Preisliste der Firma; Personal aus Lohnabrechnung, Stundenlohn oder Tagessatz; Fahrzeug aus Fahrzeugakte und Leasingrate oder Tagessatz. Annahmen unter ⚙ → Kosten.</p></div>`;
 }
 
@@ -4411,7 +4503,7 @@ function zeichneAuswertung() {
     const art = ANSICHT.auswertungArt || 'PERSONAL', t = auswertungTabelle(art, zr.von, zr.bis);
     const summe = i => t.zeilen.reduce((n, z) => n + (typeof z.werte[i] === 'number' ? z.werte[i] : 0), 0);
     return kopf + `<div class="chips">${Object.entries(AUSWERTUNG_ARTEN).map(([k, l]) => `<button class="chip" data-auswertung-art="${k}" aria-pressed="${art === k}">${l}</button>`).join('')}</div>
-      <div class="tabelle-rahmen"><table class="tabelle" id="auswertung"><tr>${t.kopf.map((k, i) => `<th class="${i ? 'r' : ''}">${esc(k)}</th>`).join('')}</tr>
+      <div class="tabelle-rahmen" tabindex="0"><table class="tabelle" id="auswertung"><tr>${t.kopf.map((k, i) => `<th class="${i ? 'r' : ''}">${esc(k)}</th>`).join('')}</tr>
       ${t.zeilen.map(z => `<tr class="klickbar" data-auswertung-link="${z.link}" data-auswertung-id="${z.id}">${z.werte.map((w, i) => `<td class="${i ? 'r' : ''}">${esc(w)}</td>`).join('')}</tr>`).join('')}
       ${t.zeilen.length ? `<tr class="summe">${t.kopf.map((k, i) => `<td class="${i ? 'r' : ''}">${i === 0 ? 'Summe' : t.zeilen.some(z => typeof z.werte[i] === 'number') ? summe(i) : ''}</td>`).join('')}</tr>` : ''}</table></div>`;
   }
@@ -4908,13 +5000,13 @@ function zeichneZeiten() {
   return seitenkopf('Zeiterfassung', '<button class="knopf voll" data-zeit-neu>＋ Zeit erfassen</button>', `<button class="knopf" data-zeit-xlsx>⤓ Excel (alle)</button><button class="knopf" data-zeit-csv>CSV Lohnbüro</button>
       <button class="knopf" data-zeit-druck-alle>🖨 Stundenzettel (alle)</button><button class="knopf" data-tacho-import-knopf>💳 Fahrerkarte einlesen</button>`)
     + `<div class="tp-datum"><button class="knopf" data-zeit-monat="-1" aria-label="Voriger Monat">◀</button><input type="month" id="zeit-monat" value="${monat}" aria-label="Monat"><button class="knopf" data-zeit-monat="1" aria-label="Nächster Monat">▶</button></div>
-    <div class="tabelle-rahmen"><table class="tabelle" id="zeiten-uebersicht"><tr><th>Mitarbeiter</th><th class="r">Tage</th><th class="r">Ist</th><th class="r">Soll</th><th class="r">Über</th><th>Hinweise</th></tr>${personen.map(zeile).join('')}</table></div>
+    <div class="tabelle-rahmen" tabindex="0"><table class="tabelle" id="zeiten-uebersicht"><tr><th>Mitarbeiter</th><th class="r">Tage</th><th class="r">Ist</th><th class="r">Soll</th><th class="r">Über</th><th>Hinweise</th></tr>${personen.map(zeile).join('')}</table></div>
     ${gewaehlt ? `<div class="karte block"><div class="zeile"><h3 class="fuell" style="margin:0">${esc(gewaehlt.name)} · ${esc(ZEIT_DIMS.monat[2](monat))}</h3>
         <button class="knopf" data-zeit-plan="${gewaehlt.id}">Entwürfe aus Tourenplan</button><button class="knopf" data-zeit-druck="${gewaehlt.id}">🖨 Stundenzettel</button><button class="knopf" data-zeit-xlsx-ma="${gewaehlt.id}">⤓ Excel</button></div>
       <p class="leise" style="margin:6px 0">Ist ${stdText(d.summe)}${d.soll != null ? ` · Soll ${stdText(d.soll)} · ${d.ueber >= 0 ? 'Überstunden' : 'Minusstunden'} ${stdText(d.ueber)}` : ''} · Sonntag ${stdText(d.sonntag)} · Feiertag ${stdText(d.feiertag)} · Nacht (23–6 Uhr) ${stdText(d.nacht)}
         ${d.lohn ? ` · Lohn laut Stundenlohn ${geld(d.lohn)}` : ''}${d.wochenUeber48.length ? ` · <b style="color:var(--rot-t)">über 48 h in ${d.wochenUeber48.map(([w]) => w.slice(5)).join(', ')}</b>` : ''}</p>
       ${d.entwuerfe ? '<p class="fehlertext">Entwürfe aus dem Plan sind kein Nachweis: bitte die tatsächlichen Zeiten eintragen bzw. bestätigen (Zeile antippen).</p>' : ''}
-      <div class="tabelle-rahmen"><table class="tabelle" id="zeiten-tage"><tr><th>Tag</th><th>Beginn</th><th>Ende</th><th class="r">Pause</th><th class="r">Arbeit</th><th>Herkunft / Hinweise</th></tr>
+      <div class="tabelle-rahmen" tabindex="0"><table class="tabelle" id="zeiten-tage"><tr><th>Tag</th><th>Beginn</th><th>Ende</th><th class="r">Pause</th><th class="r">Arbeit</th><th>Herkunft / Hinweise</th></tr>
       ${d.tage.filter(t => t.eintraege.length || t.tour || t.abw).map(t => t.eintraege.length ? t.eintraege.map((z, i) => `<tr class="klickbar ${z.quelle === 'PLAN' && !z.bestaetigt ? 'entwurf' : ''}" data-zeit="${z.id}">
           <td>${i ? '' : esc(datumMitTag(t.datum))}${!i && feiertagAm(t.datum) ? ` <span class="leise">${esc(feiertagAm(t.datum))}</span>` : ''}</td><td>${esc(z.beginn || '')}</td><td>${esc(z.ende || '')}</td><td class="r">${z.pauseMin || 0} min</td><td class="r">${stdText(zeitDauer(z))}</td>
           <td><span class="marke ${(ZEIT_QUELLE[z.quelle] || ZEIT_QUELLE.ERFASST)[1]}">${esc((ZEIT_QUELLE[z.quelle] || ZEIT_QUELLE.ERFASST)[0])}</span>${z.art && z.art !== 'ARBEIT' ? ` <span class="marke grau">${esc(ZEIT_ART[z.art])}</span>` : ''}
@@ -5200,7 +5292,7 @@ function tachoBerichtHtml(m, von, bis) {
   const s = k => tage.reduce((n, t) => n + (t[k] || 0), 0), verstoesse = Object.entries(h).filter(([d]) => d >= von && d <= bis).flatMap(([, l]) => l).filter(([f]) => f === 'rot').length;
   return `<div class="kennzahlen vier" style="margin:0 0 8px">${[[stdText(s('fahrMin')), 'Lenkzeit'], [stdText(s('arbeitMin')), 'Arbeit'], [stdText(s('bereitMin')), 'Bereitschaft'], [verstoesse, 'Verstöße 561/2006', verstoesse ? 'rot' : '']]
     .map(([w, l, f]) => `<div class="kennzahl ${f || ''}"><b>${esc(w)}</b><span>${esc(l)}</span></div>`).join('')}</div>
-    <div class="tabelle-rahmen"><table class="tabelle"><tr><th>Tag</th><th>Beginn</th><th>Ende</th><th class="r">Lenken</th><th class="r">Arbeit</th><th class="r">Bereit</th><th class="r">km</th><th>Fahrzeuge</th><th>Hinweise</th></tr>
+    <div class="tabelle-rahmen" tabindex="0"><table class="tabelle"><tr><th>Tag</th><th>Beginn</th><th>Ende</th><th class="r">Lenken</th><th class="r">Arbeit</th><th class="r">Bereit</th><th class="r">km</th><th>Fahrzeuge</th><th>Hinweise</th></tr>
     ${tage.map(t => `<tr><td>${esc(datumMitTag(t.datum))}</td><td>${esc(t.beginn)}</td><td>${esc(t.ende)}</td><td class="r">${stdText(t.fahrMin)}</td><td class="r">${stdText(t.arbeitMin)}</td><td class="r">${stdText(t.bereitMin)}</td>
       <td class="r">${t.km || ''}</td><td>${esc(t.fahrzeuge || '')}</td><td>${(h[t.datum] || []).map(([f, x]) => `<span class="marke ${f}">${esc(x)}</span>`).join(' ')}</td></tr>`).join('')}</table></div>`;
 }
@@ -5286,7 +5378,7 @@ function wochenplanHtml(tag) {
   const mo = plusTage(tag, -((alsTag(tag).getDay() + 6) % 7)), tage = Array.from({ length: 7 }, (_, i) => plusTage(mo, i));
   const touren = alle('touren').filter(t => t.datum >= tage[0] && t.datum <= tage[6] && t.status !== 'STORNIERT');
   const kz = [...new Set([...fahrzeugListe().filter(z => z.status !== 'STILLGELEGT').map(z => z.kennzeichen), ...touren.map(t => t.kennzeichen || '(ohne Fahrzeug)')])];
-  return `<div class="tabelle-rahmen"><table class="tabelle wochenplan"><tr><th>Fahrzeug</th>${tage.map(d => `<th class="${d === heute() ? 'heute' : ''}"><button class="knopf text" style="padding:0" data-tp-gehe="${d}">${esc(['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][alsTag(d).getDay()])} ${esc(d.slice(8))}.${esc(d.slice(5, 7))}.</button>${feiertagAm(d) ? `<br><span class="leise">${esc(feiertagAm(d))}</span>` : ''}</th>`).join('')}</tr>
+  return `<div class="tabelle-rahmen" tabindex="0"><table class="tabelle wochenplan"><tr><th>Fahrzeug</th>${tage.map(d => `<th class="${d === heute() ? 'heute' : ''}"><button class="knopf text" style="padding:0" data-tp-gehe="${d}">${esc(['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][alsTag(d).getDay()])} ${esc(d.slice(8))}.${esc(d.slice(5, 7))}.</button>${feiertagAm(d) ? `<br><span class="leise">${esc(feiertagAm(d))}</span>` : ''}</th>`).join('')}</tr>
     ${kz.map(k => `<tr><td><b>${esc(k)}</b></td>${tage.map(d => { const l = touren.filter(t => t.datum === d && (t.kennzeichen || '(ohne Fahrzeug)') === k);
       return `<td class="${[0, 6].includes(alsTag(d).getDay()) || feiertagAm(d) ? 'we' : ''}" data-tp-gehe="${d}">${l.map(t => `<div class="wp-tour"><b>${esc(tourAuftraggeberName(t) || t.name || 'Tour')}</b><br><span class="leise">${esc(maName(t.fahrerId) || '–')}${beifahrerVon(t).length ? ' +' + beifahrerVon(t).length : ''}</span></div>`).join('')}</td>`; }).join('')}</tr>`).join('')}
     <tr class="summe"><td>Touren</td>${tage.map(d => `<td>${touren.filter(t => t.datum === d).length || ''}</td>`).join('')}</tr>
@@ -5472,9 +5564,9 @@ function firmenCsvImportieren(text) {
 function buchhaltungCsv(von, bis) {
   const e = S.einstellungen.buchhaltung || {}, erloes = e.erloeskonto || '8400', zahl = c => (c / 100).toFixed(2).replace('.', ',');
   return '﻿' + [['Belegdatum', 'Belegnummer', 'Kunde', 'Kundennummer', 'Buchungstext', 'Netto', 'USt-Satz', 'USt', 'Brutto', 'Soll/Haben', 'Erlöskonto', 'Debitor', 'Status', 'Bezahlt am', 'Bezahlt'],
-    ...alle('belege').filter(b => b.art === 'RECHNUNG' && b.datum >= von && b.datum <= bis && b.status !== 'ENTWURF').sort((a, b) => a.datum.localeCompare(b.datum) || a.nummer.localeCompare(b.nummer)).map(b => {
-      const s = belegSummen(b), f = S.auftraggeber[b.firmaId] || {}, storno = b.status === 'STORNIERT';
-      return [datumText(b.datum), b.nummer, f.name || '', f.kundennummer || '', `Rechnung ${b.nummer} ${f.name || ''}`.trim(), zahl(storno ? -s.netto : s.netto), String(b.mwstProzent ?? 19), zahl(storno ? -s.mwst : s.mwst),
+    ...alle('belege').filter(b => (b.art === 'RECHNUNG' || b.art === 'GUTSCHRIFT') && b.datum >= von && b.datum <= bis && b.status !== 'ENTWURF').sort((a, b) => a.datum.localeCompare(b.datum) || a.nummer.localeCompare(b.nummer)).map(b => {
+      const s = belegSummen(b), f = S.auftraggeber[b.firmaId] || {}, storno = (b.status === 'STORNIERT') !== (b.art === 'GUTSCHRIFT');
+      return [datumText(b.datum), b.nummer, f.name || '', f.kundennummer || '', `${BELEG_ART[b.art][0]} ${b.nummer} ${f.name || ''}`.trim(), zahl(storno ? -s.netto : s.netto), String(b.mwstProzent ?? 19), zahl(storno ? -s.mwst : s.mwst),
         zahl(storno ? -s.brutto : s.brutto), 'S', erloes, f.kundennummer || e.debitor || '10000', belegMarke(b)[0], datumText(b.bezahltAm), zahl(b.bezahltCent || 0)];
     })].map(z => z.map(csvZelle).join(';')).join('\r\n') + '\r\n';
 }
@@ -5677,6 +5769,82 @@ function fahrzeugKosten(z) {
     proKm: kmWerte.length >= 2 && Math.max(...kmWerte) > Math.min(...kmWerte) ? summe(e) / (Math.max(...kmWerte) - Math.min(...kmWerte)) : null };
 }
 
+// ---------- Fahrzeuge zusammenführen ----------
+const fzKennungen = z => [z.kennzeichen, ...String(z.aliase || '').split(',')].map(kzNormal).filter(Boolean);
+/** Mögliche Doppelte: gleiches Kennzeichen (andere Schreibweise), Kennzeichen des einen als Alias des anderen, oder gleiche FIN. */
+function fzDoppelte() {
+  const l = alle('fahrzeuge'), paare = [];
+  for (let i = 0; i < l.length; i++) for (let j = i + 1; j < l.length; j++) {
+    const a = l[i], b = l[j], ka = fzKennungen(a), kb = fzKennungen(b);
+    if (ka.some(k => kb.includes(k)) || (a.fin && b.fin && kzNormal(a.fin) === kzNormal(b.fin))) paare.push([a, b]);
+  }
+  return paare;
+}
+const fzTourenAnzahl = z => tourenVonFahrzeug(z).length;
+async function fzZusammenfuehren(weg, ziel, kennzeichen) {
+  const jetzt = jetztIso(), alt = kzNormal(weg.kennzeichen), kz = String(kennzeichen || ziel.kennzeichen).trim().toUpperCase();
+  for (const t of alle('touren').filter(t => kzNormal(t.kennzeichen) === alt || kzNormal(t.kennzeichen) === kzNormal(ziel.kennzeichen)))
+    if (t.kennzeichen !== kz) merke('touren', { ...t, kennzeichen: kz, geaendertAm: jetzt });
+  for (const x of eintraegeVon(weg.id)) merke('fahrzeugeintraege', { ...x, fahrzeugId: ziel.id, geaendertAm: jetzt });
+  for (const f of faelle().filter(f => f.fahrzeugId === weg.id || (!f.fahrzeugId && kzNormal(f.fahrzeug) === alt))) fallMerken({ ...f, fahrzeugId: ziel.id, fahrzeug: kz });
+  for (const a of alle('aufgabenIntern').filter(a => a.bezugArt === 'fahrzeug' && a.bezugId === weg.id)) merke('aufgabenIntern', { ...a, bezugId: ziel.id, geaendertAm: jetzt });
+  let fehlt = 0;
+  for (const a of anlagenVon(weg.id)) {
+    try { await Dateien.adresse(a); } catch { /* unten geprüft */ }
+    const blob = await Dateien.hole(a.id);
+    if (!blob) { fehlt++; continue; }
+    const neu = merke('anlagen', { id: uuid(), fallId: ziel.id, anzeigename: a.anzeigename, mimeType: a.mimeType, groesseBytes: blob.size, hinzugefuegtAm: a.hinzugefuegtAm || jetzt, vorhanden: false });
+    await Dateien.lege(neu.id, blob);
+    entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id);
+  }
+  if (fehlt) for (const a of anlagenVon(weg.id)) entferne('anlagen', a, { fallId: a.fallId });
+  const aliase = [...new Map([ziel.kennzeichen, weg.kennzeichen, ...String(ziel.aliase || '').split(','), ...String(weg.aliase || '').split(',')]
+    .map(x => String(x || '').trim().toUpperCase()).filter(x => x && kzNormal(x) !== kzNormal(kz)).map(x => [kzNormal(x), x])).values()].join(', ');
+  const dazu = Object.fromEntries(Object.entries(weg).filter(([k, v]) => !['id', 'kennzeichen', 'aliase', 'notiz', 'geaendertAm', '_n', 'rev'].includes(k) && v != null && v !== '' && (ziel[k] == null || ziel[k] === '')));
+  const km = Math.max(Number(ziel.kmStand) || 0, Number(weg.kmStand) || 0) || ziel.kmStand || weg.kmStand || null;
+  merke('fahrzeuge', { ...ziel, ...dazu, kennzeichen: kz, aliase, kmStand: km, notiz: [ziel.notiz, weg.notiz].filter(Boolean).filter((x, i, l) => l.indexOf(x) === i).join('\n'), geaendertAm: jetzt });
+  entferne('fahrzeuge', weg, { firmaId: '', geaendertAm: jetzt });
+  nachAenderung();
+  return { fehlt };
+}
+function fzZusammenDialog(z, anderes = null) {
+  const andere = fahrzeugListe().filter(x => x.id !== z.id);
+  if (!andere.length) { toast('Es gibt kein anderes Fahrzeug.'); return; }
+  const vorschlag = anderes || (fzDoppelte().find(p => p.includes(z)) || []).find(x => x !== z) || andere[0];
+  dialog(`<form method="dialog" id="fzz-form"><h2>🔁 Fahrzeuge zusammenführen</h2>
+    <p class="leise">Für doppelt angelegte Fahrzeuge (z. B. „RS-AT 100“ und „RSAT100“ oder ein altes Kennzeichen). Touren, Fahrzeugakte (Wartung, Tanken, Kosten), Dokumente, Schadensfälle und Aufgaben landen bei einem Fahrzeug, das andere wird gelöscht. Das andere Kennzeichen bleibt als Alias erhalten – auch Fahrerkarten-Daten werden so weiter zugeordnet.</p>
+    <label class="feld">Zusammenführen mit<select name="b">${andere.map(x => `<option value="${x.id}" ${x === vorschlag ? 'selected' : ''}>${esc(x.kennzeichen)}${x.bezeichnung ? ' · ' + esc(x.bezeichnung) : ''}</option>`).join('')}</select></label>
+    <div id="fzz-wahl"></div>
+    <label class="feld">Kennzeichen danach<input name="kz" required></label>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Zusammenführen</button></div></form>`);
+  const f = $('#fzz-form');
+  const zeige = () => {
+    const b = S.fahrzeuge[f.b.value], info = x => `${fzTourenAnzahl(x)} Touren · ${eintraegeVon(x.id).length} Akteneinträge · ${anlagenVon(x.id).length} Dokumente${x.kmStand ? ' · ' + Number(x.kmStand).toLocaleString('de-DE') + ' km' : ''}`;
+    const bleibt = fzTourenAnzahl(b) > fzTourenAnzahl(z) ? b : z;
+    $('#fzz-wahl').innerHTML = `<p style="margin:8px 0 4px"><b>Welches Fahrzeug bleibt?</b></p>${[z, b].map(x => `<label class="auswahl"><input type="radio" name="bleibt" value="${x.id}" ${x === bleibt ? 'checked' : ''}> <span><b>${esc(x.kennzeichen)}</b>${x.bezeichnung ? ' · ' + esc(x.bezeichnung) : ''}<br><span class="leise">${info(x)}</span></span></label>`).join('')}`;
+    f.kz.value = bleibt.kennzeichen;
+  };
+  f.b.onchange = zeige; f.onchange = e => { if (e.target.name === 'bleibt') f.kz.value = S.fahrzeuge[e.target.value].kennzeichen; }; zeige();
+  f.onsubmit = ev => {
+    ev.preventDefault();
+    const b = S.fahrzeuge[f.b.value], ziel = f.bleibt.value === b.id ? b : z, weg = ziel === b ? z : b, kz = f.kz.value.trim();
+    bestaetige(`„${weg.kennzeichen}“ in „${ziel.kennzeichen}“ überführen?`, `Alle Touren und Daten von „${weg.kennzeichen}“ wandern zu „${ziel.kennzeichen}“ (danach „${kz.toUpperCase()}“). „${weg.kennzeichen}“ wird gelöscht und bleibt als Alias erhalten.`, 'Zusammenführen', async () => {
+      const r = await fzZusammenfuehren(weg, ziel, kz);
+      gehe('#/fahrzeug/' + ziel.id);
+      toast(r.fehlt ? `Zusammengeführt – ${r.fehlt} Dokument(e) waren nicht geladen und fehlen` : 'Zusammengeführt', 6000);
+    });
+  };
+}
+function fzDoppelteDialog() {
+  const p = fzDoppelte();
+  dialog(`<div><h2>🔁 Mögliche doppelte Fahrzeuge</h2>${p.length ? `<p class="leise">Gleiches Kennzeichen, Kennzeichen als Alias oder gleiche FIN.</p>${p.map(([a, b]) => `<div class="imp-zeile"><span class="fuell"><b>${esc(a.kennzeichen)}</b> ↔ <b>${esc(b.kennzeichen)}</b><br><span class="leise">${fzTourenAnzahl(a)} / ${fzTourenAnzahl(b)} Touren</span></span><button type="button" class="knopf" data-fz-doppelt="${a.id}:${b.id}">Zusammenführen …</button></div>`).join('')}` : '<p class="leise">Keine möglichen Doppelten gefunden.</p>'}
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Schließen</button></div></div>`);
+}
+document.addEventListener('click', e => {
+  const d = e.target.closest('[data-fz-doppelt]'); if (d) { const [a, b] = d.dataset.fzDoppelt.split(':'); fzZusammenDialog(S.fahrzeuge[a], S.fahrzeuge[b]); return; }
+  if (e.target.closest('[data-fz-doppelte]')) fzDoppelteDialog();
+});
+
 const FuhrparkAktionen = {
   speichern(z) { const x = merke('fahrzeuge', { ...z, id: z.id || uuid(), firmaId: '', kennzeichen: String(z.kennzeichen || '').trim().toUpperCase(), geaendertAm: jetztIso() }); nachAenderung(); return x.id; },
   loeschen(z) {
@@ -5717,7 +5885,7 @@ function zeichneFuhrpark(r) {
   }).join('');
   return seitenkopf('Fuhrpark', '<button class="knopf voll" data-neues-fahrzeug>＋ Fahrzeug</button>', `<button class="knopf" data-fuhrpark-csv>CSV</button>
       <label class="knopf">⤓ Importieren<input type="file" id="fuhrpark-import" accept=".json,application/json" hidden></label><button class="knopf" data-gehe-bereich="personal">👥 Personal</button>
-      <button class="knopf" data-gehe-bereich="auswertung">📊 Auswertungen</button>`) + `<div class="kennzahlen">
+      <button class="knopf" data-gehe-bereich="auswertung">📊 Auswertungen</button>${fzDoppelte().length ? `<button class="knopf" data-fz-doppelte>🔁 Doppelte (${fzDoppelte().length})</button>` : ''}`) + `<div class="kennzahlen">
       <button class="kennzahl" data-fuhrpark-status="AKTIV"><b>${fahrzeugListe().filter(z => z.status !== 'STILLGELEGT').length}</b><span>Fahrzeuge</span></button>
       <button class="kennzahl ${faellig ? 'rot' : ''}" data-fuhrpark-status="FRIST"><b>${faellig}</b><span>Fristen in ${FRIST_VORLAUF} Tagen</span></button>
       <button class="kennzahl" data-fuhrpark-status=""><b>${geld(kosten)}</b><span>Kosten dieses Jahr</span></button></div>
@@ -5744,7 +5912,7 @@ function zeichneFahrzeug(id) {
     </div>
     <div class="karte block"><h3>Einsätze (Tourenplanung)</h3><div id="fz-touren">${fahrzeugTourenHtml(z)}</div>
       ${(() => { const fb = tourenVonFahrzeug(z).filter(t => tourKm(t) != null).sort((a, b) => b.datum.localeCompare(a.datum)); return fb.length ? `<details><summary class="leise" style="cursor:pointer;margin:6px 0">Fahrtenbuch (${fb.length} Fahrten, ${fb.reduce((n, t) => n + tourKm(t), 0)} km)</summary>
-        <div class="tabelle-rahmen"><table class="tabelle"><tr><th>Tag</th><th>Fahrer</th><th>Ziel</th><th class="r">km von</th><th class="r">km bis</th><th class="r">km</th></tr>${fb.slice(0, 60).map(t => `<tr><td>${esc(datumText(t.datum))}</td><td>${esc(maName(t.fahrerId))}</td><td>${esc(tourAuftraggeberName(t) || t.name || '')}</td><td class="r">${t.kmStart}</td><td class="r">${t.kmEnde}</td><td class="r">${tourKm(t)}</td></tr>`).join('')}</table></div></details>` : ''; })()}
+        <div class="tabelle-rahmen" tabindex="0"><table class="tabelle"><tr><th>Tag</th><th>Fahrer</th><th>Ziel</th><th class="r">km von</th><th class="r">km bis</th><th class="r">km</th></tr>${fb.slice(0, 60).map(t => `<tr><td>${esc(datumText(t.datum))}</td><td>${esc(maName(t.fahrerId))}</td><td>${esc(tourAuftraggeberName(t) || t.name || '')}</td><td class="r">${t.kmStart}</td><td class="r">${t.kmEnde}</td><td class="r">${tourKm(t)}</td></tr>`).join('')}</table></div></details>` : ''; })()}
       ${z.aliase ? `<p class="leise">Aliase: ${esc(z.aliase)}</p>` : ''}</div>
     <div class="karte block"><h3>Fristen</h3>
       ${fr.length || wartungKmFaellig(z) ? `<div id="fristen">${fr.map(f => `<div class="zeile eng" style="margin:4px 0"><span class="fuell">${esc(f.label)}</span><span class="marke ${fristFarbe(f)}">${esc(fristText(f))}</span></div>`).join('')}
@@ -5774,7 +5942,7 @@ function zeichneFahrzeug(id) {
     <div class="karte block"><h3>Schadensfälle mit diesem Fahrzeug${schaeden.length ? ` (${schaeden.length})` : ''}</h3>
       ${schaeden.length ? schaeden.map(f => `<button class="vorlage" data-fall-oeffnen="${f.id}"><b>${esc(anzeigeName(f))}</b><br><span class="leise">${esc([f.fallnummer, status(f).label, f.schadensdatum && datumText(f.schadensdatum), f.fahrer].filter(Boolean).join(' · '))}</span></button>`).join('')
         : '<p class="leise">Keine Fälle, in denen dieses Kennzeichen eingetragen ist.</p>'}</div>
-    <div class="zeile" style="margin:12px 0"><button class="knopf text gefahr" data-fz="loeschen">Fahrzeug löschen</button></div>`;
+    <div class="zeile" style="margin:12px 0"><button class="knopf text" data-fz="zusammen">🔁 Mit anderem zusammenführen …</button><button class="knopf text gefahr" data-fz="loeschen">Fahrzeug löschen</button></div>`;
   for (const a of dok.filter(a => a.mimeType.startsWith('image/'))) {
     Dateien.adresse(a).then(u => { const ziel = el.querySelector(`[data-bild="${a.id}"]`); if (u && ziel) ziel.innerHTML = `<img src="${u}" alt="">`; }).catch(() => {});
   }
@@ -5915,6 +6083,7 @@ $('#detail').addEventListener('click', async e => {
   }
   if (!akt) return;
   ({ bearbeiten: () => fahrzeugDialog(z), eintrag: () => fahrzeugEintragDialog(z, null), tanken: () => fahrzeugEintragDialog(z, null, 'TANKEN'), km: () => fahrzeugEintragDialog(z, null, 'KM'),
+    zusammen: () => fzZusammenDialog(z),
     loeschen: () => bestaetige('Fahrzeug löschen?', `${z.kennzeichen} wird mit Fahrzeugakte und Dokumenten gelöscht. Ist es nur verkauft, besser den Status „Abgemeldet / verkauft“ wählen.`, 'Löschen', () => { FuhrparkAktionen.loeschen(z); gehe('#/'); }) })[akt.dataset.fz]();
 });
 
@@ -6780,7 +6949,8 @@ document.addEventListener('change', async e => {
 });
 window.addEventListener('hashchange', zeichne);
 window.addEventListener('beforeunload', e => { if ($('#fall-form') && formularWerte() !== formularStand) e.preventDefault(); });
-window.addEventListener('online', () => abgleich());
+window.addEventListener('online', () => { if (SYNC.fehler === 'offline') { SYNC.fehler = ''; zeichneSync(); } toast('Wieder online – gleiche ab …'); abgleich(); });
+window.addEventListener('offline', () => { if (!mitCloud()) return; SYNC.fehler = 'offline'; zeichneSync(); toast('Offline – du kannst weiterarbeiten. Änderungen werden gespeichert und abgeglichen, sobald wieder Netz da ist.', 6000); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { zeichne(); pruefeStand(); } });
 setInterval(pruefeStand, 45000);
 if (langeMailsKuerzen()) speichere();
