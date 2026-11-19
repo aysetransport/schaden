@@ -3440,7 +3440,10 @@ function tourNachricht(t) {
 }
 function tourSenden(t) {
   const text = tourNachricht(t), team = teamVon(t).map(maVon).filter(Boolean);
+  const mitNr = team.filter(m => m.telefon);
   dialog(`<h2>Tour senden</h2><pre class="vorschau">${esc(text)}</pre>
+    ${team.length > 1 ? `<div class="zeile" style="margin:8px 0;flex-wrap:wrap;gap:8px"><button class="knopf voll" id="tp-wa-alle">💬 WhatsApp an alle ${team.length}</button>${mitNr.length > 1 ? `<button class="knopf" id="tp-sms-alle">SMS an alle</button>` : ''}</div>
+      <p class="leise" style="margin-top:0">WhatsApp öffnet sich mit dem Text – dort ${esc(team.map(m => m.name.split(' ')[0]).join(' und '))} gleichzeitig auswählen (oder die Team-Gruppe) und senden.</p>` : ''}
     <div id="tp-senden">${team.map(m => `<div class="zeile eng" style="margin:6px 0"><b class="fuell">${esc(m.name)}</b>
       ${m.telefon ? `<button class="knopf tonal" data-wa="${m.id}">💬 WhatsApp</button><button class="knopf" data-sms="${m.id}">SMS</button>` : '<span class="leise">keine Nummer</span>'}</div>`).join('')}</div>
     <div class="dialog-knoepfe"><button class="knopf" id="tp-teilen">Text teilen / kopieren</button><button class="knopf voll" data-zu>Fertig</button></div>`);
@@ -3450,6 +3453,11 @@ function tourSenden(t) {
     if (sms) oeffne(`sms:${intNummer(maVon(sms.dataset.sms).telefon)}?body=${encodeURIComponent(text)}`);
   };
   $('#tp-teilen').onclick = () => teile('Tour', text);
+  if ($('#tp-wa-alle')) $('#tp-wa-alle').onclick = () => oeffneLink(`https://wa.me/?text=${encodeURIComponent(text)}`);
+  if ($('#tp-sms-alle')) $('#tp-sms-alle').onclick = () => {
+    const nr = mitNr.map(m => intNummer(m.telefon)).join(','), ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    oeffne(ios ? `sms://open?addresses=${nr}&body=${encodeURIComponent(text)}` : `sms:${nr}?body=${encodeURIComponent(text)}`);
+  };
 }
 /** Alle Touren des Tages: je Person eine Nachricht (WhatsApp nacheinander) oder als CSV für Sammel-SMS. */
 function alleSenden(tag) {
