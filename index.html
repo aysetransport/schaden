@@ -304,6 +304,9 @@ dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
 .matrix{border-collapse:separate;border-spacing:0;font-size:13px;min-width:100%}.matrix th,.matrix td{padding:6px 8px;border-bottom:1px solid var(--linie);text-align:center;white-space:nowrap}
 .matrix thead th{position:sticky;top:0;background:var(--flaeche2);z-index:2;white-space:normal;font-size:12px;min-width:64px}.matrix tbody th{position:sticky;left:0;background:var(--bg);text-align:left;z-index:1;max-width:140px;overflow:hidden;text-overflow:ellipsis}
 .matrix thead th:first-child{left:0;z-index:3}.matrix td.rot{background:var(--rot-f,#f6c6c6);font-weight:600}.matrix td.gelb{background:var(--gelb-f,#fbe9a6)}.matrix td.leer{color:var(--leise)}.matrix td.grau{background:transparent}
+.stopp{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--linie)}.stopp.fertig{opacity:.65}.stopp.naechster{background:var(--blau-f);border-radius:10px}
+.stopp-nr{display:inline-grid;place-items:center;min-width:26px;height:26px;border-radius:50%;background:var(--primaer);color:var(--bg);font-size:13px}.stopp.fertig .stopp-nr{background:var(--gruen-t,#0C3A18)}
+.stopp-knoepfe{display:flex;gap:4px;align-items:center}.stopp-knoepfe a.symbol{text-decoration:none}.fahrer-stopps{margin:8px 0}.stopp-zahl{font-size:12px!important;white-space:nowrap}
 .imp-liste{max-height:55vh;overflow:auto}.imp-zeile{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 4px;border-bottom:1px solid var(--linie)}.imp-zeile select{flex:1 1 200px;max-width:100%}.imp-zeile.pruefen{background:color-mix(in srgb,#f5c400 18%,transparent)}
 .auswahl:hover{background:var(--flaeche2)}
 .vorlage{display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px 8px;border-radius:8px;cursor:pointer}
@@ -630,7 +633,7 @@ function csvErstellen(faelle, anlagenJeFall) {
 // ============================== Daten im Browser ==============================
 const SPEICHER = 'schadensfaelle-v1', PIN_SPEICHER = 'schadensfaelle-pin';
 const CRM_TABELLEN = ['adressen', 'ansprechpartner', 'preise', 'aktivitaeten', 'aufgaben', 'dokumente', 'chancen', 'belege', 'fahrzeuge', 'fahrzeugeintraege',
-  'mitarbeiter', 'personaleintraege', 'abwesenheiten', 'einsatzarten', 'touren', 'zeiten', 'aufgabenIntern', 'tachotage'];
+  'mitarbeiter', 'personaleintraege', 'abwesenheiten', 'einsatzarten', 'touren', 'zeiten', 'aufgabenIntern', 'tachotage', 'stopps'];
 const LEER = () => ({ faelle: {}, verlauf: {}, anlagen: {}, auftraggeber: {}, ...Object.fromEntries(CRM_TABELLEN.map(t => [t, {}])), seit: 0, kennung: '', apiUrl: '', nurLokal: false,
   einstellungen: { firma: '', bearbeiter: '', funktion: '', wiedervorlageTage: 7 } });
 let S = LEER();
@@ -871,7 +874,7 @@ async function api(fn, ...args) {
   return j.ok;
 }
 const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber', ...CRM_TABELLEN];
-const CLOUD_API = 10;
+const CLOUD_API = 11;
 const VERALTET = 'Das Cloud-Skript ist veraltet – bitte die neue Code.gs bereitstellen.';
 const offeneAnzahl = () => TABELLEN.reduce((n, t) => n + offene(t).length, 0);
 const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
@@ -3294,7 +3297,7 @@ const TourAktionen = {
     const n = tourenAm(tag).reduce((m, t) => Math.max(m, t.reihenfolge ?? 0), 0) + 1;
     return this.speichern({ datum: tag, reihenfolge: n, ...vorgabe }, true);
   },
-  loeschen(t) { this.merken(t.datum); entferne('touren', t, { firmaId: '', geaendertAm: jetztIso() }); tourGeaendert(); },
+  loeschen(t) { this.merken(t.datum); for (const st of stoppsVon(t.id)) entferne('stopps', st, { firmaId: '', tourId: t.id, geaendertAm: jetztIso() }); entferne('touren', t, { firmaId: '', geaendertAm: jetztIso() }); tourGeaendert(); },
   verschieben(t, richtung) {
     const liste = tourenAm(t.datum), i = liste.findIndex(x => x.id === t.id), j = i + richtung;
     if (j < 0 || j >= liste.length) return;
@@ -3467,6 +3470,7 @@ function zeichneTouren() {
         ${beleg ? `<button class="marke gruen" data-beleg-oeffnen="${beleg.id}">€ ${esc(beleg.nummer)}</button>` : ''}</div>
       <div class="tour-knoepfe">
         <button class="symbol" data-tour-akt="hoch" aria-label="Nach oben" ${i ? '' : 'disabled'}>▲</button><button class="symbol" data-tour-akt="runter" aria-label="Nach unten" ${i < touren.length - 1 ? '' : 'disabled'}>▼</button>
+        ${stoppsVon(t.id).length ? `<button class="symbol stopp-zahl" data-tour-stopps="${t.id}" aria-label="Stoppliste (${stoppsVon(t.id).length} Stopps)">📍${stoppsVon(t.id).length}</button>` : ''}
         <button class="symbol" data-tour-akt="senden" aria-label="Tour per WhatsApp an das Team senden" ${teamVon(t).length ? '' : 'disabled'}>💬</button>
         <button class="symbol" data-tour-akt="mehr" aria-label="Weitere Aktionen">⋮</button></div></div>`;
   };
@@ -3510,14 +3514,40 @@ function tourEingabeOffen() {
   const gespeichert = f === 'fahrer' ? maName(t.fahrerId) : f === 'beifahrer' ? maName(beifahrerVon(t)[Number(el.dataset.index)]) : f === 'auftraggeber' ? tourAuftraggeberName(t) : t[f] || '';
   return el.value.trim() !== String(gespeichert || '').trim();
 }
+/** Ähnliche Mitarbeiter zu einem unbekannten Namen (Tippfehler, nur Vor- oder Nachname, Anfang des Namens). */
+function aehnlicheMitarbeiter(name, max = 4) {
+  const abstand = (a, b) => { if (Math.abs(a.length - b.length) > 2) return 9; const d = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) { let vor = d[0]; d[0] = i; for (let j = 1; j <= b.length; j++) { const tmp = d[j]; d[j] = Math.min(d[j] + 1, d[j - 1] + 1, vor + (a[i - 1] === b[j - 1] ? 0 : 1)); vor = tmp; } } return d[b.length]; };
+  const w = nameSchluessel(name).split(' ').filter(Boolean); if (!w.length) return [];
+  return mitarbeiterListe(true).map(m => {
+    const t = [...nameSchluessel(m.name).split(' '), ...String(m.aliase || '').split(';').flatMap(a => nameSchluessel(a).split(' '))].filter(Boolean);
+    const p = w.reduce((n, x) => n + Math.max(0, ...t.map(y => (y === x ? 3 : y.startsWith(x) && x.length >= 2 ? 2 : x.length >= 4 && abstand(x, y) <= (x.length >= 7 ? 2 : 1) ? 1.5 : 0))), 0);
+    return { m, p };
+  }).filter(x => x.p > 0).sort((a, b) => b.p - a.p || a.m.name.localeCompare(b.m.name, 'de')).slice(0, max).map(x => x.m);
+}
+/** Unbekannter Name in der Tourenplanung: nichts anlegen – Hinweis mit „Meintest du …?“. */
+function unbekannterMitarbeiter(t, feld, index, name) {
+  const v = aehnlicheMitarbeiter(name);
+  dialog(`<div><h2>„${esc(name)}“ gibt es nicht im Personal</h2>${v.length ? `<p>Meintest du:</p><div id="meintest">${v.map(m => `<button class="vorlage" data-meintest="${m.id}"><b>${esc(m.name)}</b> <span class="leise">${esc(ROLLE[m.rolle] || '')}${abwesendAm(m.id, t.datum) ? ' · ' + esc(abwesendAm(m.id, t.datum).grund || 'abwesend') : ''}</span></button>`).join('')}</div>`
+    : '<p class="leise">Kein ähnlicher Name gefunden. Neue Mitarbeiter bitte unter Personal anlegen.</p>'}
+    <div class="dialog-knoepfe"><button class="knopf text" data-zu>Abbrechen</button></div></div>`);
+  if (!v.length) return;
+  $('#meintest').onclick = e => {
+    const b = e.target.closest('[data-meintest]'); if (!b) return;
+    const x = { ...S.touren[t.id] };
+    if (feld === 'fahrer') x.fahrerId = b.dataset.meintest;
+    else { const bf = beifahrerVon(x); bf[index] = b.dataset.meintest; x.beifahrerIds = [...new Set(bf.filter(Boolean))].join(','); }
+    $('#dialog').close(); TourAktionen.speichern(x);
+  };
+}
 /** Eingabe in einer Tourzeile übernehmen (Namen → Mitarbeiter, Kennzeichen → Fuhrpark, Auftraggeber → Firma). */
 function tourEingabe(t, el) {
   const feld = el.dataset.feld, wert = el.value.trim(), neu = { ...t };
-  const person = (name, rolle) => {
+  let unbekannt = '';
+  const person = name => {
     if (!name) return '';
     const m = maZumNamen(name); if (m) return m.id;
-    toast(`„${name}“ neu im Personal angelegt – bitte unter Personal ergänzen`, 5000);
-    return PersonalAktionen.schnellAnlegen(name, rolle);
+    unbekannt = name; return null;
   };
   if (feld === 'kennzeichen') { const z = fahrzeugZumKz(wert); neu.kennzeichen = z ? z.kennzeichen : wert.toUpperCase(); }
   else if (feld === 'auftraggeber') {
@@ -3527,12 +3557,17 @@ function tourEingabe(t, el) {
       neu.auftraggeberId = Aktionen.firmaSpeichern({ name: wert, status: 'AKTIV', notizen: 'Aus der Tourenplanung angelegt' }); neu.auftraggeber = wert;
       toast(`Firma „${wert}“ im CRM angelegt`, 4000);
     }
-  } else if (feld === 'fahrer') neu.fahrerId = person(wert, 'FAHRER');
+  } else if (feld === 'fahrer') { const id = person(wert); if (id !== null) neu.fahrerId = id; }
   else if (feld === 'beifahrer') {
-    const bf = beifahrerVon(t), i = Number(el.dataset.index), id = person(wert, 'BEIFAHRER');
-    if (id) bf[i] = id; else bf.splice(i, 1);
+    const bf = beifahrerVon(t), i = Number(el.dataset.index), id = person(wert);
+    if (id) bf[i] = id; else if (id === '') bf.splice(i, 1);
     neu.beifahrerIds = bf.filter(Boolean).join(',');
   } else neu[feld] = wert;
+  if (unbekannt) {
+    el.value = feld === 'fahrer' ? maName(t.fahrerId) : maName(beifahrerVon(t)[Number(el.dataset.index)]) || '';
+    setTimeout(() => unbekannterMitarbeiter(t, feld, Number(el.dataset.index), unbekannt), 0);
+    return;
+  }
   if (JSON.stringify(neu) !== JSON.stringify(t)) TourAktionen.speichern(neu);
 }
 
@@ -3586,13 +3621,128 @@ function tourKundeDialog(t) {
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-tour-kunde]'); if (b && S.touren[b.dataset.tourKunde]) tourKundeDialog(S.touren[b.dataset.tourKunde]); });
 
+// ---------- Stoppliste (optional: mehrere Kunden/Adressen je Tour) ----------
+const STOPP_ART = { LIEFERUNG: ['Lieferung', '📦'], ABHOLUNG: ['Abholung', '↩'], MONTAGE: ['Montage', '🔧'], SONSTIGES: ['Sonstiges', '•'] };
+const stoppsVon = tourId => alle('stopps').filter(s => s.tourId === tourId).sort((a, b) => (a.reihenfolge ?? 0) - (b.reihenfolge ?? 0));
+const StoppAktionen = {
+  speichern(s) { const x = merke('stopps', { art: 'LIEFERUNG', status: 'OFFEN', ...s, id: s.id || uuid(), firmaId: '', geaendertAm: jetztIso() }); nachAenderung(); return x.id; },
+  loeschen(s) { entferne('stopps', s, { firmaId: '', tourId: s.tourId, geaendertAm: jetztIso() }); this.nummerieren(s.tourId); nachAenderung(); },
+  nummerieren(tourId) { stoppsVon(tourId).forEach((s, i) => { if (s.reihenfolge !== i + 1) merke('stopps', { ...s, reihenfolge: i + 1, geaendertAm: jetztIso() }); }); },
+  verschieben(s, um) {
+    const l = stoppsVon(s.tourId), i = l.findIndex(x => x.id === s.id), j = i + um; if (j < 0 || j >= l.length) return;
+    [l[i], l[j]] = [l[j], l[i]]; l.forEach((x, k) => merke('stopps', { ...x, reihenfolge: k + 1, geaendertAm: jetztIso() })); nachAenderung();
+  },
+  erledigen(s, empfaenger = '') {
+    merke('stopps', { ...s, status: 'ERLEDIGT', erledigtAm: jetztIso(), empfaenger, geaendertAm: jetztIso() }); nachAenderung();
+    return stoppsVon(s.tourId).every(x => x.status === 'ERLEDIGT');
+  },
+};
+const stoppText = s => [s.kundeName, s.adresse].filter(Boolean).join(' – ') || 'Stopp';
+/** Route über alle offenen Stopps in Google Maps (Reihenfolge wie in der Liste). */
+function stoppRoute(tourId) {
+  const a = stoppsVon(tourId).filter(s => s.status !== 'ERLEDIGT' && s.adresse).map(s => s.adresse);
+  if (!a.length) { toast('Keine offenen Stopps mit Adresse.'); return; }
+  const ziel = a.pop();
+  oeffneLink(`https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${encodeURIComponent(ziel)}${a.length ? '&waypoints=' + encodeURIComponent(a.join('|')) : ''}`);
+}
+function stoppListeDialog(t) {
+  const tn = S.touren[t.id] || t;
+  // Erster Aufruf: ein bereits eingetragener Endkunde der Tour wird Stopp 1
+  if (!stoppsVon(tn.id).length && (tn.kundeName || tn.kundeAdresse))
+    StoppAktionen.speichern({ tourId: tn.id, reihenfolge: 1, kundeName: tn.kundeName || '', kundeTelefon: tn.kundeTelefon || '', kundeEmail: tn.kundeEmail || '', adresse: tn.kundeAdresse || '', zeitfenster: tn.zeitfenster || '' });
+  const l = stoppsVon(tn.id), offen = l.filter(s => s.status !== 'ERLEDIGT').length;
+  dialog(`<div><h2>📍 Stoppliste</h2><p class="leise">${esc(datumText(tn.datum))} · ${esc(tourText(tn))}${l.length ? ` · ${l.length} Stopps, ${offen} offen` : ''}</p>
+    <div id="stopp-liste">${l.map((s, i) => `<div class="stopp ${s.status === 'ERLEDIGT' ? 'fertig' : ''}" data-stopp="${s.id}">
+      <b class="stopp-nr">${i + 1}</b><span class="fuell"><b>${STOPP_ART[s.art] ? STOPP_ART[s.art][1] + ' ' : ''}${esc(s.kundeName || '(ohne Name)')}</b>${s.zeitfenster ? ` <span class="leise">· ${esc(s.zeitfenster)}</span>` : ''}<br>
+        <span class="leise">${esc(s.adresse || 'keine Adresse')}</span>${s.status === 'ERLEDIGT' ? `<br><span class="marke gruen">✓ ${esc(uhrText(s.erledigtAm))}${s.empfaenger ? ' · ' + esc(s.empfaenger) : ''}</span>` : ''}${s.bewertung ? ` <span style="color:#b8860b">${sterne(s.bewertung)}</span>` : ''}</span>
+      <span class="stopp-knoepfe"><button type="button" class="symbol" data-stopp-akt="hoch" aria-label="Stopp ${i + 1} nach oben" ${i ? '' : 'disabled'}>▲</button><button type="button" class="symbol" data-stopp-akt="runter" aria-label="Stopp ${i + 1} nach unten" ${i < l.length - 1 ? '' : 'disabled'}>▼</button>
+        <button type="button" class="symbol" data-stopp-akt="bearbeiten" aria-label="Stopp ${i + 1} bearbeiten">✎</button></span></div>`).join('') || '<p class="leise">Noch keine Stopps. Für Touren mit mehreren Kunden oder Adressen – sonst reicht „Endkunde“ an der Tour.</p>'}</div>
+    <div class="zeile" style="flex-wrap:wrap;gap:8px;margin-top:10px"><button type="button" class="knopf voll" id="stopp-neu">＋ Stopp</button>
+      ${l.some(s => s.adresse) ? '<button type="button" class="knopf" id="stopp-route">🧭 Route</button>' : ''}${l.some(s => s.kundeTelefon && s.status !== 'ERLEDIGT') ? '<button type="button" class="knopf" id="stopp-avis">📨 Lieferavis an alle</button>' : ''}</div>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Schließen</button></div></div>`);
+  $('#stopp-neu').onclick = () => stoppDialog(tn, null);
+  if ($('#stopp-route')) $('#stopp-route').onclick = () => stoppRoute(tn.id);
+  if ($('#stopp-avis')) $('#stopp-avis').onclick = () => stoppAvisAlle(tn);
+  $('#stopp-liste').onclick = e => {
+    const b = e.target.closest('[data-stopp-akt]'); if (!b) return;
+    const s = S.stopps[b.closest('[data-stopp]').dataset.stopp];
+    ({ hoch: () => { StoppAktionen.verschieben(s, -1); stoppListeDialog(tn); }, runter: () => { StoppAktionen.verschieben(s, 1); stoppListeDialog(tn); }, bearbeiten: () => stoppDialog(tn, s) })[b.dataset.stoppAkt]();
+  };
+}
+const uhrText = iso => { const d = new Date(iso); return isNaN(d) ? '' : `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+function stoppDialog(t, s) {
+  const neu = !s, e = s || { art: 'LIEFERUNG', reihenfolge: stoppsVon(t.id).length + 1 };
+  dialog(`<form method="dialog" id="stopp-form"><h2>${neu ? 'Neuer Stopp' : 'Stopp ' + e.reihenfolge}</h2>
+    <label class="feld">Art<select name="art">${Object.entries(STOPP_ART).map(([k, [l, i]]) => `<option value="${k}" ${e.art === k ? 'selected' : ''}>${i} ${l}</option>`).join('')}</select></label>
+    <label class="feld">Kunde / Name<input name="kundeName" value="${esc(e.kundeName || '')}" autocomplete="off"></label>
+    <label class="feld">Adresse<input name="adresse" value="${esc(e.adresse || '')}" placeholder="Straße Nr., PLZ Ort"></label>
+    <div class="zeile"><label class="feld fuell">Telefon<input name="kundeTelefon" type="tel" value="${esc(e.kundeTelefon || '')}"></label><label class="feld fuell">E-Mail<input name="kundeEmail" type="email" value="${esc(e.kundeEmail || '')}"></label></div>
+    <div class="zeile"><label class="feld fuell">Zeitfenster<input name="zeitfenster" value="${esc(e.zeitfenster || '')}" placeholder="z. B. 10–12 Uhr"></label>
+      <label class="feld fuell">Status<select name="status">${[['OFFEN', 'offen'], ['ERLEDIGT', 'erledigt'], ['PROBLEM', 'Problem']].map(([k, l]) => `<option value="${k}" ${(e.status || 'OFFEN') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    <label class="feld">Hinweis (Ware, Etage, Ansprechpartner …)<textarea name="notiz">${esc(e.notiz || '')}</textarea></label>
+    ${neu ? '' : `<div class="zeile" style="flex-wrap:wrap;gap:8px"><button type="button" class="knopf tonal" data-savis="sms">SMS</button><button type="button" class="knopf tonal" data-savis="wa">💬 WhatsApp</button><button type="button" class="knopf tonal" data-savis="mail">✉ E-Mail</button>${mitCloud() ? '<button type="button" class="knopf" data-savis="link">🔗 Statuslink</button>' : ''}</div>
+      <p class="leise">${e.status === 'ERLEDIGT' ? 'Sendet die Bitte um eine Bewertung.' : 'Sendet das Lieferavis für diesen Stopp mit eigenem Statuslink.'}</p>`}
+    <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="stopp-weg">Löschen</button>'}<span class="fuell"></span><button type="button" class="knopf text" id="stopp-zurueck">Zurück</button><button class="knopf voll">Speichern</button></div></form>`);
+  const f = $('#stopp-form');
+  const werte = () => { const w = Object.fromEntries([...new FormData(f)].map(([k, v]) => [k, String(v).trim()]));
+    const war = e.status === 'ERLEDIGT'; if (w.status === 'ERLEDIGT' && !war) w.erledigtAm = jetztIso(); if (w.status !== 'ERLEDIGT') w.erledigtAm = ''; return { ...e, ...w, tourId: t.id }; };
+  f.onsubmit = ev => { ev.preventDefault(); StoppAktionen.speichern(werte()); stoppListeDialog(t); };
+  $('#stopp-zurueck').onclick = () => stoppListeDialog(t);
+  if (!neu) {
+    $('#stopp-weg').onclick = () => { StoppAktionen.loeschen(s); stoppListeDialog(t); };
+    f.onclick = ev => { const b = ev.target.closest('[data-savis]'); if (!b) return; let x = S.stopps[StoppAktionen.speichern(werte())]; stoppAvis(t, x, b.dataset.savis); };
+  }
+}
+/** Lieferavis bzw. Bewertungsbitte für einen Stopp – mit eigenem Statuslink. */
+function stoppAvis(t, s, art) {
+  if (mitCloud() && !s.statusCode) s = merke('stopps', { ...s, statusCode: neuerStatusCode(), geaendertAm: jetztIso() });
+  const tour = { ...(S.touren[t.id] || t), kundeName: s.kundeName, zeitfenster: s.zeitfenster, kundeAdresse: s.adresse, statusCode: s.statusCode };
+  const text = (s.status === 'ERLEDIGT' ? bewertungAnfrageText(tour) : lieferavisText(tour)).replace(/Ihre Lieferung/, s.art === 'ABHOLUNG' ? 'Die Abholung' : s.art === 'MONTAGE' ? 'Unser Montageteam' : 'Ihre Lieferung');
+  if ((art === 'sms' || art === 'wa') && !s.kundeTelefon) { toast('Bitte zuerst die Telefonnummer eintragen.'); return; }
+  if (art === 'mail' && !s.kundeEmail) { toast('Bitte zuerst die E-Mail-Adresse eintragen.'); return; }
+  if (art === 'sms') oeffne(`sms:${intNummer(s.kundeTelefon)}${/iPhone|iPad|iPod/.test(navigator.userAgent) ? '&' : '?'}body=${encodeURIComponent(text)}`);
+  if (art === 'wa') whatsapp(s.kundeTelefon, text);
+  if (art === 'mail') oeffne(`mailto:${encodeURIComponent(s.kundeEmail).replace(/%40/g, '@')}?subject=${encodeURIComponent(s.status === 'ERLEDIGT' ? 'Wie war Ihre Lieferung?' : 'Ihr Termin am ' + datumText(tour.datum))}&body=${encodeURIComponent(text)}`);
+  if (art === 'link') teile('Lieferstatus', statusLink(tour));
+  nachAenderung();
+}
+/** Alle offenen Stopps mit Telefon: je Stopp ein Knopf (SMS/WhatsApp öffnen nacheinander). */
+function stoppAvisAlle(t) {
+  const l = stoppsVon(t.id).filter(s => s.kundeTelefon && s.status !== 'ERLEDIGT');
+  dialog(`<div><h2>📨 Lieferavis an alle Stopps</h2><p class="leise">Je Kunde mit eigenem Zeitfenster und Statuslink. Nacheinander antippen.</p>
+    <div id="avis-alle">${l.map(s => `<div class="zeile eng" style="margin:6px 0"><span class="fuell"><b>${s.reihenfolge}. ${esc(s.kundeName || s.adresse)}</b><br><span class="leise">${esc(s.zeitfenster || '')}</span></span>
+      <button class="knopf tonal" data-aa="sms:${s.id}">SMS</button><button class="knopf tonal" data-aa="wa:${s.id}">💬</button></div>`).join('')}</div>
+    <div class="dialog-knoepfe"><button class="knopf text" id="avis-zurueck">Zurück</button></div></div>`);
+  $('#avis-alle').onclick = e => { const b = e.target.closest('[data-aa]'); if (!b) return; const [art, id] = b.dataset.aa.split(':'); stoppAvis(t, S.stopps[id], art); b.textContent = '✓'; };
+  $('#avis-zurueck').onclick = () => stoppListeDialog(t);
+}
+/** Stopps in der Fahrer-Ansicht: abhaken, Navigation, Anruf. */
+function fahrerStoppsHtml(x) {
+  const l = stoppsVon(x.id); if (!l.length) return '';
+  const naechster = l.find(s => s.status !== 'ERLEDIGT');
+  return `<div class="fahrer-stopps">${l.map(s => `<div class="stopp ${s.status === 'ERLEDIGT' ? 'fertig' : ''} ${s === naechster ? 'naechster' : ''}" data-fstopp="${s.id}">
+    <b class="stopp-nr">${s.reihenfolge}</b><span class="fuell"><b>${STOPP_ART[s.art] ? STOPP_ART[s.art][1] + ' ' : ''}${esc(s.kundeName || '')}</b>${s.zeitfenster ? ` · ${esc(s.zeitfenster)}` : ''}<br><span class="leise">${esc(s.adresse || '')}</span>${s.notiz ? `<br><span class="leise">ℹ ${esc(s.notiz)}</span>` : ''}
+      ${s.status === 'ERLEDIGT' ? `<br><span class="marke gruen">✓ ${esc(uhrText(s.erledigtAm))}${s.empfaenger ? ' · ' + esc(s.empfaenger) : ''}</span>` : ''}</span>
+    ${s.status !== 'ERLEDIGT' && x.datum === heute() ? `<span class="stopp-knoepfe">${s.adresse ? '<button class="symbol" data-fs="navi" aria-label="Navigation">🧭</button>' : ''}${s.kundeTelefon ? `<a class="symbol" href="tel:${esc(intNummer(s.kundeTelefon))}" aria-label="Anrufen">☎</a>` : ''}<button class="knopf tonal" data-fs="fertig">✓</button></span>` : ''}</div>`).join('')}</div>`;
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-tour-stopps]'); if (t && S.touren[t.dataset.tourStopps]) { stoppListeDialog(S.touren[t.dataset.tourStopps]); return; }
+  const b = e.target.closest('[data-fs]'); if (!b) return;
+  const s = S.stopps[b.closest('[data-fstopp]').dataset.fstopp]; if (!s) return;
+  if (b.dataset.fs === 'navi') { navigation(s.adresse); return; }
+  const wer = prompt(`Stopp ${s.reihenfolge} erledigt – Name des Empfängers (optional):`, s.kundeName || '');
+  if (wer === null) return;
+  if (StoppAktionen.erledigen(s, wer.trim())) toast('Alle Stopps erledigt – jetzt die Tour abliefern', 6000); else toast('Stopp erledigt');
+});
+
 /** Text einer Tour für WhatsApp/SMS. */
 function tourNachricht(t) {
   const ag = S.auftraggeber[t.auftraggeberId], adr = ag ? rechnungsAdresse(ag.id) : null;
   const mitNr = id => { const m = maVon(id); return m ? m.name + (m.telefon ? ' – ' + m.telefon : '') : ''; };
   return [`Tour am ${datumMitTag(t.datum)}${t.tourNr ? ' – ' + t.tourNr : ''}`, tourAuftraggeberName(t) && 'Auftraggeber: ' + tourAuftraggeberName(t),
     adr && 'Adresse: ' + adresseText(adr), t.name && 'Tour: ' + t.name, t.kennzeichen && 'Fahrzeug: ' + t.kennzeichen, t.uhrzeit && 'Ladezeit: ' + t.uhrzeit,
-    t.einsatzart && 'Einsatz: ' + t.einsatzart, t.fahrerId && 'Fahrer: ' + mitNr(t.fahrerId), ...beifahrerVon(t).map(id => 'Beifahrer: ' + mitNr(id)), t.notiz && 'Hinweis: ' + t.notiz].filter(Boolean).join('\n');
+    t.einsatzart && 'Einsatz: ' + t.einsatzart, t.fahrerId && 'Fahrer: ' + mitNr(t.fahrerId), ...beifahrerVon(t).map(id => 'Beifahrer: ' + mitNr(id)), t.notiz && 'Hinweis: ' + t.notiz,
+    stoppsVon(t.id).length && 'Stopps:\n' + stoppsVon(t.id).map(s => `${s.reihenfolge}. ${STOPP_ART[s.art] ? STOPP_ART[s.art][0] + ': ' : ''}${stoppText(s)}${s.zeitfenster ? ' (' + s.zeitfenster + ')' : ''}${s.kundeTelefon ? ' ☎ ' + s.kundeTelefon : ''}${s.notiz ? ' – ' + s.notiz : ''}`).join('\n')].filter(Boolean).join('\n');
 }
 /** 💬 an der Tour: WhatsApp direkt mit dem Tourtext öffnen – dort Fahrer und Beifahrer gleichzeitig auswählen (wie in der alten Tourenplanung). */
 const tourWhatsapp = t => oeffneLink(`https://wa.me/?text=${encodeURIComponent(tourNachricht(t))}`);
@@ -3740,6 +3890,7 @@ function tourMehr(t) {
     <label class="feld">Hinweis für das Team<textarea id="tour-notiz">${esc(t.notiz || '')}</textarea></label>
     <div class="liste-knoepfe">
       <button class="vorlage" data-tm="details"><b>⏱ Status, Zeiten und Kilometer</b><br><span class="leise">${esc(tourStatus(t)[0])}${t.beginn ? ' · ' + esc(t.beginn) : ''}${t.ende ? '–' + esc(t.ende) : ''}${tourKm(t) != null ? ' · ' + tourKm(t) + ' km' : ''}</span></button>
+      <button class="vorlage" data-tm="stopps"><b>📍 Stoppliste${stoppsVon(t.id).length ? ` (${stoppsVon(t.id).length})` : ''}</b><br><span class="leise">${stoppsVon(t.id).length ? `${stoppsVon(t.id).filter(x => x.status !== 'ERLEDIGT').length} offen · Route, Lieferavis je Kunde` : 'optional: mehrere Kunden/Adressen in dieser Tour'}</span></button>
       <button class="vorlage" data-tm="kunde"><b>📦 Endkunde, Lieferavis & Statuslink</b><br><span class="leise">${t.kundeName ? esc(t.kundeName) + ' · ' : ''}${t.bewertung ? sterne(t.bewertung) : t.statusCode ? 'Statuslink verschickt' : 'SMS/WhatsApp/E-Mail an den Kunden, Bewertung nach Lieferung'}</span></button>
       ${teamVon(t).length ? '<button class="vorlage" data-tm="senden"><b>📨 Einzeln senden (WhatsApp/SMS je Person)</b></button>' : ''}
       <button class="vorlage" data-tm="begleitschein"><b>📄 Begleitschein / Liefernachweis drucken</b></button>
@@ -3763,7 +3914,7 @@ function tourMehr(t) {
     if (notiz !== (t.notiz || '')) TourAktionen.speichern({ ...t, notiz });
     if (fall) { gehe('#/fall/' + fall.dataset.tmFall); return; }
     const tn = S.touren[t.id] || t;
-    ({ ok: () => {}, schaden: () => schadenAusTour(t), details: () => tourDetailsDialog(tn), begleitschein: () => begleitscheinDrucken([tn]), senden: () => tourSenden(tn), kunde: () => tourKundeDialog(tn), navi: () => navigation(tourAdresse(t)), abliefern: () => abliefernDialog(tn),
+    ({ ok: () => {}, schaden: () => schadenAusTour(t), details: () => tourDetailsDialog(tn), begleitschein: () => begleitscheinDrucken([tn]), senden: () => tourSenden(tn), kunde: () => tourKundeDialog(tn), stopps: () => stoppListeDialog(tn), navi: () => navigation(tourAdresse(t)), abliefern: () => abliefernDialog(tn),
       aufgabe: () => aufgabeDialog(null, { bezugArt: 'tour', bezugId: t.id, titel: '', faelligAm: t.datum }), storno: () => tourStatusSetzen(tn, tn.status === 'STORNIERT' ? 'GEPLANT' : 'STORNIERT'), firma: () => gehe('#/firma/' + t.auftraggeberId), fahrzeug: () => gehe('#/fahrzeug/' + fahrzeugZumKz(t.kennzeichen).id),
       kopie: () => TourAktionen.neu(t.datum, { kennzeichen: '', tourNr: t.tourNr, auftraggeberId: t.auftraggeberId, auftraggeber: t.auftraggeber, name: t.name, uhrzeit: t.uhrzeit, einsatzart: t.einsatzart }),
       morgen: () => tagWaehlen('Tour kopieren auf', plusTage(t.datum, 1), tag => { TourAktionen.neu(tag, { kennzeichen: t.kennzeichen, tourNr: t.tourNr, auftraggeberId: t.auftraggeberId, auftraggeber: t.auftraggeber, name: t.name, uhrzeit: t.uhrzeit, einsatzart: t.einsatzart }); toast('Kopiert auf ' + datumText(tag)); }),
@@ -5403,7 +5554,7 @@ function zeichneFahrer() {
       <p style="font-size:17px;margin:6px 0"><b>${esc(x.kennzeichen || '–')}</b> · ${esc([x.tourNr && 'Tour ' + x.tourNr, tourAuftraggeberName(x), x.name].filter(Boolean).join(' · '))}</p>
       <p class="leise">${esc(x.einsatzart || '')}${adr ? ' · ' + esc(adr) : ''}</p>
       <p class="leise">Team: ${esc(teamVon(x).map(id => maName(id) + (id === x.fahrerId ? ' (Fahrer)' : '')).join(', '))}</p>
-      ${x.notiz ? `<p class="hinweis-box">ℹ ${esc(x.notiz)}</p>` : ''}${sig ? '<p class="leise">✍ Unterschrift liegt vor</p>' : ''}
+      ${x.notiz ? `<p class="hinweis-box">ℹ ${esc(x.notiz)}</p>` : ''}${fahrerStoppsHtml(x)}${sig ? '<p class="leise">✍ Unterschrift liegt vor</p>' : ''}
       ${x.datum === t ? `<div class="fahrer-knoepfe">
         ${!fertig && x.status !== 'UNTERWEGS' ? '<button class="knopf voll" data-fahrer="los">▶ Losfahren</button>' : ''}
         ${!fertig ? '<button class="knopf voll" data-fahrer="abliefern">✓ Abliefern</button>' : ''}

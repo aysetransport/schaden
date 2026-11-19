@@ -46,10 +46,11 @@ dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:14px 0 0}dt{c
   let wahl = 0;
   function zeige(s) {
     const stufe = { GEPLANT: 1, UNTERWEGS: 2, ANGEKOMMEN: 2, PROBLEM: 2, ERLEDIGT: 3 }[s.status] || 1;
-    inhalt.innerHTML = `${s.kunde ? `<p class="leise">Für ${esc(s.kunde)}</p>` : ''}<div class="status ${esc(s.status)}">${esc(s.statusText)}</div>
-      ${s.status === 'STORNIERT' ? '' : `<div class="schritte" aria-hidden="true">${[1, 2, 3].map(i => `<div class="schritt ${i <= stufe ? (stufe === 3 ? 'fertig' : 'an') : ''}"></div>`).join('')}</div><div class="leise" style="display:flex;justify-content:space-between"><span>Geplant</span><span>Unterwegs</span><span>Zugestellt</span></div>`}
+    inhalt.innerHTML = `${s.kunde ? `<p class="leise">Für ${esc(s.kunde)}</p>` : ''}<div class="status ${esc(s.status)}">${esc(s.abholung && s.status === 'ERLEDIGT' ? 'Abgeholt' : s.statusText)}</div>
+      ${s.stoppsVorher != null ? `<p style="margin:0;font-weight:600">${s.stoppsVorher === 0 ? 'Sie sind der nächste Stopp.' : `Noch ${s.stoppsVorher} Stopp${s.stoppsVorher === 1 ? '' : 's'} vor Ihnen.`}</p>` : ''}
+      ${s.status === 'STORNIERT' ? '' : `<div class="schritte" aria-hidden="true">${[1, 2, 3].map(i => `<div class="schritt ${i <= stufe ? (stufe === 3 ? 'fertig' : 'an') : ''}"></div>`).join('')}</div><div class="leise" style="display:flex;justify-content:space-between"><span>Geplant</span><span>Unterwegs</span><span>${s.abholung ? 'Abgeholt' : 'Zugestellt'}</span></div>`}
       <dl>${s.datum ? `<dt>Termin</dt><dd>${esc(datum(s.datum))}</dd>` : ''}${s.zeitfenster ? `<dt>Zeitfenster</dt><dd>${esc(s.zeitfenster)}</dd>` : ''}
-        ${s.abgeliefertAm ? `<dt>Zugestellt</dt><dd>${esc(zeit(s.abgeliefertAm))}${s.empfaenger ? ' · angenommen von ' + esc(s.empfaenger) : ''}</dd>` : ''}
+        ${s.abgeliefertAm ? `<dt>${s.abholung ? 'Abgeholt' : 'Zugestellt'}</dt><dd>${esc(zeit(s.abgeliefertAm))}${s.empfaenger ? ' · angenommen von ' + esc(s.empfaenger) : ''}</dd>` : ''}
         ${s.im_auftrag ? `<dt>Im Auftrag von</dt><dd>${esc(s.im_auftrag)}</dd>` : ''}</dl>
       ${s.bewertbar ? `<div style="margin-top:20px;border-top:1px solid var(--linie);padding-top:16px"><b>Wie zufrieden waren Sie mit der Lieferung?</b>
         <div class="sterne" role="radiogroup" aria-label="Bewertung">${[1, 2, 3, 4, 5].map(i => `<button type="button" role="radio" aria-checked="false" aria-label="${i} von 5 Sternen" data-stern="${i}">★</button>`).join('')}</div>
