@@ -1267,7 +1267,7 @@ document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.ke
 function neuMenue() {
   const eintraege = [['fall', '⚠', 'Schadensfall'], ['tour', '🚚', 'Tour (heute)'], ['firma', '🏢', 'Firma'], ['interessent', '🎯', 'Interessent'], ['mitarbeiter', '👤', 'Mitarbeiter'],
     ['abwesenheit', '🏖', 'Abwesenheit'], ['fahrzeug', '🚐', 'Fahrzeug'], ['rechnung', '€', 'Rechnung'], ['angebot', '📄', 'Angebot'], ['rechnung-touren', '🧾', 'Rechnung aus Touren'],
-    ...(MAIL.konto ? [['mail', '✉', 'E-Mail']] : []), ['anruf', '📞', 'Anrufliste (Akquise)'], ['aufgabe', '✅', 'Aufgabe'], ['zeit', '⏱', 'Arbeitszeit'], ['tacho', '💳', 'Fahrerkarte einlesen'], ['kalk', '🧮', 'Preis kalkulieren']];
+    ...(MAIL.konto ? [['mail', '✉', 'E-Mail']] : []), ['anruf', '📞', 'Anrufliste (Akquise)'], ['aufgabe', '✅', 'Aufgabe'], ['zeit', '⏱', 'Arbeitszeit'], ['tacho', '💳', 'Fahrerkarte einlesen'], ['kalk', '🧮', 'Preis kalkulieren'], ['brief', '✉', 'Brief'], ['monat', '🧾', 'Monatsabrechnung']];
   const fuerFahrer = new Set(['fall', 'aufgabe', 'zeit', 'abwesenheit']);
   if (rolle() === 'FAHRER') eintraege.splice(0, eintraege.length, ...eintraege.filter(([k]) => fuerFahrer.has(k)));
   dialog(`<h2>Neu anlegen</h2><div class="kacheln">${eintraege.map(([k, s, l]) => `<button class="kachel" data-neu-art="${k}"><span>${s}</span>${l}</button>`).join('')}</div>
@@ -1279,7 +1279,7 @@ function neuMenue() {
       firma: () => crmDialog('auftraggeber', null, null, id => { ANSICHT.bereich = 'firmen'; gehe('#/firma/' + id); }), interessent: interessentDialog,
       mitarbeiter: () => mitarbeiterDialog(null), abwesenheit: () => abwesenheitDialog(null), fahrzeug: () => fahrzeugDialog(null),
       rechnung: () => belegNeuDialog('RECHNUNG'), angebot: () => belegNeuDialog('ANGEBOT'), 'rechnung-touren': () => rechnungAusTouren(), mail: () => mailAnFirma(), anruf: anruflisteStarten,
-      aufgabe: () => aufgabeDialog(null), zeit: () => zeitDialog(null), tacho: tachoImportDialog, kalk: () => kalkulatorDialog() })[b.dataset.neuArt]();
+      aufgabe: () => aufgabeDialog(null), zeit: () => zeitDialog(null), tacho: tachoImportDialog, kalk: () => kalkulatorDialog(), brief: () => briefDialog(), monat: monatsabrechnungDialog })[b.dataset.neuArt]();
   };
 }
 $('#neu-knopf').onclick = neuMenue;
@@ -2347,7 +2347,7 @@ function zeichneFinanzen(r) {
       : f === 'BEZAHLT' ? b.status === 'BEZAHLT' : f === 'UEBERFAELLIG' ? istUeberfaellig(b) : istRechnungOffen(b);
   }).sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || String(b.nummer).localeCompare(String(a.nummer)));
   return seitenkopf('Finanzen', '<button class="knopf voll" data-neuer-beleg="RECHNUNG">＋ Rechnung</button>', `<button class="knopf" data-neuer-beleg="ANGEBOT">＋ Angebot</button>
-      <button class="knopf" data-rechnung-touren="">🧾 Rechnung aus Touren</button><button class="knopf" data-kalkulator>🧮 Kalkulator</button><button class="knopf" data-belege-csv>CSV</button>
+      <button class="knopf" data-monatsabrechnung>🧾 Monatsabrechnung</button><button class="knopf" data-rechnung-touren="">Rechnung aus Touren</button><button class="knopf" data-kalkulator>🧮 Kalkulator</button><button class="knopf" data-belege-csv>CSV</button>
       <button class="knopf" data-buchhaltung>📒 Buchhaltung (CSV)</button>`) + `<div class="kennzahlen" style="grid-template-columns:1fr 1fr">
       <button class="kennzahl" data-beleg-filter="OFFEN"><b>${geld(k.offen)}</b><span>Offen (${k.offenAnzahl} Rechnungen)</span></button>
       <button class="kennzahl ${k.ueberfaelligAnzahl ? 'rot' : ''}" data-beleg-filter="UEBERFAELLIG"><b>${geld(k.ueberfaellig)}</b><span>Überfällig (${k.ueberfaelligAnzahl})</span></button>
@@ -2736,7 +2736,7 @@ function zeichneMitarbeiter(id) {
         <button class="knopf tonal" data-ma="whatsapp" ${m.telefon ? '' : 'disabled'}>💬 WhatsApp</button>
         <button class="knopf tonal" data-ma="email" ${m.email ? '' : 'disabled'}>✉ E-Mail</button></div>
       <div class="zeile" style="margin-top:8px"><button class="knopf voll" data-ma="abwesenheit">＋ Abwesenheit</button><button class="knopf" data-ma="eintrag">＋ Personalakte</button>
-        <button class="knopf" data-ma="zeit">＋ Arbeitszeit</button>${mitCloud() && rolle() === 'ADMIN' && PIN ? '<button class="knopf" data-ma="login">👤 Login</button>' : ''}<button class="knopf" data-neue-aufgabe data-bezug-art="mitarbeiter" data-bezug-id="${m.id}">＋ Aufgabe</button></div>
+        <button class="knopf" data-ma="zeit">＋ Arbeitszeit</button><button class="knopf" data-brief="BESCHAEFTIGUNG">✉ Brief</button>${mitCloud() && rolle() === 'ADMIN' && PIN ? '<button class="knopf" data-ma="login">👤 Login</button>' : ''}<button class="knopf" data-neue-aufgabe data-bezug-art="mitarbeiter" data-bezug-id="${m.id}">＋ Aufgabe</button></div>
     </div>
     <div class="karte block"><div class="zeile eng"><h3 class="fuell" style="margin:0">Auswertung · ${esc(zr.text)}</h3></div>
       <div class="chips" style="margin:8px 0">${Object.entries(ZEITRAEUME).map(([k, l]) => `<button class="chip" data-ma-zeitraum="${k}" aria-pressed="${(ANSICHT.maZeitraum || 'MONAT') === k}">${l}</button>`).join('')}</div>
@@ -2837,6 +2837,7 @@ function abwesenheitDialog(m, a, vorgabeTag) {
     <label class="feld">Grund<input name="grund" list="abw-gruende" value="${esc(e.grund || '')}"></label><datalist id="abw-gruende">${ABWESENHEIT_GRUENDE.map(g => `<option value="${g}">`).join('')}</datalist>
     <label class="feld">Notiz<input name="notiz" value="${esc(e.notiz || '')}"></label>
     <p class="fehlertext" id="abw-fehler" hidden></p><p class="leise" id="abw-hinweis"></p>
+    ${!neu && grundArt(a.grund) === 'Urlaub' && m ? `<button type="button" class="knopf text" style="padding-left:0" data-brief="URLAUB" data-abwesenheit="${a.id}">✉ Urlaubsbestätigung drucken</button>` : ''}
     <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="abw-weg">Löschen</button>'}<span class="fuell"></span>
       <button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
   const f = $('#abwesenheit-form');
@@ -5291,6 +5292,117 @@ function tagesHinweiseZeigen(versuch = 0) {
   if (window.desktop && window.desktop.benachrichtige) window.desktop.benachrichtige('Ayse CRM – heute', l.join('\n'), '#/').catch(() => {});
 }
 
+// ============================== Monatsabrechnung (Sammelrechnungen) ==============================
+/** Für alle Firmen mit gefahrenen, noch nicht abgerechneten Touren im Zeitraum je eine Rechnung (Positionen je Einsatzart × Preisliste). */
+function sammelPositionen(firma, touren, bis) {
+  const preise = preiseZum(firma.id, bis), gruppen = {};
+  for (const t of touren) (gruppen[t.einsatzart || ''] = gruppen[t.einsatzart || ''] || []).push(t);
+  return Object.entries(gruppen).sort((a, b) => a[0].localeCompare(b[0], 'de')).map(([art, l]) => {
+    const p = preisFuerArt(preise, art);
+    return { art, touren: l, preis: p, pos: { bez: p ? p.bezeichnung + (normal(p.bezeichnung) === normal(art) || !art ? '' : ` – ${art}`) : art || 'Touren', einheit: (p && p.einheit) || 'je Tour', menge: l.length, einzelCent: p && p.betragCent != null ? p.betragCent : 0 } };
+  });
+}
+function monatsabrechnungDialog() {
+  const zr = zeitraum('LETZTER_MONAT');
+  const offen = t => tourGefahren(t) && !(t.belegId && S.belege[t.belegId] && !S.belege[t.belegId].geloescht);
+  const zeichneListe2 = (von, bis) => auftraggeberListe().map(f => ({ f, l: tourenVonFirma(f, von, bis).filter(offen) })).filter(x => x.l.length).map(x => ({ ...x, g: sammelPositionen(x.f, x.l, bis) }));
+  dialog(`<form method="dialog" id="sammel-form"><h2>🧾 Monatsabrechnung</h2><p class="leise">Je Firma eine Rechnung über alle gefahrenen, noch nicht abgerechneten Touren im Zeitraum – Preise aus der Preisliste der Firma. Die Rechnungen entstehen als Entwurf.</p>
+    <div class="zeile"><label class="feld fuell">Von<input type="date" name="von" value="${zr.von}"></label><label class="feld fuell">Bis<input type="date" name="bis" value="${zr.bis}"></label></div>
+    <div id="sammel-liste"></div>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll" id="sammel-los">Rechnungen anlegen</button></div></form>`);
+  const f = $('#sammel-form');
+  const zeigen = () => {
+    const l = zeichneListe2(f.von.value, f.bis.value);
+    $('#sammel-liste').innerHTML = l.length ? l.map(x => { const summe = x.g.reduce((n, g) => n + g.pos.menge * g.pos.einzelCent, 0), fehlt = x.g.filter(g => !g.preis).length;
+      return `<label class="auswahl"><input type="checkbox" name="f" value="${x.f.id}" checked> <span class="fuell"><b>${esc(x.f.name)}</b> · ${x.l.length} Touren · <b>${geld(summe)}</b> netto
+        ${fehlt ? `<br><span class="fehlertext">${fehlt} Einsatzart(en) ohne Preis – Preis in der Rechnung nachtragen</span>` : ''}<br><span class="leise">${esc(x.g.map(g => `${g.pos.menge}× ${g.art || 'ohne Einsatzart'}`).join(', '))}</span></span></label>`; }).join('')
+      : '<p class="leise">Keine offenen Touren im Zeitraum – alles abgerechnet.</p>';
+    $('#sammel-los').disabled = !l.length;
+  };
+  f.von.onchange = zeigen; f.bis.onchange = zeigen; zeigen();
+  f.onsubmit = ev => {
+    ev.preventDefault();
+    const ids = new Set(new FormData(f).getAll('f')), l = zeichneListe2(f.von.value, f.bis.value).filter(x => ids.has(x.f.id)), zt = `${datumText(f.von.value)} – ${datumText(f.bis.value)}`;
+    for (const x of l) {
+      const id = BelegAktionen.neu('RECHNUNG', x.f.id, { positionen: JSON.stringify(x.g.map(g => g.pos)), notiz: `Monatsabrechnung aus der Tourenplanung: ${zt} (${x.l.length} Touren)`,
+        einleitung: `für unsere Leistungen im Zeitraum ${zt} erlauben wir uns, wie folgt zu berechnen:` });
+      for (const t of x.l) merke('touren', { ...t, belegId: id, geaendertAm: jetztIso() });
+    }
+    $('#dialog').close(); nachAenderung(); ANSICHT.belegFilter = 'ENTWURF'; bereichWechseln('finanzen');
+    toast(`${l.length} Rechnungen als Entwurf angelegt – bitte prüfen und versenden`, 7000);
+  };
+}
+
+// ============================== Briefe ==============================
+/** Brief nach DIN 5008 (Form B) mit den eigenen Firmendaten aus ⚙ → Eigene Firmendaten. */
+function briefHtml({ an = [], betreff = '', anrede = 'Sehr geehrte Damen und Herren,', text = '', datum = heute(), ort = '' }) {
+  const rd = rechnungsDaten(), firma = rd.name || S.einstellungen.firma || '', absOrt = ort || String(rd.plzOrt || '').replace(/^\d+\s*/, '');
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${esc(betreff || 'Brief')}</title><style>@page{size:A4;margin:0}body{font:11pt/1.5 Arial,Helvetica,sans-serif;color:#111;margin:0}
+    .seite{padding:20mm 20mm 30mm 25mm;position:relative;min-height:247mm}.kopf{position:absolute;top:12mm;right:20mm;text-align:right;font-weight:bold;font-size:13pt}
+    .absender{font-size:7.5pt;border-bottom:1px solid #999;display:inline-block;margin-top:27mm}.empf{margin-top:3mm;height:30mm;white-space:pre-line}
+    .datum{text-align:right;margin-top:8mm}h1{font-size:11pt;font-weight:bold;margin:8mm 0 6mm}.text{white-space:pre-wrap}
+    .fuss{position:absolute;bottom:10mm;left:25mm;right:20mm;font-size:7.5pt;color:#444;border-top:1px solid #999;padding-top:2mm;display:flex;gap:10mm}</style></head><body><div class="seite">
+    <div class="kopf">${esc(firma)}</div><div class="absender">${esc([firma, rd.strasse, rd.plzOrt].filter(Boolean).join(' · '))}</div>
+    <div class="empf">${esc(an.filter(Boolean).join('\n'))}</div><div class="datum">${esc([absOrt, datumText(datum)].filter(Boolean).join(', '))}</div>
+    <h1>${esc(betreff)}</h1><p>${esc(anrede)}</p><div class="text">${esc(text)}</div>
+    <p>Mit freundlichen Grüßen</p><p style="margin-top:14mm">${esc(S.einstellungen.bearbeiter || '')}${S.einstellungen.funktion ? '<br>' + esc(S.einstellungen.funktion) : ''}<br>${esc(firma)}</p>
+    <div class="fuss"><div>${esc(firma)}<br>${esc(rd.strasse || '')}<br>${esc(rd.plzOrt || '')}</div><div>${rd.telefon ? 'Tel. ' + esc(rd.telefon) + '<br>' : ''}${esc(rd.email || '')}</div>
+      <div>${rd.steuer ? 'St.-Nr. ' + esc(rd.steuer) + '<br>' : ''}${rd.ustId ? 'USt-IdNr. ' + esc(rd.ustId) : ''}</div><div>${esc(rd.bank || '')}<br>${rd.iban ? 'IBAN ' + esc(rd.iban) : ''}</div></div></div></body></html>`;
+}
+/** Vorlagen: [Titel, für (FIRMA|MITARBEITER|FREI), Betreff, Text]; {NAME}, {ANSCHRIFT}-Felder werden ersetzt. */
+const BRIEF_VORLAGEN = {
+  FREI: ['Freier Brief', 'FREI', '', ''],
+  URLAUB: ['Urlaubsbestätigung', 'MITARBEITER', 'Bestätigung Ihres Urlaubs', 'hiermit bestätigen wir Ihren Urlaub vom {VON} bis einschließlich {BIS} ({TAGE} Arbeitstage).\n\nIhr verbleibender Urlaubsanspruch für {JAHR} beträgt danach {REST} Tage.\n\nWir wünschen Ihnen eine erholsame Zeit.'],
+  BESCHAEFTIGUNG: ['Beschäftigungsbescheinigung', 'MITARBEITER', 'Bescheinigung über das Beschäftigungsverhältnis', 'hiermit bestätigen wir, dass {NAME}{GEBURT} seit dem {EINTRITT} in unserem Unternehmen als {ROLLE} ({ANSTELLUNG}{STUNDEN}) beschäftigt ist.\n\nDas Arbeitsverhältnis ist ungekündigt.\n\nDiese Bescheinigung wird auf Wunsch des Mitarbeiters zur Vorlage bei Behörden, Vermietern oder Banken ausgestellt.'],
+  FAHRERKARTE: ['Aufforderung Fahrerkarte auslesen', 'MITARBEITER', 'Auslesen Ihrer Fahrerkarte', 'Ihre Fahrerkarte muss nach den gesetzlichen Vorgaben spätestens alle 28 Tage ausgelesen werden.\n\nBitte bringen Sie Ihre Fahrerkarte bis zum {FRIST} im Büro vorbei bzw. lesen Sie sie am Kartenleser aus.\n\nVielen Dank.'],
+  AUFTRAG: ['Auftragsbestätigung', 'FIRMA', 'Auftragsbestätigung', 'vielen Dank für Ihren Auftrag. Hiermit bestätigen wir:\n\nLeistung: [Leistung]\nTermin: [Datum, Uhrzeit]\nOrt: [Adresse]\n\nEs gelten die vereinbarten Konditionen:\n{PREISE}\n\nBei Fragen erreichen Sie uns jederzeit.'],
+  PREISE: ['Preisanpassung', 'FIRMA', 'Anpassung unserer Preise zum [Datum]', 'aufgrund gestiegener Kosten für Kraftstoff, Maut und Personal passen wir unsere Preise zum [Datum] wie folgt an:\n\n{PREISE}\n\nWir danken für Ihr Verständnis und freuen uns auf die weitere Zusammenarbeit.'],
+  KUENDIGUNG_AUFTRAG: ['Beendigung der Zusammenarbeit', 'FIRMA', 'Beendigung unseres Rahmenvertrags', 'hiermit kündigen wir den Rahmenvertrag vom [Datum] fristgerecht zum [Datum].\n\nBis dahin führen wir alle vereinbarten Touren wie gewohnt aus.\n\nWir bedanken uns für die bisherige Zusammenarbeit.'],
+};
+function briefDialog({ vorlage = 'FREI', firmaId = '', mitarbeiterId = '', abwesenheitId = '' } = {}) {
+  const firmen = auftraggeberListe(), leute = mitarbeiterListe();
+  dialog(`<form method="dialog" id="brief-form"><h2>✉ Brief</h2>
+    <label class="feld">Vorlage<select name="vorlage">${Object.entries(BRIEF_VORLAGEN).map(([k, [l]]) => `<option value="${k}" ${k === vorlage ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+    <label class="feld">An<select name="an"><option value="">– frei eintragen –</option><optgroup label="Firmen">${firmen.map(f => `<option value="f:${f.id}" ${f.id === firmaId ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</optgroup>
+      <optgroup label="Mitarbeiter">${leute.map(m => `<option value="m:${m.id}" ${m.id === mitarbeiterId ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</optgroup></select></label>
+    <label class="feld">Anschrift<textarea name="anschrift" style="min-height:90px"></textarea></label>
+    <label class="feld">Betreff<input name="betreff"></label><label class="feld">Anrede<input name="anrede"></label>
+    <label class="feld">Text<textarea name="text" style="min-height:220px"></textarea></label>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Schließen</button><button type="button" class="knopf" id="brief-pdf">PDF</button><button class="knopf voll">🖨 Drucken</button></div></form>`);
+  const f = $('#brief-form');
+  const empfaenger = () => { const [art, id] = String(f.an.value).split(':'); return art === 'f' ? { firma: S.auftraggeber[id] } : art === 'm' ? { ma: maVon(id) } : {}; };
+  const fuellen = () => {
+    const [, , betreff, text] = BRIEF_VORLAGEN[f.vorlage.value], { firma, ma } = empfaenger();
+    const adr = firma ? rechnungsAdresse(firma.id) : null, k = firma ? kontakteVon(firma.id)[0] : null;
+    f.anschrift.value = firma ? [firmaName(firma), k && 'z. Hd. ' + k.name, adr && adr.strasse, adr && [adr.plz, adr.ort].filter(Boolean).join(' ')].filter(Boolean).join('\n') : ma ? [ma.name, ma.adresse].filter(Boolean).join('\n') : '';
+    f.anrede.value = k ? `Guten Tag ${k.name},` : ma ? `Hallo ${ma.name.split(' ')[0]},` : 'Sehr geehrte Damen und Herren,';
+    const abw = (abwesenheitId && S.abwesenheiten[abwesenheitId]) || (ma && abwesenheitenVon(ma.id).filter(a => grundArt(a.grund) === 'Urlaub' && (a.bis || a.von) >= heute()).pop());
+    const u = ma ? urlaubskonto(ma, abw ? abw.von.slice(0, 4) : heute().slice(0, 4)) : null;
+    const ersetze = t => String(t).replace(/\{NAME}/g, ma ? ma.name : firma ? firma.name : '').replace(/\{VON}/g, abw ? datumText(abw.von) : '[von]').replace(/\{BIS}/g, abw ? datumText(abw.bis || abw.von) : '[bis]')
+      .replace(/\{TAGE}/g, abw ? arbeitstage(abw.von, abw.bis || abw.von) : '[Tage]').replace(/\{JAHR}/g, abw ? abw.von.slice(0, 4) : heute().slice(0, 4)).replace(/\{REST}/g, u ? u.rest : '[Rest]')
+      .replace(/\{GEBURT}/g, ma && ma.geburtstag ? `, geboren am ${datumText(ma.geburtstag)},` : '').replace(/\{EINTRITT}/g, ma && ma.eintritt ? datumText(ma.eintritt) : '[Eintritt]')
+      .replace(/\{ROLLE}/g, ma ? ROLLE[ma.rolle] || 'Mitarbeiter' : '').replace(/\{ANSTELLUNG}/g, ma ? ANSTELLUNG[ma.anstellung] || 'Vollzeit' : '').replace(/\{STUNDEN}/g, ma && ma.wochenstunden ? `, ${ma.wochenstunden} Stunden pro Woche` : '')
+      .replace(/\{FRIST}/g, datumText(plusTage(heute(), 7))).replace(/\{PREISE}/g, firma && vonFirma('preise', firma.id).length ? preislisteText(firma).split('\n').slice(1).join('\n') : '[Leistungen und Preise]');
+    f.betreff.value = ersetze(betreff); f.text.value = ersetze(text);
+  };
+  f.vorlage.onchange = fuellen; f.an.onchange = fuellen; fuellen();
+  const html = () => briefHtml({ an: f.anschrift.value.split('\n'), betreff: f.betreff.value, anrede: f.anrede.value, text: f.text.value });
+  const vermerken = () => {
+    const { firma, ma } = empfaenger();
+    if (firma) Aktionen.crmSpeichern('aktivitaeten', { firmaId: firma.id, datum: heute(), art: 'SONSTIGES', kontakt: '', text: `Brief: ${f.betreff.value}\n${f.text.value.slice(0, 500)}` });
+    if (ma && rolle() !== 'FAHRER') PersonalAktionen.eintrag({ mitarbeiterId: ma.id, art: 'SONSTIGES', datum: heute(), text: `Brief: ${f.betreff.value}` });
+  };
+  f.onsubmit = ev => { ev.preventDefault(); druckeHtml(html()); vermerken(); };
+  $('#brief-pdf').onclick = async () => {
+    if (!window.desktop || !window.desktop.pdf) { druckeHtml(html()); toast('Im Browser: „Als PDF speichern“ im Druckfenster wählen'); vermerken(); return; }
+    try { const pfad = await window.desktop.speichere(`Brief_${f.betreff.value.replace(/[^\wäöüÄÖÜß-]+/g, '_').slice(0, 40)}_${heute()}.pdf`, await window.desktop.pdf(html())); if (pfad) toast('Gespeichert: ' + pfad); vermerken(); } catch (e) { toast('PDF nicht möglich: ' + e.message); }
+  };
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-brief]'); if (b) { const r = route(); briefDialog({ vorlage: b.dataset.brief || 'FREI', firmaId: r.art === 'firma' ? r.id : '', mitarbeiterId: (b.dataset.abwesenheit && S.abwesenheiten[b.dataset.abwesenheit]?.mitarbeiterId) || (r.art === 'mitarbeiter' ? r.id : ''), abwesenheitId: b.dataset.abwesenheit || '' }); return; }
+  if (e.target.closest('[data-monatsabrechnung]')) monatsabrechnungDialog();
+});
+
 // ============================== Fuhrpark ==============================
 const FAHRZEUG_ART = { TRANSPORTER: 'Transporter', LKW: 'LKW', PKW: 'PKW', ANHAENGER: 'Anhänger', SONSTIGES: 'Sonstiges' };
 const FAHRZEUG_STATUS = { AKTIV: ['Im Einsatz', 'gruen'], WERKSTATT: ['In der Werkstatt', 'gelb'], RESERVE: ['Reserve', 'grau'], STILLGELEGT: ['Abgemeldet / verkauft', 'grau'] };
@@ -6192,7 +6304,7 @@ function akquiseHtml(e) {
   return `<div class="karte block"><h3>Kontakt und Akquise</h3>
     <p class="leise">${anrufe} Anrufe · ${mails} E-Mails${letzterKontakt(e.id) ? ' · letzter Kontakt ' + esc(datumText(letzterKontakt(e.id))) : ''}${offen ? ` · nächster Schritt: ${esc(offen.text)}${offen.faelligAm ? ' (' + esc(datumText(offen.faelligAm)) + ')' : ''}` : ''}</p>
     <div class="zeile" style="margin-top:8px"><button class="knopf voll" data-akquise="anruf">📞 Anruf festhalten</button>
-      <button class="knopf" data-akquise="mail">✉ Vorlage senden</button>${e.status === 'INTERESSENT' || e.status === 'EHEMALIG' ? '<button class="knopf" data-akquise="ablauf">▶ Akquise-Ablauf</button>' : ''}</div></div>`;
+      <button class="knopf" data-akquise="mail">✉ Vorlage senden</button><button class="knopf" data-brief="AUFTRAG">📄 Brief</button>${e.status === 'INTERESSENT' || e.status === 'EHEMALIG' ? '<button class="knopf" data-akquise="ablauf">▶ Akquise-Ablauf</button>' : ''}</div></div>`;
 }
 function firmenVorlageWaehlen(firma) {
   dialog(`<h2>Vorlage für ${esc(firma.name)}</h2><div id="fv-liste">${Object.entries(FIRMEN_VORLAGEN).map(([k, [l, b]]) => `<button class="vorlage" data-fv="${k}"><b>${esc(l)}</b><br><span class="leise">${esc(firmenVorlageFuellen(b, firma))}</span></button>`).join('')}</div>
