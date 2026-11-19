@@ -862,7 +862,7 @@ async function api(fn, ...args) {
   return j.ok;
 }
 const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber', ...CRM_TABELLEN];
-const CLOUD_API = 8;
+const CLOUD_API = 9;
 const VERALTET = 'Das Cloud-Skript ist veraltet – bitte die neue Code.gs bereitstellen.';
 const offeneAnzahl = () => TABELLEN.reduce((n, t) => n + offene(t).length, 0);
 const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
@@ -910,6 +910,15 @@ async function abgleich() {
         S[tabelle][fern.id] = { ...fern, _n: lokal ? lokal._n : 0 };
       }
     }
+    // Fahrer bekommen jedes Mal ihren vollständigen Bestand: was nicht mehr dabei ist, verschwindet vom Gerät.
+    if (r.ansicht === 'FAHRER' || r.ansicht === 'DISPO') {
+      for (const tabelle of TABELLEN) {
+        if (r.ansicht === 'DISPO' && tabelle !== 'personaleintraege') continue;
+        const da = new Set((r[tabelle] || []).map(x => x.id));
+        for (const x of Object.values(S[tabelle])) if (!x._dirty && !da.has(x.id)) { delete S[tabelle][x.id]; neuesVomServer = true; }
+      }
+    }
+    if (r.rolle && (S.zugang || {}).rolle !== r.rolle) { S.zugang = { ...(S.zugang || {}), rolle: r.rolle }; neuesVomServer = true; }
     if (S.kennung && r.kennung !== S.kennung) {
       // Der Bestand in der Cloud wurde neu angelegt: alles von diesem Gerät erneut hochladen –
       // aber nicht endlos, falls die Cloud bei jedem Aufruf einen neuen Bestand meldet.
@@ -966,17 +975,20 @@ async function anmeldung(falsch = false) {
   // Nur einmal gleichzeitig – aber nie dauerhaft gesperrt, falls ein anderes Fenster das PIN-Fenster ersetzt hat.
   if (anmeldungOffen || ($('#dialog').open && $('#pin-form'))) return; anmeldungOffen = true;
   zeichneSync();
-  let eingerichtet = true;
-  try { eingerichtet = (await api('status')).eingerichtet; }
+  let eingerichtet = true, stat = {};
+  try { stat = await api('status'); eingerichtet = stat.eingerichtet; }
   catch { anmeldungOffen = false; SYNC.fehler = 'offline'; zeichneSync(); return; }
   anmeldungOffen = false;
   const neu = !eingerichtet;
-  dialog(`<form method="dialog" id="pin-form"><h2>${neu ? 'PIN festlegen' : 'PIN eingeben'}</h2>
+  if (!neu && (ANSICHT.loginArt || (stat.benutzer ? 'BENUTZER' : 'PIN')) === 'BENUTZER') { loginDialog(falsch); return; }
+  dialog(`<form method="dialog" id="pin-form"><h2>${neu ? 'PIN festlegen' : 'Admin-PIN eingeben'}</h2>
     <p class="leise">${neu ? 'Diese PIN schützt die Daten in der Cloud. Sie wird auf jedem Gerät einmal abgefragt (mindestens 4 Zeichen).' : 'Die PIN der Schadensfälle-Cloud.'}</p>
     <p class="fehlertext" id="pin-fehler" ${falsch ? '' : 'hidden'}>Die PIN war falsch.</p>
     <label class="feld">PIN<input id="pin1" type="password" autocomplete="${neu ? 'new-password' : 'current-password'}" required minlength="${neu ? 4 : 1}"></label>
     ${neu ? '<label class="feld">PIN wiederholen<input id="pin2" type="password" autocomplete="new-password" required></label>' : ''}
+    ${neu ? '' : '<button type="button" class="knopf text" id="zum-login" style="padding-left:0">Mit Benutzername und Passwort anmelden</button>'}
     <div class="dialog-knoepfe"><button type="button" class="knopf text" id="pin-spaeter">Später</button><button class="knopf voll" value="ok">${neu ? 'Festlegen' : 'Anmelden'}</button></div></form>`, { schliessbar: false });
+  if ($('#zum-login')) $('#zum-login').onclick = () => { ANSICHT.loginArt = 'BENUTZER'; $('#dialog').close(); anmeldung(); };
   $('#pin-spaeter').onclick = () => { $('#dialog').close(); zeichneSync(); };
   setTimeout(() => $('#pin1') && $('#pin1').focus(), 50);
   $('#pin-form').onsubmit = async ereignis => {
@@ -986,8 +998,9 @@ async function anmeldung(falsch = false) {
     if (neu && pin !== $('#pin2').value) { zeige('Die beiden Eingaben stimmen nicht überein.'); return; }
     try {
       if (neu) await api('pinFestlegen', pin);
-      await api('anmelden', pin);
+      const a = await api('anmelden', pin);
       PIN = pin; try { localStorage.setItem(PIN_SPEICHER, PIN); } catch {}
+      S.zugang = { rolle: a.rolle || 'ADMIN', name: 'Admin', mitarbeiterId: '' }; speichere();
       $('#dialog').close(); SYNC.fehler = ''; SYNC.versionOk = null; abgleich();
     } catch (e) {
       const m = String(e.message || e);
@@ -995,6 +1008,110 @@ async function anmeldung(falsch = false) {
     }
   };
 }
+
+/** Anmeldung mit Benutzername und Passwort (vom Admin angelegt). */
+function loginDialog(falsch = false) {
+  dialog(`<form method="dialog" id="login-form"><h2>Anmelden</h2>
+    <p class="leise">Mit den Zugangsdaten, die du vom Büro bekommen hast.</p>
+    <p class="fehlertext" id="login-fehler" ${falsch ? '' : 'hidden'}>Bitte erneut anmelden.</p>
+    <label class="feld">Benutzername<input id="login-name" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+    <label class="feld">Passwort<input id="login-pw" type="password" autocomplete="current-password" required></label>
+    <button type="button" class="knopf text" id="zur-pin" style="padding-left:0">Als Admin mit der Cloud-PIN anmelden</button>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" id="login-spaeter">Später</button><button class="knopf voll">Anmelden</button></div></form>`, { schliessbar: false });
+  setTimeout(() => $('#login-name') && $('#login-name').focus(), 50);
+  $('#login-spaeter').onclick = () => { $('#dialog').close(); zeichneSync(); };
+  $('#zur-pin').onclick = () => { ANSICHT.loginArt = 'PIN'; $('#dialog').close(); anmeldung(); };
+  $('#login-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const fehler = $('#login-fehler'), zeige = t => { fehler.textContent = t; fehler.hidden = false; };
+    try {
+      const a = await api('einloggen', $('#login-name').value, $('#login-pw').value);
+      PIN = a.token; try { localStorage.setItem(PIN_SPEICHER, PIN); } catch {}
+      S.zugang = { rolle: a.rolle, name: a.name, mitarbeiterId: a.mitarbeiterId };
+      if (a.mitarbeiterId) S.einstellungen.ichId = a.mitarbeiterId;
+      if (a.rolle === 'FAHRER') { ANSICHT.bereich = 'fahrer'; try { localStorage.setItem('crm-bereich', 'fahrer'); } catch {} }
+      speichere(); $('#dialog').close(); SYNC.fehler = ''; SYNC.versionOk = null; zeichne(); abgleich();
+      toast(`Angemeldet als ${a.name}`);
+    } catch (e) {
+      const m = String(e.message || e);
+      zeige(m.includes('GESPERRT') ? m.replace(/^.*GESPERRT: /, '') : e instanceof TypeError ? 'Keine Verbindung zur Cloud.' : m);
+    }
+  };
+}
+/** Admin: Benutzer und Logins (liegen nur in der Cloud, Passwörter nur gehasht). */
+async function benutzerVerwaltung() {
+  let liste;
+  try { liste = await api('benutzerListe', PIN); } catch (e) { toast(String(e.message).includes('Admin') ? 'Nur Admins können Benutzer verwalten.' : 'Cloud nicht erreichbar: ' + e.message); return; }
+  dialog(`<h2>Benutzer und Logins</h2><p class="leise">Wer sich mit der Cloud-PIN anmeldet, ist Admin. Alle anderen bekommen hier eigene Zugangsdaten.</p>
+    <div id="benutzer-liste">${liste.map(b => `<button class="vorlage" data-benutzer="${b.id}"><b>${esc(b.name)}</b> <span class="marke ${b.aktiv ? 'gruen' : 'grau'}">${b.aktiv ? esc(ROLLEN_TEXT[b.rolle]) : 'gesperrt'}</span><br>
+      <span class="leise">${esc(b.login)}${b.mitarbeiterId && maName(b.mitarbeiterId) ? ' · ' + esc(maName(b.mitarbeiterId)) : ''}${b.letzteAnmeldung ? ' · zuletzt ' + esc(zeitText(b.letzteAnmeldung)) : ' · noch nie angemeldet'}</span></button>`).join('') || '<p class="leise">Noch keine Benutzer.</p>'}</div>
+    <div class="dialog-knoepfe"><button class="knopf" id="benutzer-alle-fahrer">Logins für alle Fahrer ohne Login</button><button class="knopf" id="benutzer-neu">＋ Benutzer</button><button class="knopf voll" data-zu>Fertig</button></div>`);
+  $('#benutzer-neu').onclick = () => benutzerDialog(null, liste);
+  $('#benutzer-liste').onclick = e => { const b = e.target.closest('[data-benutzer]'); if (b) benutzerDialog(liste.find(x => x.id === b.dataset.benutzer), liste); };
+  $('#benutzer-alle-fahrer').onclick = async () => {
+    const ohne = mitarbeiterListe(true).filter(m => !liste.some(b => b.mitarbeiterId === m.id)), neu = [];
+    for (const m of ohne) {
+      const login = loginVorschlag(m.name, liste.concat(neu.map(x => x.b))), pw = passwortVorschlag();
+      try { liste = await api('benutzerSpeichern', PIN, { login, name: m.name, rolle: 'FAHRER', mitarbeiterId: m.id, passwort: pw, aktiv: true }); neu.push({ b: { login }, m, pw }); } catch (x) { toast(x.message); }
+    }
+    if (!neu.length) { toast('Alle aktiven Mitarbeiter haben schon einen Login.'); return; }
+    dialog(`<h2>${neu.length} Logins angelegt</h2><p class="leise">Die Passwörter stehen nur jetzt hier – bitte direkt weitergeben.</p>
+      <div id="zugang-liste">${neu.map((x, i) => `<div class="zeile eng" style="margin:6px 0"><span class="fuell"><b>${esc(x.m.name)}</b><br><span class="leise">${esc(x.b.login)} · ${esc(x.pw)}</span></span>
+        ${x.m.telefon ? `<button class="knopf tonal" data-zugang-wa="${i}">💬</button>` : ''}<button class="knopf" data-zugang-teilen="${i}">Teilen</button></div>`).join('')}</div>
+      <div class="dialog-knoepfe"><button class="knopf" id="zugang-druck">🖨 Drucken</button><button class="knopf voll" data-zu>Fertig</button></div>`);
+    $('#zugang-liste').onclick = e => { const w = e.target.closest('[data-zugang-wa]'), t = e.target.closest('[data-zugang-teilen]'); const x = neu[Number((w || t || {}).dataset ? (w || t).dataset.zugangWa ?? (w || t).dataset.zugangTeilen : -1)]; if (!x) return;
+      const text = zugangText(x.m.name, x.b.login, x.pw); if (w) whatsapp(x.m.telefon, text); else teile('Zugang Ayse CRM', text); };
+    $('#zugang-druck').onclick = () => druckeHtml(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Zugänge</title><style>body{font:11pt Arial,sans-serif}.k{border:1px dashed #999;padding:8mm;margin:4mm 0;break-inside:avoid}</style></head><body>
+      ${neu.map(x => `<div class="k"><b>${esc(x.m.name)}</b><br>Adresse: ${esc(appAdresse())}<br>Benutzername: <b>${esc(x.b.login)}</b><br>Passwort: <b>${esc(x.pw)}</b></div>`).join('')}</body></html>`);
+  };
+}
+const appAdresse = () => (location.protocol.startsWith('http') ? location.origin + location.pathname : 'https://aysetransport.github.io/schaden/');
+const zugangText = (name, login, pw) => `Hallo ${name.split(' ')[0]}, dein Zugang zur Ayse-CRM-App:\n${appAdresse()}\nBenutzername: ${login}\nPasswort: ${pw}\n(Auf dem iPhone in Safari öffnen → Teilen → „Zum Home-Bildschirm“.)`;
+const loginVorschlag = (name, liste) => { const b = normal(name).replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9 ]/g, '').trim().split(/\s+/);
+  let l = (b.length > 1 ? b[0] + '.' + b[b.length - 1] : b[0] || 'fahrer').slice(0, 30), n = l, i = 2; while (liste.some(x => x.login === n)) n = l + i++; return n; };
+const passwortVorschlag = () => { const z = 'abcdefghjkmnpqrstuvwxyz23456789', r = crypto.getRandomValues(new Uint8Array(10)); return Array.from(r, x => z[x % z.length]).join('').replace(/(.{5})/, '$1-'); };
+function benutzerDialog(b, liste) {
+  const neu = !b, e = b || { rolle: 'FAHRER', aktiv: true, login: '', name: '', mitarbeiterId: '' }, pwNeu = neu ? passwortVorschlag() : '';
+  dialog(`<form method="dialog" id="benutzer-form"><h2>${neu ? 'Neuer Benutzer' : esc(e.name)}</h2>
+    <label class="feld">Mitarbeiter (verknüpft – für Fahrer nötig)<select name="mitarbeiterId"><option value="">– keiner –</option>${mitarbeiterListe().map(m => `<option value="${m.id}" ${e.mitarbeiterId === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
+    <label class="feld">Name<input name="name" value="${esc(e.name)}" required></label>
+    <label class="feld">Benutzername<input name="login" value="${esc(e.login)}" autocapitalize="none" spellcheck="false" required pattern="[a-zA-Z0-9._-]{3,40}"></label>
+    <label class="feld">Rolle<select name="rolle">${Object.entries(ROLLEN_TEXT).map(([k, l]) => `<option value="${k}" ${e.rolle === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <p class="leise" id="rolle-info"></p>
+    <label class="feld">${neu ? 'Passwort' : 'Neues Passwort (leer = unverändert)'}<input name="passwort" value="${esc(pwNeu)}" autocomplete="new-password"></label>
+    <button type="button" class="knopf text" id="pw-neu" style="padding-left:0">🎲 Passwort erzeugen</button>
+    <label class="auswahl"><input type="checkbox" name="aktiv" ${e.aktiv ? 'checked' : ''}> Login aktiv (ausschalten = sofort gesperrt, alle Geräte abgemeldet)</label>
+    <p class="fehlertext" id="benutzer-fehler" hidden></p>
+    <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="benutzer-weg">Löschen</button>'}<span class="fuell"></span>
+      <button type="button" class="knopf text" id="benutzer-zurueck">Zurück</button><button class="knopf voll">Speichern</button></div></form>`);
+  const f = $('#benutzer-form');
+  const info = () => { $('#rolle-info').textContent = { ADMIN: 'Alles, inklusive Benutzerverwaltung und Lohndaten.', DISPO: 'Alles außer Benutzerverwaltung und Lohndaten (Lohnabrechnungen, Stundenlöhne).', FAHRER: 'Nur „Meine Touren“, eigene Arbeitszeiten, Abwesenheiten, Aufgaben und Schadensmeldungen zu eigenen Touren.' }[f.rolle.value]; };
+  f.rolle.onchange = info; info();
+  f.mitarbeiterId.onchange = () => { const m = maVon(f.mitarbeiterId.value); if (m) { if (!f.name.value) f.name.value = m.name; if (!f.login.value) f.login.value = loginVorschlag(m.name, liste.filter(x => x.id !== e.id)); } };
+  $('#pw-neu').onclick = () => { f.passwort.value = passwortVorschlag(); };
+  $('#benutzer-zurueck').onclick = benutzerVerwaltung;
+  if (!neu) $('#benutzer-weg').onclick = async () => { await api('benutzerLoeschen', PIN, e.id); benutzerVerwaltung(); toast('Benutzer gelöscht'); };
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries(new FormData(f)), fehler = $('#benutzer-fehler');
+    if (w.rolle === 'FAHRER' && !w.mitarbeiterId) { fehler.textContent = 'Ein Fahrer-Login braucht den verknüpften Mitarbeiter.'; fehler.hidden = false; return; }
+    try {
+      await api('benutzerSpeichern', PIN, { id: e.id, login: w.login, name: w.name, rolle: w.rolle, mitarbeiterId: w.mitarbeiterId, aktiv: !!w.aktiv, passwort: w.passwort || null });
+      if (w.passwort) {
+        const m = maVon(w.mitarbeiterId), text = zugangText(w.name, w.login.toLowerCase(), w.passwort);
+        dialog(`<h2>Zugangsdaten</h2><pre class="vorschau">${esc(text)}</pre><p class="leise">Das Passwort wird nicht gespeichert – bitte jetzt weitergeben.</p>
+          <div class="dialog-knoepfe">${m && m.telefon ? '<button class="knopf tonal" id="z-wa">💬 WhatsApp</button><button class="knopf" id="z-sms">SMS</button>' : ''}<button class="knopf" id="z-teilen">Teilen / kopieren</button><button class="knopf voll" id="z-fertig">Fertig</button></div>`);
+        if ($('#z-wa')) { $('#z-wa').onclick = () => whatsapp(m.telefon, text); $('#z-sms').onclick = () => oeffne(`sms:${intNummer(m.telefon)}?body=${encodeURIComponent(text)}`); }
+        $('#z-teilen').onclick = () => teile('Zugang Ayse CRM', text); $('#z-fertig').onclick = benutzerVerwaltung;
+      } else benutzerVerwaltung();
+    } catch (x) { fehler.textContent = x.message; fehler.hidden = false; }
+  };
+}
+/** Rolle auf diesem Gerät: ADMIN (PIN oder ohne Cloud), DISPO, FAHRER. */
+const rolle = () => (mitCloud() && S.zugang && S.zugang.rolle) || 'ADMIN';
+const ROLLEN_TEXT = { ADMIN: 'Admin', DISPO: 'Disposition / Büro', FAHRER: 'Fahrer' };
+/** Bereiche je Rolle (die Cloud gibt ohnehin nur die erlaubten Daten heraus). */
+const FAHRER_BEREICHE = new Set(['fahrer', 'kalender', 'aufgaben', 'zeiten', 'faelle']);
 
 // ============================== Oberfläche ==============================
 /** Speichert eine Datei als Anlage zu einem Fall oder Fahrzeug (Bilder verkleinert). @return die Anlage oder null */
@@ -1031,8 +1148,9 @@ const BEREICHE = { uebersicht: ['Übersicht', '🏠', 'Heute'], fahrer: ['Meine 
 /** Bereiche über die ganze Breite (ohne Detail-Spalte). */
 const BREIT = new Set(['touren', 'auswertung', 'uebersicht', 'kalender', 'zeiten', 'fahrer']);
 const NAV_UNTEN_VORGABE = ['uebersicht', 'touren', 'kalender', 'faelle'];
-const navUnten = () => { const l = (S.einstellungen.navUnten || NAV_UNTEN_VORGABE).filter(k => BEREICHE[k]); return l.length ? l.slice(0, 4) : NAV_UNTEN_VORGABE; };
-const bereichSichtbar = k => k !== 'postfach' || !!MAIL.konto;
+const navUnten = () => { if (rolle() === 'FAHRER') return ['fahrer', 'zeiten', 'aufgaben', 'kalender'];
+  const l = (S.einstellungen.navUnten || NAV_UNTEN_VORGABE).filter(k => BEREICHE[k]); return l.length ? l.slice(0, 4) : NAV_UNTEN_VORGABE; };
+const bereichSichtbar = k => (k !== 'postfach' || !!MAIL.konto) && (rolle() !== 'FAHRER' || FAHRER_BEREICHE.has(k));
 function navZahlen() {
   const w = wiedervorlagen();
   return { termine: w.ueberfaellig.length + w.heute.length, postfach: Object.values(mails()).filter(m => ungelesen(m) || (!istZugeordnet(m) && !m.ablage)).length,
@@ -1150,6 +1268,8 @@ function neuMenue() {
   const eintraege = [['fall', '⚠', 'Schadensfall'], ['tour', '🚚', 'Tour (heute)'], ['firma', '🏢', 'Firma'], ['interessent', '🎯', 'Interessent'], ['mitarbeiter', '👤', 'Mitarbeiter'],
     ['abwesenheit', '🏖', 'Abwesenheit'], ['fahrzeug', '🚐', 'Fahrzeug'], ['rechnung', '€', 'Rechnung'], ['angebot', '📄', 'Angebot'], ['rechnung-touren', '🧾', 'Rechnung aus Touren'],
     ...(MAIL.konto ? [['mail', '✉', 'E-Mail']] : []), ['anruf', '📞', 'Anrufliste (Akquise)'], ['aufgabe', '✅', 'Aufgabe'], ['zeit', '⏱', 'Arbeitszeit'], ['tacho', '💳', 'Fahrerkarte einlesen'], ['kalk', '🧮', 'Preis kalkulieren']];
+  const fuerFahrer = new Set(['fall', 'aufgabe', 'zeit', 'abwesenheit']);
+  if (rolle() === 'FAHRER') eintraege.splice(0, eintraege.length, ...eintraege.filter(([k]) => fuerFahrer.has(k)));
   dialog(`<h2>Neu anlegen</h2><div class="kacheln">${eintraege.map(([k, s, l]) => `<button class="kachel" data-neu-art="${k}"><span>${s}</span>${l}</button>`).join('')}</div>
     <div class="dialog-knoepfe"><button class="knopf" data-zu>Abbrechen</button></div>`);
   $('#dialog').onclick = e => {
@@ -1232,6 +1352,7 @@ document.addEventListener('click', e => { if (e.target.closest('[data-zu]')) $('
 function zeichne() {
   const r = route();
   if (!BEREICHE[ANSICHT.bereich]) ANSICHT.bereich = 'uebersicht';
+  if (rolle() === 'FAHRER' && !FAHRER_BEREICHE.has(ANSICHT.bereich)) ANSICHT.bereich = 'fahrer';
   const breit = BREIT.has(ANSICHT.bereich);
   document.body.classList.toggle('zeigt-detail', !!r.art);
   document.body.classList.toggle('breit', breit && !r.art);
@@ -1250,7 +1371,7 @@ function zeichneListe(r = route()) {
     }
     const inhalt = { termine: () => zeichneTermine(), postfach: () => zeichnePostfach(r), finanzen: () => zeichneFinanzen(r), fuhrpark: () => zeichneFuhrpark(r), uebersicht: () => zeichneUebersicht(),
       touren: () => zeichneTouren(), personal: () => zeichnePersonal(r), auswertung: () => zeichneAuswertung(), kalender: () => zeichneKalender(), aufgaben: () => zeichneAufgaben(),
-      zeiten: () => zeichneZeiten(), fahrer: () => zeichneFahrer() }[bereichSichtbar(ANSICHT.bereich) ? ANSICHT.bereich : 'uebersicht'];
+      zeiten: () => zeichneZeiten(), fahrer: () => zeichneFahrer() }[bereichSichtbar(ANSICHT.bereich) ? ANSICHT.bereich : rolle() === 'FAHRER' ? 'fahrer' : 'uebersicht'];
     el.innerHTML = inhalt ? inhalt() : zeichneFirmenliste(r);
     if (fokus) { const s = $('#firmen-suche'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
     return;
@@ -1614,6 +1735,9 @@ function zeichneEinstellungen() {
     <div class="karte block"><h3>CRM</h3><p class="leise" style="margin-bottom:8px">Die Sicherung des bisherigen Browser-CRM (JSON) einlesen. Firmen mit gleichem Namen werden zusammengeführt, nichts wird doppelt angelegt.</p>
       <div class="zeile"><label class="knopf" id="crm-import-knopf">Sicherung des Browser-CRM importieren<input type="file" id="crm-import" accept=".json,application/json" hidden></label>
       <button class="knopf" id="crm-csv">CRM für Excel exportieren (6 CSV-Dateien)</button></div></div>
+    ${mitCloud() && PIN ? `<div class="karte block"><h3>Anmeldung</h3><p>Angemeldet als <b>${esc((S.zugang || {}).name || 'Admin')}</b> · ${esc(ROLLEN_TEXT[rolle()])}</p>
+      ${rolle() === 'ADMIN' ? `<p class="leise" style="margin:6px 0">Fahrer und Büro bekommen eigene Logins. Fahrer sehen nur ihre eigenen Touren, Zeiten, Abwesenheiten und Aufgaben – keine Löhne, Preise, Rechnungen oder Daten anderer. Die Cloud setzt das durch.</p>
+        <div class="zeile"><button class="knopf voll" id="benutzer-knopf">👤 Benutzer und Logins verwalten</button></div>` : ''}</div>` : ''}
     <div class="karte block"><h3>Tourenplanung und Personal</h3>
       <p class="leise" style="margin-bottom:8px">Daten der bisherigen Tourenplanung (Fahrzeuge, Personal, Einsatzarten, Auftraggeber, Abwesenheiten, Touren) übernehmen. Gefahrlos wiederholbar bis zum Umstieg.</p>
       <div class="zeile"><button class="knopf voll" id="tp-import-knopf">Aus der bisherigen Tourenplanung übernehmen</button><button class="knopf" id="ea-knopf">Einsatzarten</button></div>
@@ -1682,6 +1806,7 @@ $('#detail').addEventListener('click', e => {
   }
   switch (e.target.id) {
     case 'tp-import-knopf': tpImportDialog(); break;
+    case 'benutzer-knopf': benutzerVerwaltung(); break;
     case 'sicherung-knopf': sicherungErstellen(); zeichneEinstellungen(); break;
     case 'ea-knopf': einsatzartenDialog(); break;
     default: {
@@ -1696,7 +1821,7 @@ $('#detail').addEventListener('click', e => {
       break;
     }
     case 'jetzt': abgleich(); break;
-    case 'abmelden': PIN = ''; try { localStorage.removeItem(PIN_SPEICHER); } catch {} SYNC.fehler = ''; zeichneSync(); toast('Abgemeldet. Zum Anmelden oben auf „Anmeldung nötig“ tippen.'); break;
+    case 'abmelden': if (String(PIN).startsWith('T:')) api('abmelden', PIN).catch(() => {}); PIN = ''; try { localStorage.removeItem(PIN_SPEICHER); } catch {} S.zugang = null; speichere(); SYNC.fehler = ''; zeichne(); toast('Abgemeldet. Zum Anmelden oben auf „Anmeldung nötig“ tippen.'); break;
     case 'verbinden': {
       const url = $('#cloud-url').value.trim();
       if (!/^https?:\/\/.+/.test(url)) { toast('Bitte die vollständige Adresse eintragen (beginnt mit https://).'); break; }
@@ -2611,7 +2736,7 @@ function zeichneMitarbeiter(id) {
         <button class="knopf tonal" data-ma="whatsapp" ${m.telefon ? '' : 'disabled'}>💬 WhatsApp</button>
         <button class="knopf tonal" data-ma="email" ${m.email ? '' : 'disabled'}>✉ E-Mail</button></div>
       <div class="zeile" style="margin-top:8px"><button class="knopf voll" data-ma="abwesenheit">＋ Abwesenheit</button><button class="knopf" data-ma="eintrag">＋ Personalakte</button>
-        <button class="knopf" data-ma="zeit">＋ Arbeitszeit</button><button class="knopf" data-neue-aufgabe data-bezug-art="mitarbeiter" data-bezug-id="${m.id}">＋ Aufgabe</button></div>
+        <button class="knopf" data-ma="zeit">＋ Arbeitszeit</button>${mitCloud() && rolle() === 'ADMIN' && PIN ? '<button class="knopf" data-ma="login">👤 Login</button>' : ''}<button class="knopf" data-neue-aufgabe data-bezug-art="mitarbeiter" data-bezug-id="${m.id}">＋ Aufgabe</button></div>
     </div>
     <div class="karte block"><div class="zeile eng"><h3 class="fuell" style="margin:0">Auswertung · ${esc(zr.text)}</h3></div>
       <div class="chips" style="margin:8px 0">${Object.entries(ZEITRAEUME).map(([k, l]) => `<button class="chip" data-ma-zeitraum="${k}" aria-pressed="${(ANSICHT.maZeitraum || 'MONAT') === k}">${l}</button>`).join('')}</div>
@@ -2705,7 +2830,7 @@ function mitarbeiterDialog(m, vorgabe = {}) {
 }
 function abwesenheitDialog(m, a, vorgabeTag) {
   const neu = !a, e = a || { von: vorgabeTag || heute(), bis: vorgabeTag || heute(), grund: 'Urlaub' };
-  const personen = mitarbeiterListe(true);
+  const personen = mitarbeiterListe(true).filter(p => rolle() !== 'FAHRER' || p.id === ichId());
   dialog(`<form method="dialog" id="abwesenheit-form"><h2>${neu ? 'Abwesenheit eintragen' : 'Abwesenheit'}</h2>
     ${m ? `<p class="leise">${esc(m.name)}</p>` : `<label class="feld">Mitarbeiter<select name="mitarbeiterId">${personen.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label>`}
     <div class="zeile"><label class="feld fuell">Von<input name="von" type="date" value="${esc(e.von)}" required></label><label class="feld fuell">Bis<input name="bis" type="date" value="${esc(e.bis || e.von)}" required></label></div>
@@ -2875,6 +3000,7 @@ $('#detail').addEventListener('click', e => {
   if (!akt) return;
   ({ bearbeiten: () => mitarbeiterDialog(m), abwesenheit: () => abwesenheitDialog(m), eintrag: () => personalEintragDialog(m), zeit: () => zeitDialog(null, { mitarbeiterId: m.id }),
     zeiten: () => { ANSICHT.zeitMa = m.id; bereichWechseln('zeiten'); }, tacho: tachoImportDialog,
+    login: async () => { try { const l = await api('benutzerListe', PIN); const b = l.find(x => x.mitarbeiterId === m.id); benutzerDialog(b || null, l); if (!b) setTimeout(() => { const f = $('#benutzer-form'); f.mitarbeiterId.value = m.id; f.mitarbeiterId.onchange(); }, 0); } catch (e) { toast(e.message); } },
     'tacho-xlsx': () => { const mo = (ANSICHT.maMonat || heute().slice(0, 7)), b = tachoXlsx([m], mo); if (b) ladeBlobHerunter(`Fahrerkarte_${m.name.replace(/\s+/g, '_')}_${mo}.xlsx`, b); else toast('Keine Fahrerkarten-Daten in diesem Monat'); },
     anrufen: () => oeffne('tel:' + m.telefon.replace(/[^\d+]/g, '')), whatsapp: () => whatsapp(m.telefon, `Hallo ${m.name.split(' ')[0]}, `),
     email: () => (MAIL.konto ? mailAnFirma({ an: m.email }) : oeffne('mailto:' + m.email)),
@@ -4561,7 +4687,7 @@ const ZeitAktionen = {
 };
 
 function zeichneZeiten() {
-  const monat = ANSICHT.zeitMonat || heute().slice(0, 7), personen = mitarbeiterListe().filter(m => maAktiv(m) || zeitenVon(m.id, monat + '-01', monat + '-31').length);
+  const monat = ANSICHT.zeitMonat || heute().slice(0, 7), personen = mitarbeiterListe().filter(m => (rolle() !== 'FAHRER' || m.id === ichId()) && (maAktiv(m) || zeitenVon(m.id, monat + '-01', monat + '-31').length));
   const gewaehlt = maVon(ANSICHT.zeitMa) || personen[0];
   const zeile = m => { const z = zeitMonat(m, monat); return `<tr class="klickbar ${gewaehlt && m.id === gewaehlt.id ? 'gewaehlt' : ''}" data-zeit-ma="${m.id}"><td>${esc(m.name)}</td><td class="r">${z.arbeitstage}</td><td class="r">${stdText(z.summe)}</td>
     <td class="r">${z.soll != null ? stdText(z.soll) : '–'}</td><td class="r" style="${z.ueber > 0 ? 'color:var(--rot-t)' : ''}">${z.ueber != null ? stdText(z.ueber) : '–'}</td>
@@ -4588,7 +4714,7 @@ function zeitDialog(z, vorgabe = {}) {
   const entwurf = z && z.quelle === 'PLAN' && !z.bestaetigt;
   dialog(`<form method="dialog" id="zeit-form"><h2>${neu ? 'Arbeitszeit erfassen' : entwurf ? 'Entwurf bestätigen' : 'Arbeitszeit'}</h2>
     ${entwurf ? '<p class="fehlertext">Entwurf aus dem Tourenplan. Bitte die tatsächlichen Zeiten eintragen und dann bestätigen.</p>' : ''}
-    <label class="feld">Mitarbeiter<select name="mitarbeiterId">${mitarbeiterListe().map(m => `<option value="${m.id}" ${(e.mitarbeiterId || ANSICHT.zeitMa) === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
+    <label class="feld">Mitarbeiter<select name="mitarbeiterId">${mitarbeiterListe().filter(m => rolle() !== 'FAHRER' || m.id === ichId()).map(m => `<option value="${m.id}" ${(e.mitarbeiterId || ANSICHT.zeitMa || ichId()) === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
     <label class="feld">Tag<input type="date" name="datum" value="${esc(e.datum)}" required></label>
     <div class="zeile"><label class="feld fuell">Beginn<input type="time" name="beginn" value="${esc(e.beginn || '')}" required></label><label class="feld fuell">Ende<input type="time" name="ende" value="${esc(e.ende || '')}" required></label>
       <label class="feld fuell">Pause (min)<input name="pauseMin" inputmode="numeric" value="${e.pauseMin ?? 0}"></label></div>
@@ -4982,7 +5108,7 @@ function zeichneFahrer() {
         <button class="knopf" data-fahrer="problem">❗ Problem melden</button></div>` : ''}</div>`;
   };
   const dispo = rechnungsDaten().telefon;
-  return seitenkopf(`Hallo ${ich.name.split(' ')[0]}`, '', `<button class="knopf" data-ich="">Person wechseln</button>${dispo ? `<button class="knopf" data-fahrer-dispo>☎ Disposition</button>` : ''}`)
+  return seitenkopf(`Hallo ${ich.name.split(' ')[0]}`, '', `${rolle() === 'FAHRER' ? '' : '<button class="knopf" data-ich="">Person wechseln</button>'}${dispo ? `<button class="knopf" data-fahrer-dispo>☎ Disposition</button>` : ''}`)
     + `<div class="karte stempeluhr"><div class="zeile eng"><div class="fuell"><b>Arbeitszeit heute</b><br><span class="leise">${heuteZeiten.length ? heuteZeiten.map(z => `${z.beginn}–${z.ende}`).join(', ') + ' · ' + stdText(gearbeitet) : 'noch nichts erfasst'}
       ${laufend ? ` · läuft seit ${esc(st.beginn)}${st.pauseAb ? ` · Pause seit ${esc(st.pauseAb)}` : ''}` : ''}</span></div></div>
       <div class="fahrer-knoepfe">${!laufend ? '<button class="knopf voll" data-stempel="start">⏵ Arbeitsbeginn</button>'
@@ -5155,8 +5281,10 @@ function tagesHinweise() {
   if (!S.einstellungen.letzteSicherung || S.einstellungen.letzteSicherung < plusTage(t, -30)) l.push('letzte Datensicherung über 30 Tage her');
   return l;
 }
-function tagesHinweiseZeigen() {
+function tagesHinweiseZeigen(versuch = 0) {
   const t = heute(); if (S.einstellungen.hinweisTag === t) return;
+  // Keine andere Meldung überdecken und nicht in einen offenen Dialog hinein
+  if (!$('#toast').hidden || $('#dialog').open) { if (versuch < 20) setTimeout(() => tagesHinweiseZeigen(versuch + 1), 6000); return; }
   const l = tagesHinweise(); if (!l.length) return;
   S.einstellungen.hinweisTag = t; speichere();
   toast('Heute: ' + l.join(' · '), 9000);
