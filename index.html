@@ -307,6 +307,8 @@ dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
 .stopp{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--linie)}.stopp.fertig{opacity:.65}.stopp.naechster{background:var(--blau-f);border-radius:10px}
 .stopp-nr{display:inline-grid;place-items:center;min-width:26px;height:26px;border-radius:50%;background:var(--primaer);color:var(--bg);font-size:13px}.stopp.fertig .stopp-nr{background:var(--gruen-t,#0C3A18)}
 .stopp-knoepfe{display:flex;gap:4px;align-items:center}.stopp-knoepfe a.symbol{text-decoration:none}.fahrer-stopps{margin:8px 0}.stopp-zahl{font-size:12px!important;white-space:nowrap}
+.rk-tabelle{border-collapse:collapse;font-size:13px;min-width:100%}.rk-tabelle th,.rk-tabelle td{padding:4px;border-bottom:1px solid var(--linie);text-align:left;vertical-align:top}.rk-tabelle input:not([type=checkbox]){width:100%;min-width:90px;padding:5px 6px;border:1px solid var(--rand);border-radius:6px;background:var(--bg);color:var(--text);font:inherit}
+.rk-tabelle tr.pruefen{background:color-mix(in srgb,#f5c400 15%,transparent)}.rk-tabelle thead th{position:sticky;top:0;background:var(--flaeche2)}
 .imp-liste{max-height:55vh;overflow:auto}.imp-zeile{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 4px;border-bottom:1px solid var(--linie)}.imp-zeile select{flex:1 1 200px;max-width:100%}.imp-zeile.pruefen{background:color-mix(in srgb,#f5c400 18%,transparent)}
 .auswahl:hover{background:var(--flaeche2)}
 .vorlage{display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px 8px;border-radius:8px;cursor:pointer}
@@ -874,7 +876,7 @@ async function api(fn, ...args) {
   return j.ok;
 }
 const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber', ...CRM_TABELLEN];
-const CLOUD_API = 11;
+const CLOUD_API = 12;
 const VERALTET = 'Das Cloud-Skript ist veraltet – bitte die neue Code.gs bereitstellen.';
 const offeneAnzahl = () => TABELLEN.reduce((n, t) => n + offene(t).length, 0);
 const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
@@ -1279,7 +1281,7 @@ document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.ke
 function neuMenue() {
   const eintraege = [['fall', '⚠', 'Schadensfall'], ['tour', '🚚', 'Tour (heute)'], ['firma', '🏢', 'Firma'], ['interessent', '🎯', 'Interessent'], ['mitarbeiter', '👤', 'Mitarbeiter'],
     ['abwesenheit', '🏖', 'Abwesenheit'], ['fahrzeug', '🚐', 'Fahrzeug'], ['rechnung', '€', 'Rechnung'], ['angebot', '📄', 'Angebot'], ['rechnung-touren', '🧾', 'Rechnung aus Touren'],
-    ...(MAIL.konto ? [['mail', '✉', 'E-Mail']] : []), ['anruf', '📞', 'Anrufliste (Akquise)'], ['aufgabe', '✅', 'Aufgabe'], ['zeit', '⏱', 'Arbeitszeit'], ['tacho', '💳', 'Fahrerkarte einlesen'], ['kalk', '🧮', 'Preis kalkulieren'], ['brief', '✉', 'Brief'], ['monat', '🧾', 'Monatsabrechnung']];
+    ...(MAIL.konto ? [['mail', '✉', 'E-Mail']] : []), ['anruf', '📞', 'Anrufliste (Akquise)'], ['aufgabe', '✅', 'Aufgabe'], ['zeit', '⏱', 'Arbeitszeit'], ['tacho', '💳', 'Fahrerkarte einlesen'], ['kalk', '🧮', 'Preis kalkulieren'], ['brief', '✉', 'Brief'], ['monat', '🧾', 'Monatsabrechnung'], ['rollkarte', '📄', 'Tour aus Rollkarte (PDF)']];
   const fuerFahrer = new Set(['fall', 'aufgabe', 'zeit', 'abwesenheit']);
   if (rolle() === 'FAHRER') eintraege.splice(0, eintraege.length, ...eintraege.filter(([k]) => fuerFahrer.has(k)));
   dialog(`<h2>Neu anlegen</h2><div class="kacheln">${eintraege.map(([k, s, l]) => `<button class="kachel" data-neu-art="${k}"><span>${s}</span>${l}</button>`).join('')}</div>
@@ -1291,7 +1293,7 @@ function neuMenue() {
       firma: () => crmDialog('auftraggeber', null, null, id => { ANSICHT.bereich = 'firmen'; gehe('#/firma/' + id); }), interessent: interessentDialog,
       mitarbeiter: () => mitarbeiterDialog(null), abwesenheit: () => abwesenheitDialog(null), fahrzeug: () => fahrzeugDialog(null),
       rechnung: () => belegNeuDialog('RECHNUNG'), angebot: () => belegNeuDialog('ANGEBOT'), 'rechnung-touren': () => rechnungAusTouren(), mail: () => mailAnFirma(), anruf: anruflisteStarten,
-      aufgabe: () => aufgabeDialog(null), zeit: () => zeitDialog(null), tacho: tachoImportDialog, kalk: () => kalkulatorDialog(), brief: () => briefDialog(), monat: monatsabrechnungDialog })[b.dataset.neuArt]();
+      aufgabe: () => aufgabeDialog(null), zeit: () => zeitDialog(null), tacho: tachoImportDialog, kalk: () => kalkulatorDialog(), brief: () => briefDialog(), monat: monatsabrechnungDialog, rollkarte: () => rollkarteImport() })[b.dataset.neuArt]();
   };
 }
 $('#neu-knopf').onclick = neuMenue;
@@ -3477,7 +3479,7 @@ function zeichneTouren() {
   const gruppe = (titel, namen) => (namen.length ? `<p><b>${esc(titel)} (${namen.length}):</b> ${namen.map(n => esc(n)).join(', ')}</p>` : '');
   return seitenkopf('Tourenplanung', `<button class="knopf voll" data-tp="neu">＋ Tour</button>`,
       `<button class="knopf" data-tp="auffuellen">✨ Teams auffüllen</button><button class="knopf" data-tp="rueckgaengig" ${TourAktionen.undo.length ? '' : 'disabled'}>↶ Rückgängig</button>
-      <button class="knopf" data-tp="uebernehmen">⧉ Übernehmen …</button><button class="knopf" data-tp="drucken">🖨 Drucken</button><button class="knopf" data-tp="fahrer-pdf">📱 Für Fahrer</button>
+      <button class="knopf" data-tp="uebernehmen">⧉ Übernehmen …</button><button class="knopf" data-rollkarte>📄 Rollkarte (PDF)</button><button class="knopf" data-tp="drucken">🖨 Drucken</button><button class="knopf" data-tp="fahrer-pdf">📱 Für Fahrer</button>
       <button class="knopf" data-tp="alle-senden">💬 An alle</button><button class="knopf" data-tp="begleitscheine">📄 Begleitscheine</button><button class="knopf" data-tp="berichte">📊 Berichte</button>
       <button class="knopf" data-tp="einsatzarten">⚙ Einsatzarten</button>`)
     + `<div class="chips">${[['TAG', 'Tag'], ['WOCHE', 'Woche']].map(([k, l]) => `<button class="chip" data-tp-ansicht="${k}" aria-pressed="${(ANSICHT.tourAnsicht || 'TAG') === k}">${l}</button>`).join('')}</div>
@@ -3638,6 +3640,7 @@ const StoppAktionen = {
   },
 };
 const stoppText = s => [s.kundeName, s.adresse].filter(Boolean).join(' – ') || 'Stopp';
+const stoppSumme = tourId => stoppsVon(tourId).reduce((n, s) => n + (s.betragCent || 0), 0);
 /** Route über alle offenen Stopps in Google Maps (Reihenfolge wie in der Liste). */
 function stoppRoute(tourId) {
   const a = stoppsVon(tourId).filter(s => s.status !== 'ERLEDIGT' && s.adresse).map(s => s.adresse);
@@ -3651,16 +3654,17 @@ function stoppListeDialog(t) {
   if (!stoppsVon(tn.id).length && (tn.kundeName || tn.kundeAdresse))
     StoppAktionen.speichern({ tourId: tn.id, reihenfolge: 1, kundeName: tn.kundeName || '', kundeTelefon: tn.kundeTelefon || '', kundeEmail: tn.kundeEmail || '', adresse: tn.kundeAdresse || '', zeitfenster: tn.zeitfenster || '' });
   const l = stoppsVon(tn.id), offen = l.filter(s => s.status !== 'ERLEDIGT').length;
-  dialog(`<div><h2>📍 Stoppliste</h2><p class="leise">${esc(datumText(tn.datum))} · ${esc(tourText(tn))}${l.length ? ` · ${l.length} Stopps, ${offen} offen` : ''}</p>
+  dialog(`<div><h2>📍 Stoppliste</h2><p class="leise">${esc(datumText(tn.datum))} · ${esc(tourText(tn))}${l.length ? ` · ${l.length} Stopps, ${offen} offen` : ''}${stoppSumme(tn.id) ? ' · Summe ' + geld(stoppSumme(tn.id)) : ''}</p>
     <div id="stopp-liste">${l.map((s, i) => `<div class="stopp ${s.status === 'ERLEDIGT' ? 'fertig' : ''}" data-stopp="${s.id}">
       <b class="stopp-nr">${i + 1}</b><span class="fuell"><b>${STOPP_ART[s.art] ? STOPP_ART[s.art][1] + ' ' : ''}${esc(s.kundeName || '(ohne Name)')}</b>${s.zeitfenster ? ` <span class="leise">· ${esc(s.zeitfenster)}</span>` : ''}<br>
-        <span class="leise">${esc(s.adresse || 'keine Adresse')}</span>${s.status === 'ERLEDIGT' ? `<br><span class="marke gruen">✓ ${esc(uhrText(s.erledigtAm))}${s.empfaenger ? ' · ' + esc(s.empfaenger) : ''}</span>` : ''}${s.bewertung ? ` <span style="color:#b8860b">${sterne(s.bewertung)}</span>` : ''}</span>
+        <span class="leise">${esc(s.adresse || 'keine Adresse')}${s.auftragNr ? ' · Auftrag ' + esc(s.auftragNr) : ''}${s.betragCent != null ? ' · ' + geld(s.betragCent) : ''}</span>${s.status === 'ERLEDIGT' ? `<br><span class="marke gruen">✓ ${esc(uhrText(s.erledigtAm))}${s.empfaenger ? ' · ' + esc(s.empfaenger) : ''}</span>` : ''}${s.bewertung ? ` <span style="color:#b8860b">${sterne(s.bewertung)}</span>` : ''}</span>
       <span class="stopp-knoepfe"><button type="button" class="symbol" data-stopp-akt="hoch" aria-label="Stopp ${i + 1} nach oben" ${i ? '' : 'disabled'}>▲</button><button type="button" class="symbol" data-stopp-akt="runter" aria-label="Stopp ${i + 1} nach unten" ${i < l.length - 1 ? '' : 'disabled'}>▼</button>
         <button type="button" class="symbol" data-stopp-akt="bearbeiten" aria-label="Stopp ${i + 1} bearbeiten">✎</button></span></div>`).join('') || '<p class="leise">Noch keine Stopps. Für Touren mit mehreren Kunden oder Adressen – sonst reicht „Endkunde“ an der Tour.</p>'}</div>
-    <div class="zeile" style="flex-wrap:wrap;gap:8px;margin-top:10px"><button type="button" class="knopf voll" id="stopp-neu">＋ Stopp</button>
+    <div class="zeile" style="flex-wrap:wrap;gap:8px;margin-top:10px"><button type="button" class="knopf voll" id="stopp-neu">＋ Stopp</button><button type="button" class="knopf" id="stopp-pdf">📄 Aus PDF (Rollkarte)</button>
       ${l.some(s => s.adresse) ? '<button type="button" class="knopf" id="stopp-route">🧭 Route</button>' : ''}${l.some(s => s.kundeTelefon && s.status !== 'ERLEDIGT') ? '<button type="button" class="knopf" id="stopp-avis">📨 Lieferavis an alle</button>' : ''}</div>
     <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Schließen</button></div></div>`);
   $('#stopp-neu').onclick = () => stoppDialog(tn, null);
+  $('#stopp-pdf').onclick = () => rollkarteImport(tn);
   if ($('#stopp-route')) $('#stopp-route').onclick = () => stoppRoute(tn.id);
   if ($('#stopp-avis')) $('#stopp-avis').onclick = () => stoppAvisAlle(tn);
   $('#stopp-liste').onclick = e => {
@@ -3679,13 +3683,15 @@ function stoppDialog(t, s) {
     <div class="zeile"><label class="feld fuell">Telefon<input name="kundeTelefon" type="tel" value="${esc(e.kundeTelefon || '')}"></label><label class="feld fuell">E-Mail<input name="kundeEmail" type="email" value="${esc(e.kundeEmail || '')}"></label></div>
     <div class="zeile"><label class="feld fuell">Zeitfenster<input name="zeitfenster" value="${esc(e.zeitfenster || '')}" placeholder="z. B. 10–12 Uhr"></label>
       <label class="feld fuell">Status<select name="status">${[['OFFEN', 'offen'], ['ERLEDIGT', 'erledigt'], ['PROBLEM', 'Problem']].map(([k, l]) => `<option value="${k}" ${(e.status || 'OFFEN') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    <div class="zeile"><label class="feld fuell">Auftragsnummer<input name="auftragNr" value="${esc(e.auftragNr || '')}"></label><label class="feld fuell">Betrag (€, z. B. bar zu kassieren)<input name="betrag" inputmode="decimal" value="${e.betragCent != null ? esc(geldOhneSymbol(e.betragCent)) : ''}"></label></div>
     <label class="feld">Hinweis (Ware, Etage, Ansprechpartner …)<textarea name="notiz">${esc(e.notiz || '')}</textarea></label>
     ${neu ? '' : `<div class="zeile" style="flex-wrap:wrap;gap:8px"><button type="button" class="knopf tonal" data-savis="sms">SMS</button><button type="button" class="knopf tonal" data-savis="wa">💬 WhatsApp</button><button type="button" class="knopf tonal" data-savis="mail">✉ E-Mail</button>${mitCloud() ? '<button type="button" class="knopf" data-savis="link">🔗 Statuslink</button>' : ''}</div>
       <p class="leise">${e.status === 'ERLEDIGT' ? 'Sendet die Bitte um eine Bewertung.' : 'Sendet das Lieferavis für diesen Stopp mit eigenem Statuslink.'}</p>`}
     <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="stopp-weg">Löschen</button>'}<span class="fuell"></span><button type="button" class="knopf text" id="stopp-zurueck">Zurück</button><button class="knopf voll">Speichern</button></div></form>`);
   const f = $('#stopp-form');
   const werte = () => { const w = Object.fromEntries([...new FormData(f)].map(([k, v]) => [k, String(v).trim()]));
-    const war = e.status === 'ERLEDIGT'; if (w.status === 'ERLEDIGT' && !war) w.erledigtAm = jetztIso(); if (w.status !== 'ERLEDIGT') w.erledigtAm = ''; return { ...e, ...w, tourId: t.id }; };
+    const war = e.status === 'ERLEDIGT'; if (w.status === 'ERLEDIGT' && !war) w.erledigtAm = jetztIso(); if (w.status !== 'ERLEDIGT') w.erledigtAm = '';
+    w.betragCent = w.betrag ? geldLesen(w.betrag) : null; delete w.betrag; return { ...e, ...w, tourId: t.id }; };
   f.onsubmit = ev => { ev.preventDefault(); StoppAktionen.speichern(werte()); stoppListeDialog(t); };
   $('#stopp-zurueck').onclick = () => stoppListeDialog(t);
   if (!neu) {
@@ -3721,7 +3727,7 @@ function fahrerStoppsHtml(x) {
   const l = stoppsVon(x.id); if (!l.length) return '';
   const naechster = l.find(s => s.status !== 'ERLEDIGT');
   return `<div class="fahrer-stopps">${l.map(s => `<div class="stopp ${s.status === 'ERLEDIGT' ? 'fertig' : ''} ${s === naechster ? 'naechster' : ''}" data-fstopp="${s.id}">
-    <b class="stopp-nr">${s.reihenfolge}</b><span class="fuell"><b>${STOPP_ART[s.art] ? STOPP_ART[s.art][1] + ' ' : ''}${esc(s.kundeName || '')}</b>${s.zeitfenster ? ` · ${esc(s.zeitfenster)}` : ''}<br><span class="leise">${esc(s.adresse || '')}</span>${s.notiz ? `<br><span class="leise">ℹ ${esc(s.notiz)}</span>` : ''}
+    <b class="stopp-nr">${s.reihenfolge}</b><span class="fuell"><b>${STOPP_ART[s.art] ? STOPP_ART[s.art][1] + ' ' : ''}${esc(s.kundeName || '')}</b>${s.zeitfenster ? ` · ${esc(s.zeitfenster)}` : ''}<br><span class="leise">${esc(s.adresse || '')}</span>${s.notiz ? `<br><span class="leise">ℹ ${esc(s.notiz)}</span>` : ''}${s.auftragNr ? `<br><span class="leise">Auftrag ${esc(s.auftragNr)}</span>` : ''}${s.betragCent ? ` <span class="marke gelb">💶 ${geld(s.betragCent)}</span>` : ''}
       ${s.status === 'ERLEDIGT' ? `<br><span class="marke gruen">✓ ${esc(uhrText(s.erledigtAm))}${s.empfaenger ? ' · ' + esc(s.empfaenger) : ''}</span>` : ''}</span>
     ${s.status !== 'ERLEDIGT' && x.datum === heute() ? `<span class="stopp-knoepfe">${s.adresse ? '<button class="symbol" data-fs="navi" aria-label="Navigation">🧭</button>' : ''}${s.kundeTelefon ? `<a class="symbol" href="tel:${esc(intNummer(s.kundeTelefon))}" aria-label="Anrufen">☎</a>` : ''}<button class="knopf tonal" data-fs="fertig">✓</button></span>` : ''}</div>`).join('')}</div>`;
 }
@@ -3735,6 +3741,122 @@ document.addEventListener('click', e => {
   if (StoppAktionen.erledigen(s, wer.trim())) toast('Alle Stopps erledigt – jetzt die Tour abliefern', 6000); else toast('Stopp erledigt');
 });
 
+// ---------- Rollkarte (PDF) → Stoppliste ----------
+/**
+ * Liest eine Rollkarte/Tourliste aus Textstücken eines PDFs ({ s, x, y, seite }; y wächst nach oben).
+ * Spalten werden an den Überschriften erkannt (Name, Auftragsnummer, Adresse, Telefon, Zeitfenster, Betrag);
+ * jeder Stopp hängt an seiner Auftragsnummer, mehrzeilige Zellen (z. B. Adresse) werden zusammengefügt.
+ */
+function rollkarteLesen(teile) {
+  const KOPF = { name: /^name$/i, auftrag: /^auftrag(s)?(nummer|nr\.?)?$/i, adresse: /^(liefer)?adresse$/i, telefon: /^tel(efon)?(nummer|nr\.?)?$/i, zeit: /^zeitfenster$/i, betrag: /^(summe\s*\/\s*)?betrag$|^summe$/i, erledigt: /^erledigt$/i };
+  const geld = t => { const m = String(t).replace(/\s/g, '').match(/-?\d{1,3}(?:\.\d{3})*,\d{2}|-?\d+,\d{2}/); return m ? Math.round(Number(m[0].replace(/\./g, '').replace(',', '.')) * 100) : null; };
+  const ergebnis = { datum: '', titel: '', abfahrt: '', km: null, stopps: [], summeCent: null, hinweis: '' };
+  const alleS = teile.map(t => t.s).join(' ');
+  const d = alleS.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/); if (d) ergebnis.datum = `${d[3]}-${d[2].padStart(2, '0')}-${d[1].padStart(2, '0')}`;
+  const titel = teile.find(t => /rollkarte|tourenliste|ladeliste|tour\s/i.test(t.s)); if (titel) ergebnis.titel = titel.s.replace(/\s*\d{1,2}\.\d{1,2}\.\d{4}\s*/, ' ').trim();
+  const rz = teile.find(t => /^route|^abfahrt/i.test(t.s.trim()));
+  const route = rz ? teile.filter(t => t.seite === rz.seite && Math.abs(t.y - rz.y) < 3).sort((a, b) => a.x - b.x).map(t => t.s.trim()).join(' ') : '';
+  const ab = route.match(/abfahrt\s*(\d{1,2}[:.]\d{2})/i); if (ab) ergebnis.abfahrt = ab[1].replace('.', ':').padStart(5, '0');
+  const km = route.match(/(\d+[.,]?\d*)\s*km/i); if (km) ergebnis.km = Math.round(Number(km[1].replace(',', '.')));
+  if (route) ergebnis.hinweis = route.replace(/^route:\s*/i, '');
+  for (const seite of [...new Set(teile.map(t => t.seite))]) {
+    const ts = teile.filter(t => t.seite === seite && String(t.s).trim());
+    const kopf = {};
+    for (const t of ts) for (const [k, re] of Object.entries(KOPF)) if (re.test(t.s.trim()) && (!kopf[k] || t.y > kopf[k].y)) kopf[k] = t;
+    if (!kopf.auftrag || !kopf.name) continue;
+    const spalten = Object.entries(kopf).map(([k, t]) => ({ k, x: t.x })).sort((a, b) => a.x - b.x);
+    const spalte = t => { let s = spalten[0].k; for (const c of spalten) if (t.x + 4 >= c.x) s = c.k; return s; };
+    const kopfZeilen = new Set(Object.values(kopf)), oben = Math.min(...[...kopfZeilen].map(t => t.y));
+    // Unteres Ende: wiederholte Kopfzeile oder Routenzeile
+    const ende = ts.filter(t => !kopfZeilen.has(t) && t.y < oben - 2 && (Object.values(KOPF).some(re => re.test(t.s.trim())) || /^route/i.test(t.s.trim()))).map(t => t.y);
+    const unten = ende.length ? Math.max(...ende) : -1e9;
+    const daten = ts.filter(t => !kopfZeilen.has(t) && t.y < oben - 2 && t.y > unten + 2 && !/^route/i.test(t.s));
+    const anker = daten.filter(t => spalte(t) === 'auftrag' && /^\d{5,}$/.test(t.s.trim())).sort((a, b) => b.y - a.y);
+    if (!anker.length) continue;
+    const gruppen = anker.map(a => ({ a, teile: [] }));
+    for (const t of daten) {
+      let best = null; for (const g of gruppen) if (!best || Math.abs(g.a.y - t.y) < Math.abs(best.a.y - t.y)) best = g;
+      // nicht zu weit weg (zwei Zeilen)
+      if (best && Math.abs(best.a.y - t.y) < 30) best.teile.push(t);
+    }
+    for (const g of gruppen) {
+      const zelle = k => g.teile.filter(t => spalte(t) === k).sort((a, b) => b.y - a.y || a.x - b.x).map(t => t.s.trim());
+      const zeit = zelle('zeit');
+      let adr = zelle('adresse').join(' ').replace(/\s+/g, ' ').replace(/\s+,/g, ',').replace(/(\p{L})-\s+(\p{L})/gu, '$1-$2'), tel = zelle('telefon').join(' ');
+      // Telefonnummer, die im Text in die Adressspalte gerutscht ist
+      const t2 = adr.match(/\s((?:\+|0)[\d /-]{6,})$/); if (t2 && !tel) { tel = t2[1]; adr = adr.slice(0, t2.index).trim(); }
+      ergebnis.stopps.push({
+        kundeName: zelle('name').join(' '), auftragNr: zelle('auftrag').join(' '), adresse: adr,
+        kundeTelefon: tel.replace(/[^\d+ /-]/g, '').trim(),
+        zeitfenster: (zeit.find(z => !/→|->|ca\./.test(z)) || '').replace(/\s*uhr$/i, ' Uhr').trim(),
+        eta: ((zeit.find(z => /→|->|ca\./.test(z)) || '').match(/\d{1,2}:\d{2}/) || [''])[0],
+        betragCent: geld(zelle('betrag').join(' ')),
+      });
+    }
+  }
+  if (ergebnis.stopps.some(s => s.betragCent != null)) ergebnis.summeCent = ergebnis.stopps.reduce((n, s) => n + (s.betragCent || 0), 0);
+  return ergebnis;
+}
+/** Textstücke aus einer PDF-Datei (pdf.js liegt in der App unter pdfjs/). */
+async function pdfTextteile(datei) {
+  if (!window.pdfjsLib) await new Promise((ok, fehler) => { const s = document.createElement('script'); s.src = 'pdfjs/pdf.min.js'; s.onload = ok; s.onerror = () => fehler(new Error('PDF-Leser konnte nicht geladen werden')); document.head.appendChild(s); });
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.min.js';
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await datei.arrayBuffer()) }).promise, teile = [];
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const inhalt = await (await pdf.getPage(n)).getTextContent();
+    for (const it of inhalt.items) if (it.str && it.str.trim()) teile.push({ s: it.str, x: it.transform[4], y: it.transform[5], seite: n });
+  }
+  return teile;
+}
+/** PDF wählen → Vorschau zum Prüfen → Stopps in die Tour (oder neue Tour anlegen). */
+function rollkarteImport(zielTour = null) {
+  const i = Object.assign(document.createElement('input'), { type: 'file', accept: 'application/pdf,.pdf' });
+  i.onchange = async () => {
+    if (!i.files[0]) return;
+    toast('PDF wird gelesen …');
+    try {
+      const r = rollkarteLesen(await pdfTextteile(i.files[0]));
+      if (!r.stopps.length) { toast('In dieser PDF wurde keine Stoppliste erkannt (Spalten „Name“ und „Auftragsnummer“ fehlen oder die PDF ist nur ein Bild).', 8000); return; }
+      rollkarteVorschau(r, zielTour, i.files[0].name);
+    } catch (x) { toast('PDF nicht lesbar: ' + x.message, 7000); }
+  };
+  i.click();
+}
+function rollkarteVorschau(r, zielTour, dateiname) {
+  const ziel = zielTour && S.touren[zielTour.id], vorhanden = new Set(ziel ? stoppsVon(ziel.id).map(s => s.auftragNr).filter(Boolean) : []);
+  const pruefen = s => [!/\b\d{5}\b/.test(s.adresse) && 'PLZ prüfen', !s.kundeTelefon && 'kein Telefon', vorhanden.has(s.auftragNr) && 'schon in der Tour'].filter(Boolean);
+  dialog(`<form method="dialog" id="rk-form" class="breit-dialog"><h2>📄 Stoppliste aus PDF</h2><p class="leise">${esc(dateiname)} · ${r.stopps.length} Stopps erkannt${r.summeCent != null ? ' · Summe ' + geld(r.summeCent) : ''}. Bitte prüfen und bei Bedarf korrigieren.</p>
+    ${ziel ? `<p>Ziel: <b>${esc(datumText(ziel.datum))} · ${esc(tourText(ziel) || ziel.kennzeichen || 'Tour')}</b></p>` : `<label class="feld">Tour<input name="titel" value="${esc(r.titel || 'Rollkarte')}"></label>
+      <div class="zeile"><label class="feld fuell">Datum<input type="date" name="datum" value="${esc(r.datum || heute())}" required></label><label class="feld" style="width:110px">Abfahrt<input name="abfahrt" value="${esc(r.abfahrt || '')}" placeholder="07:00"></label></div>`}
+    <div class="matrix-rahmen" tabindex="0"><table class="rk-tabelle"><thead><tr><th></th><th>#</th><th>Name</th><th>Adresse</th><th>Telefon</th><th>Zeitfenster</th><th>Auftrag</th><th>Betrag</th></tr></thead><tbody>
+      ${r.stopps.map((s, n) => { const h = pruefen(s); return `<tr data-rk="${n}" class="${h.length ? 'pruefen' : ''}"><td><input type="checkbox" name="an" ${vorhanden.has(s.auftragNr) ? '' : 'checked'} aria-label="Stopp ${n + 1} übernehmen"></td><td>${n + 1}</td>
+        <td><input name="kundeName" value="${esc(s.kundeName)}"></td><td><input name="adresse" value="${esc(s.adresse)}" style="min-width:220px">${h.length ? `<br><span class="fehlertext">${esc(h.join(' · '))}</span>` : ''}</td>
+        <td><input name="kundeTelefon" value="${esc(s.kundeTelefon)}"></td><td><input name="zeitfenster" value="${esc(s.zeitfenster)}" style="width:110px">${s.eta ? `<br><span class="leise">→ ca. ${esc(s.eta)}</span>` : ''}</td>
+        <td><input name="auftragNr" value="${esc(s.auftragNr)}" style="width:100px"></td><td><input name="betrag" value="${s.betragCent != null ? esc(geldOhneSymbol(s.betragCent)) : ''}" inputmode="decimal" style="width:90px"></td></tr>`; }).join('')}</tbody></table></div>
+    ${r.hinweis ? `<p class="leise">Route laut PDF: ${esc(r.hinweis)}</p>` : ''}
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">${ziel ? 'Stopps übernehmen' : 'Tour mit Stopps anlegen'}</button></div></form>`);
+  const f = $('#rk-form');
+  f.onsubmit = ev => {
+    ev.preventDefault();
+    const zeilen = [...f.querySelectorAll('[data-rk]')].filter(z => z.querySelector('[name=an]').checked).map(z => {
+      const s = r.stopps[Number(z.dataset.rk)], w = n => z.querySelector(`[name=${n}]`).value.trim();
+      return { kundeName: w('kundeName'), adresse: w('adresse'), kundeTelefon: w('kundeTelefon'), zeitfenster: w('zeitfenster'), auftragNr: w('auftragNr'), betragCent: w('betrag') ? geldLesen(w('betrag')) : null, eta: s.eta || '' };
+    });
+    if (!zeilen.length) { toast('Kein Stopp ausgewählt.'); return; }
+    let tourId = ziel ? ziel.id : null;
+    if (!tourId) tourId = TourAktionen.neu(f.datum.value, { name: f.titel.value.trim(), uhrzeit: f.abfahrt.value.trim(), notiz: r.hinweis ? 'Route laut Rollkarte: ' + r.hinweis : '' });
+    const start = stoppsVon(tourId).length;
+    zeilen.forEach((s, n) => StoppAktionen.speichern({ ...s, tourId, reihenfolge: start + n + 1, art: 'LIEFERUNG', status: 'OFFEN' }));
+    const t = S.touren[tourId];
+    if (t && !t.uhrzeit && r.abfahrt) merke('touren', { ...t, uhrzeit: r.abfahrt, geaendertAm: jetztIso() });
+    nachAenderung(); $('#dialog').close();
+    toast(`${zeilen.length} Stopps übernommen${ziel ? '' : ' – Fahrzeug und Team jetzt in der Tour eintragen'}`, 6000);
+    if (!ziel) { ANSICHT.tourTag = f.datum.value; bereichWechseln('touren'); }
+    stoppListeDialog(S.touren[tourId]);
+  };
+}
+document.addEventListener('click', e => { if (e.target.closest('[data-rollkarte]')) rollkarteImport(); });
+
 /** Text einer Tour für WhatsApp/SMS. */
 function tourNachricht(t) {
   const ag = S.auftraggeber[t.auftraggeberId], adr = ag ? rechnungsAdresse(ag.id) : null;
@@ -3742,7 +3864,7 @@ function tourNachricht(t) {
   return [`Tour am ${datumMitTag(t.datum)}${t.tourNr ? ' – ' + t.tourNr : ''}`, tourAuftraggeberName(t) && 'Auftraggeber: ' + tourAuftraggeberName(t),
     adr && 'Adresse: ' + adresseText(adr), t.name && 'Tour: ' + t.name, t.kennzeichen && 'Fahrzeug: ' + t.kennzeichen, t.uhrzeit && 'Ladezeit: ' + t.uhrzeit,
     t.einsatzart && 'Einsatz: ' + t.einsatzart, t.fahrerId && 'Fahrer: ' + mitNr(t.fahrerId), ...beifahrerVon(t).map(id => 'Beifahrer: ' + mitNr(id)), t.notiz && 'Hinweis: ' + t.notiz,
-    stoppsVon(t.id).length && 'Stopps:\n' + stoppsVon(t.id).map(s => `${s.reihenfolge}. ${STOPP_ART[s.art] ? STOPP_ART[s.art][0] + ': ' : ''}${stoppText(s)}${s.zeitfenster ? ' (' + s.zeitfenster + ')' : ''}${s.kundeTelefon ? ' ☎ ' + s.kundeTelefon : ''}${s.notiz ? ' – ' + s.notiz : ''}`).join('\n')].filter(Boolean).join('\n');
+    stoppsVon(t.id).length && 'Stopps:\n' + stoppsVon(t.id).map(s => `${s.reihenfolge}. ${STOPP_ART[s.art] ? STOPP_ART[s.art][0] + ': ' : ''}${stoppText(s)}${s.zeitfenster ? ' (' + s.zeitfenster + ')' : ''}${s.kundeTelefon ? ' ☎ ' + s.kundeTelefon : ''}${s.betragCent ? ' 💶 ' + geld(s.betragCent) : ''}${s.notiz ? ' – ' + s.notiz : ''}`).join('\n')].filter(Boolean).join('\n');
 }
 /** 💬 an der Tour: WhatsApp direkt mit dem Tourtext öffnen – dort Fahrer und Beifahrer gleichzeitig auswählen (wie in der alten Tourenplanung). */
 const tourWhatsapp = t => oeffneLink(`https://wa.me/?text=${encodeURIComponent(tourNachricht(t))}`);
