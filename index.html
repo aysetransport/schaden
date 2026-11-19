@@ -1139,12 +1139,86 @@ const sprache = () => (SPRACHEN[S.einstellungen && S.einstellungen.sprache] ? S.
 const t = de => { const l = sprache(); if (l === 'de') return de; const i = UI_INDEX.get(de); return (i != null && UI_TEXTE[l] && UI_TEXTE[l][i]) || de; };
 const T = t; // für Stellen, an denen „t“ lokal schon belegt ist
 const datumUI = iso => (sprache() === 'de' ? datumMitTag(iso) : alsTag(iso).toLocaleDateString(SPRACHEN[sprache()][1], { weekday: 'short', day: 'numeric', month: 'short' }));
-function spracheAnwenden() { const l = sprache(); document.documentElement.lang = l === 'bs' ? 'bs' : l; document.documentElement.dir = SPRACHEN[l][2] ? 'rtl' : 'ltr'; }
+function spracheAnwenden() {
+  const l = sprache(); document.documentElement.lang = l; document.documentElement.dir = SPRACHEN[l][2] ? 'rtl' : 'ltr';
+  if (l === 'de') { UE_BEOBACHTER.disconnect(); return; }
+  setTimeout(oberflaecheUebersetzen, 0);
+}
 function spracheDialog(nachher = null) {
   dialog(`<div><h2>🌐 ${esc(t('Sprache'))}</h2><div id="sprach-wahl">${Object.entries(SPRACHEN).map(([k, [n]]) => `<button class="vorlage" data-sprache="${k}" lang="${k}" ${k === sprache() ? 'aria-current="true" style="outline:2px solid var(--primaer)"' : ''}><b>${esc(n)}</b></button>`).join('')}</div>
     <div class="dialog-knoepfe"><button class="knopf text" data-zu>✕</button></div></div>`);
   $('#sprach-wahl').onclick = e => { const b = e.target.closest('[data-sprache]'); if (!b) return; S.einstellungen.sprache = b.dataset.sprache; speichere(); spracheAnwenden(); $('#dialog').close(); zeichne(); if (nachher) nachher(); };
 }
+
+// ---------- Übersetzung der ganzen Bedienoberfläche (Wörterbuch in sprachen.js, nur bei Bedarf geladen) ----------
+// Übersetzt angezeigte Texte, Platzhalter, Tooltips und Meldungen. Nicht angefasst: alles mit translate="no",
+// Eingabefelder, Textbereiche, Vorschauen (pre) – und alles, was die App nach außen schickt (wird nie im DOM übersetzt erzeugt).
+const UE = { geladen: false, laedt: null, wb: {}, uebersetzt: new WeakMap(), attr: new WeakMap(), fehlend: null };
+function woerterbuch(l) {
+  if (UE.wb[l]) return UE.wb[l];
+  const m = new Map();
+  UI_DE.forEach((k, i) => { if (UI_TEXTE[l] && UI_TEXTE[l][i]) m.set(k.replace(/\d+([.,]\d+)?/g, '#'), UI_TEXTE[l][i]); });
+  const S2 = window.UI_SCHLUESSEL, U2 = window.UI_UEBERSETZUNG && window.UI_UEBERSETZUNG[l];
+  if (S2 && U2) S2.forEach((k, i) => { if (U2[i]) m.set(k, U2[i]); });
+  if (window.UI_UEBERSETZUNG) UE.wb[l] = m;
+  return m;
+}
+const UE_KERN = /^(\s*[^\p{L}\p{N}(„"'€%#]*)([\s\S]*?)([\s→:]*)$/u;
+/** Einen angezeigten Text übersetzen; Teile mit „ · “ einzeln, Zahlen bleiben erhalten. */
+function uebersetzeText(x) {
+  const l = sprache(); if (l === 'de' || !x || !/[A-Za-zÄÖÜäöüß]{2}/.test(x)) return x;
+  const wb = woerterbuch(l);
+  return x.split(/(\s+·\s+)/).map(teil => {
+    if (/^\s+·\s+$/.test(teil)) return teil;
+    let [, vor, kern, nach] = teil.match(UE_KERN) || [null, '', teil, ''];
+    if (kern.endsWith('…') && nach) { kern += ''; }
+    if (!kern) return teil;
+    const zahlen = kern.match(/\d+([.,]\d+)?/g) || [], schluessel = kern.replace(/\d+([.,]\d+)?/g, '#');
+    const u = wb.get(schluessel);
+    if (u == null) { if (UE.fehlend && /[a-zäöüß]{3}/.test(kern)) UE.fehlend.add(schluessel); return teil; }
+    let i = 0; return vor + u.replace(/#/g, () => (zahlen[i++] ?? '#')) + nach;
+  }).join('');
+}
+const UE_AUS = 'script,style,textarea,pre,[translate="no"],[contenteditable="true"]';
+function uebersetzeKnoten(wurzel) {
+  if (sprache() === 'de' || !wurzel) return;
+  const el = wurzel.nodeType === 1 ? wurzel : wurzel.parentElement;
+  if (wurzel.nodeType === 3) { uebersetzeTextknoten(wurzel); return; }
+  if (!el || el.closest(UE_AUS)) return;
+  const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, { acceptNode: n => (n.nodeType === 1 && n.matches(UE_AUS) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+  let n = el; do { if (n.nodeType === 3) uebersetzeTextknoten(n); else uebersetzeAttribute(n); } while ((n = w.nextNode()));
+}
+function uebersetzeTextknoten(n) {
+  if (!n.parentElement || n.parentElement.closest(UE_AUS)) return;
+  const v = n.nodeValue; if (UE.uebersetzt.get(n) === v) return;
+  const u = uebersetzeText(v); if (u !== v) { UE.uebersetzt.set(n, u); n.nodeValue = u; }
+}
+function uebersetzeAttribute(e) {
+  for (const a of ['placeholder', 'aria-label', 'title']) {
+    const v = e.getAttribute && e.getAttribute(a); if (!v) continue;
+    const alt = UE.attr.get(e) || {}; if (alt[a] === v) continue;
+    const u = uebersetzeText(v); if (u !== v) { alt[a] = u; UE.attr.set(e, alt); e.setAttribute(a, u); }
+  }
+}
+const UE_BEOBACHTER = new MutationObserver(liste => {
+  if (sprache() === 'de') return;
+  for (const m of liste) {
+    if (m.type === 'characterData') uebersetzeTextknoten(m.target);
+    else if (m.type === 'attributes') { if (!m.target.closest(UE_AUS)) uebersetzeAttribute(m.target); }
+    else m.addedNodes.forEach(uebersetzeKnoten);
+  }
+});
+/** Wörterbuch laden (einmal) und Oberfläche übersetzen. */
+function oberflaecheUebersetzen() {
+  if (sprache() === 'de') return;
+  if (!window.UI_UEBERSETZUNG) {
+    if (!UE.laedt) UE.laedt = new Promise(ok => { const sc = document.createElement('script'); sc.src = 'sprachen.js'; sc.onload = ok; sc.onerror = ok; document.head.appendChild(sc); })
+      .then(() => { UE.wb = {}; zeichne(); oberflaecheUebersetzen(); });
+  }
+  UE_BEOBACHTER.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['placeholder', 'aria-label', 'title'] });
+  uebersetzeKnoten(document.body);
+}
+for (const f of ['alert', 'confirm', 'prompt']) { const orig = window[f] && window[f].bind(window); if (orig) window[f] = (text, ...rest) => orig(uebersetzeText(String(text ?? '')), ...rest); }
 document.addEventListener('click', e => { const b = e.target.closest('[data-sprache-wahl]'); if (b) spracheDialog(b.closest('#login-form') ? () => loginDialog() : null); });
 
 // ============================== Oberfläche ==============================
@@ -1383,7 +1457,24 @@ function bestaetige(titel, text, knopf, dann) {
 }
 document.addEventListener('click', e => { if (e.target.closest('[data-zu]')) $('#dialog').close(); });
 
+// ---------- Rechte: Exporte und Importe nur für Admins ----------
+/** Datenexporte (Sicherung, CSV, Excel, Buchhaltung, Lohn) und Importe – für Disposition und Fahrer gesperrt (ausgeblendet und blockiert). */
+const NUR_ADMIN = ['#crm-csv', '#sicherung-knopf', '#csv', '#belege-leeren', '[data-buchhaltung]', '[data-belege-csv]', '[data-personal-csv]', '[data-ma="tacho-xlsx"]', '[data-statistik-csv]',
+  '[data-statistik-druck]', '[data-aufgaben-csv]', '[data-zeit-csv]', '[data-zeit-xlsx]', '[data-zeit-xlsx-ma]', '[data-zeit-druck-alle]', '[data-fuhrpark-csv]', '[data-schaden-csv]', '[data-auswertung-csv]',
+  '[data-auswertung-druck]', '#tp-import-knopf', 'label:has(#sicherung-import)', 'label:has(#crm-import)', 'label:has(#personal-import)', 'label:has(#fuhrpark-import)', 'label:has(#firmen-csv-import)'];
+const NUR_ADMIN_DATEI = ['#sicherung-import', '#crm-import', '#personal-import', '#fuhrpark-import', '#firmen-csv-import'];
+const istAdmin = () => rolle() === 'ADMIN';
+(() => { const st = document.createElement('style'); st.textContent = `body:not([data-rolle="ADMIN"]) :is(${NUR_ADMIN.join(',')}){display:none!important}`; document.head.appendChild(st); })();
+document.addEventListener('click', e => {
+  if (istAdmin()) return;
+  if (e.target.closest(NUR_ADMIN.filter(x => !x.startsWith('label')).concat(NUR_ADMIN_DATEI).join(','))) { e.preventDefault(); e.stopImmediatePropagation(); toast('Nur für Admins'); }
+}, true);
+document.addEventListener('change', e => { if (!istAdmin() && e.target.matches && e.target.matches(NUR_ADMIN_DATEI.join(','))) { e.stopImmediatePropagation(); e.target.value = ''; toast('Nur für Admins'); } }, true);
+/** Einstellungs-Karten je Rolle (nach Überschrift). */
+const EINSTELLUNGEN_ERLAUBT = { DISPO: ['Absender', 'Wiedervorlage', 'Anmeldung', 'E-Mail: Signatur und Textbausteine', 'Akquise', 'Bedienung', 'E-Mail'], FAHRER: ['Anmeldung', 'Bedienung'] };
+
 function zeichne() {
+  document.body.dataset.rolle = rolle();
   const r = route();
   if (!BEREICHE[ANSICHT.bereich]) ANSICHT.bereich = 'uebersicht';
   if (rolle() === 'FAHRER' && !FAHRER_BEREICHE.has(ANSICHT.bereich)) ANSICHT.bereich = 'fahrer';
@@ -1747,6 +1838,20 @@ function vorbelegteFirma() {
 
 // ---------- Einstellungen ----------
 function zeichneEinstellungen() {
+  zeichneEinstellungenVoll();
+  const erlaubt = EINSTELLUNGEN_ERLAUBT[rolle()]; if (!erlaubt) return;
+  for (const k of $('#detail').querySelectorAll(':scope > .karte.block')) {
+    const h = (k.querySelector('h3') || {}).textContent || '';
+    if (!erlaubt.some(x => h === x || (x === 'E-Mail' && /^E-Mail für /.test(h)))) k.remove();
+  }
+  for (const p of $('#detail').querySelectorAll(':scope > p')) p.remove();
+  if (rolle() === 'FAHRER') {
+    // Fahrer: nur Sprache, Darstellung, Abmelden – keine Personenwahl, keine Leisten-Auswahl
+    $('#detail').querySelectorAll('[data-einst-wahl="ichId"], [data-nav-unten], [data-einst-wahl="navUnten"]').forEach(x => (x.closest('label') || x.closest('.chips') || x).remove());
+    $('#detail').querySelectorAll('.karte.block .chips, .karte.block p.leise').forEach(x => x.remove());
+  }
+}
+function zeichneEinstellungenVoll() {
   const e = S.einstellungen;
   $('#detail').innerHTML = `<h2 class="gross" style="margin-bottom:12px">Einstellungen</h2>
     <div class="karte block"><h3>Absender</h3><p class="leise" style="margin-bottom:8px">Erscheint als Grußformel in den Textvorlagen.</p>
