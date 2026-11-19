@@ -876,7 +876,7 @@ async function api(fn, ...args) {
   return j.ok;
 }
 const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber', ...CRM_TABELLEN];
-const CLOUD_API = 12;
+const CLOUD_API = 13;
 const VERALTET = 'Das Cloud-Skript ist veraltet – bitte die neue Code.gs bereitstellen.';
 const offeneAnzahl = () => TABELLEN.reduce((n, t) => n + offene(t).length, 0);
 const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
@@ -994,7 +994,8 @@ async function anmeldung(falsch = false) {
   catch { anmeldungOffen = false; SYNC.fehler = 'offline'; zeichneSync(); return; }
   anmeldungOffen = false;
   const neu = !eingerichtet;
-  if (!neu && (ANSICHT.loginArt || (stat.benutzer ? 'BENUTZER' : 'PIN')) === 'BENUTZER') { loginDialog(falsch); return; }
+  ANSICHT.pinAus = !!stat.pinAus;
+  if (!neu && (stat.pinAus || (ANSICHT.loginArt || (stat.benutzer ? 'BENUTZER' : 'PIN')) === 'BENUTZER')) { loginDialog(falsch); return; }
   dialog(`<form method="dialog" id="pin-form"><h2>${neu ? 'PIN festlegen' : 'Admin-PIN eingeben'}</h2>
     <p class="leise">${neu ? 'Diese PIN schützt die Daten in der Cloud. Sie wird auf jedem Gerät einmal abgefragt (mindestens 4 Zeichen).' : 'Die PIN der Schadensfälle-Cloud.'}</p>
     <p class="fehlertext" id="pin-fehler" ${falsch ? '' : 'hidden'}>Die PIN war falsch.</p>
@@ -1014,7 +1015,7 @@ async function anmeldung(falsch = false) {
       if (neu) await api('pinFestlegen', pin);
       const a = await api('anmelden', pin);
       PIN = pin; try { localStorage.setItem(PIN_SPEICHER, PIN); } catch {}
-      S.zugang = { rolle: a.rolle || 'ADMIN', name: 'Admin', mitarbeiterId: '' }; speichere();
+      S.zugang = { rolle: a.rolle || 'ADMIN', name: 'Admin', mitarbeiterId: '', hauptadmin: true, pin: true }; speichere();
       $('#dialog').close(); SYNC.fehler = ''; SYNC.versionOk = null; abgleich();
     } catch (e) {
       const m = String(e.message || e);
@@ -1024,28 +1025,50 @@ async function anmeldung(falsch = false) {
 }
 
 /** Anmeldung mit Benutzername und Passwort (vom Admin angelegt). */
+/** Anmelden mit Benutzername und Passwort (Dialog oder persönlicher Anmeldelink). */
+async function einloggenMit(name, pw) {
+  const a = await api('einloggen', name, pw);
+  PIN = a.token; try { localStorage.setItem(PIN_SPEICHER, PIN); } catch {}
+  S.zugang = { rolle: a.rolle, name: a.name, mitarbeiterId: a.mitarbeiterId, hauptadmin: !!a.hauptadmin };
+  if (a.mitarbeiterId) S.einstellungen.ichId = a.mitarbeiterId;
+  if (a.rolle === 'FAHRER') { ANSICHT.bereich = 'fahrer'; try { localStorage.setItem('crm-bereich', 'fahrer'); } catch {} }
+  speichere(); if ($('#dialog').open) $('#dialog').close(); SYNC.fehler = ''; SYNC.versionOk = null; zeichne(); abgleich();
+  toast(`${t('Angemeldet als')} ${a.name}`);
+  return a;
+}
+/** Persönlicher Anmeldelink: Zugangsdaten im #-Teil (wird nie an einen Server geschickt) – die App liest ihn einmal und entfernt ihn sofort. */
+const b64url = s => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const vonB64url = s => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
+function zugangLink(login, pw) {
+  const d = { u: login, p: pw }; if (apiUrl() && apiUrl() !== window.API_URL) d.c = apiUrl();
+  return `${appAdresse()}#anmelden=${b64url(JSON.stringify(d))}`;
+}
+function anmeldelinkLesen() {
+  const m = location.hash.match(/^#anmelden=([A-Za-z0-9_-]+)/); if (!m) return null;
+  history.replaceState(null, '', location.pathname + location.search);
+  try {
+    const d = JSON.parse(vonB64url(m[1]));
+    if (d.c && (/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(d.c) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(d.c))) { S.apiUrl = d.c; S.nurLokal = false; speichere(); }
+    if (d.u) ANSICHT.loginArt = 'BENUTZER';
+    return d.u && d.p ? d : null;
+  } catch { return null; }
+}
 function loginDialog(falsch = false) {
   dialog(`<form method="dialog" id="login-form"><div class="zeile eng"><h2 class="fuell">${esc(t('Anmelden'))}</h2><button type="button" class="knopf text" data-sprache-wahl aria-label="Sprache / Language">🌐 ${esc(SPRACHEN[sprache()][0])}</button></div>
     <p class="leise">${esc(t('Mit den Zugangsdaten, die du vom Büro bekommen hast.'))}</p>
     <p class="fehlertext" id="login-fehler" ${falsch ? '' : 'hidden'}>${esc(t('Bitte erneut anmelden.'))}</p>
     <label class="feld">${esc(t('Benutzername'))}<input id="login-name" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
     <label class="feld">${esc(t('Passwort'))}<input id="login-pw" type="password" autocomplete="current-password" required></label>
-    <button type="button" class="knopf text" id="zur-pin" style="padding-left:0">Als Admin mit der Cloud-PIN anmelden</button>
+    ${ANSICHT.pinAus ? '' : '<button type="button" class="knopf text" id="zur-pin" style="padding-left:0">Als Admin mit der Cloud-PIN anmelden</button>'}
     <div class="dialog-knoepfe"><button type="button" class="knopf text" id="login-spaeter">${esc(t('Später'))}</button><button class="knopf voll">${esc(t('Anmelden'))}</button></div></form>`, { schliessbar: false });
   setTimeout(() => $('#login-name') && $('#login-name').focus(), 50);
   $('#login-spaeter').onclick = () => { $('#dialog').close(); zeichneSync(); };
-  $('#zur-pin').onclick = () => { ANSICHT.loginArt = 'PIN'; $('#dialog').close(); anmeldung(); };
+  if ($('#zur-pin')) $('#zur-pin').onclick = () => { ANSICHT.loginArt = 'PIN'; $('#dialog').close(); anmeldung(); };
   $('#login-form').onsubmit = async ev => {
     ev.preventDefault();
     const fehler = $('#login-fehler'), zeige = t => { fehler.textContent = t; fehler.hidden = false; };
     try {
-      const a = await api('einloggen', $('#login-name').value, $('#login-pw').value);
-      PIN = a.token; try { localStorage.setItem(PIN_SPEICHER, PIN); } catch {}
-      S.zugang = { rolle: a.rolle, name: a.name, mitarbeiterId: a.mitarbeiterId };
-      if (a.mitarbeiterId) S.einstellungen.ichId = a.mitarbeiterId;
-      if (a.rolle === 'FAHRER') { ANSICHT.bereich = 'fahrer'; try { localStorage.setItem('crm-bereich', 'fahrer'); } catch {} }
-      speichere(); $('#dialog').close(); SYNC.fehler = ''; SYNC.versionOk = null; zeichne(); abgleich();
-      toast(`${t('Angemeldet als')} ${a.name}`);
+      await einloggenMit($('#login-name').value, $('#login-pw').value);
     } catch (e) {
       const m = String(e.message || e);
       zeige(m.includes('GESPERRT') ? m.replace(/^.*GESPERRT: /, '') : e instanceof TypeError ? 'Keine Verbindung zur Cloud.' : m);
@@ -1057,7 +1080,7 @@ async function benutzerVerwaltung() {
   let liste;
   try { liste = await api('benutzerListe', PIN); } catch (e) { toast(String(e.message).includes('Admin') ? 'Nur Admins können Benutzer verwalten.' : 'Cloud nicht erreichbar: ' + e.message); return; }
   dialog(`<h2>Benutzer und Logins</h2><p class="leise">Wer sich mit der Cloud-PIN anmeldet, ist Admin. Alle anderen bekommen hier eigene Zugangsdaten.</p>
-    <div id="benutzer-liste">${liste.map(b => `<button class="vorlage" data-benutzer="${b.id}"><b>${esc(b.name)}</b> <span class="marke ${b.aktiv ? 'gruen' : 'grau'}">${b.aktiv ? esc(ROLLEN_TEXT[b.rolle]) : 'gesperrt'}</span><br>
+    <div id="benutzer-liste">${liste.map(b => `<button class="vorlage" data-benutzer="${b.id}"><b>${b.hauptadmin ? '👑 ' : ''}${esc(b.name)}</b> <span class="marke ${b.aktiv ? 'gruen' : 'grau'}">${b.aktiv ? esc(ROLLEN_TEXT[b.rolle]) : 'gesperrt'}</span><br>
       <span class="leise">${esc(b.login)}${b.mitarbeiterId && maName(b.mitarbeiterId) ? ' · ' + esc(maName(b.mitarbeiterId)) : ''}${b.letzteAnmeldung ? ' · zuletzt ' + esc(zeitText(b.letzteAnmeldung)) : ' · noch nie angemeldet'}</span></button>`).join('') || '<p class="leise">Noch keine Benutzer.</p>'}</div>
     <div class="dialog-knoepfe"><button class="knopf" id="benutzer-alle-fahrer">Logins für alle Fahrer ohne Login</button><button class="knopf" id="benutzer-neu">＋ Benutzer</button><button class="knopf voll" data-zu>Fertig</button></div>`);
   $('#benutzer-neu').onclick = () => benutzerDialog(null, liste);
@@ -1080,7 +1103,7 @@ async function benutzerVerwaltung() {
   };
 }
 const appAdresse = () => (location.protocol.startsWith('http') ? location.origin + location.pathname : 'https://aysetransport.github.io/schaden/');
-const zugangText = (name, login, pw) => `Hallo ${name.split(' ')[0]}, dein Zugang zur Ayse-CRM-App:\n${appAdresse()}\nBenutzername: ${login}\nPasswort: ${pw}\n(Auf dem iPhone in Safari öffnen → Teilen → „Zum Home-Bildschirm“.)`;
+const zugangText = (name, login, pw) => `Hallo ${name.split(' ')[0]}, dein Zugang zur Ayse-CRM-App:\n\nDein persönlicher Anmeldelink (einmal antippen, dann bist du angemeldet):\n${zugangLink(login, pw)}\n\nOder von Hand: ${appAdresse()}\nBenutzername: ${login}\nPasswort: ${pw}\n\n(iPhone: Link in Safari öffnen → Teilen → „Zum Home-Bildschirm“. Android: in Chrome öffnen → ⋮ → „Zum Startbildschirm“.)`;
 const loginVorschlag = (name, liste) => { const b = normal(name).replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9 ]/g, '').trim().split(/\s+/);
   let l = (b.length > 1 ? b[0] + '.' + b[b.length - 1] : b[0] || 'fahrer').slice(0, 30), n = l, i = 2; while (liste.some(x => x.login === n)) n = l + i++; return n; };
 const passwortVorschlag = () => { const z = 'abcdefghjkmnpqrstuvwxyz23456789', r = crypto.getRandomValues(new Uint8Array(10)); return Array.from(r, x => z[x % z.length]).join('').replace(/(.{5})/, '$1-'); };
@@ -1095,12 +1118,14 @@ function benutzerDialog(b, liste) {
     <label class="feld">${neu ? 'Passwort' : 'Neues Passwort (leer = unverändert)'}<input name="passwort" value="${esc(pwNeu)}" autocomplete="new-password"></label>
     <button type="button" class="knopf text" id="pw-neu" style="padding-left:0">🎲 Passwort erzeugen</button>
     <label class="auswahl"><input type="checkbox" name="aktiv" ${e.aktiv ? 'checked' : ''}> Login aktiv (ausschalten = sofort gesperrt, alle Geräte abgemeldet)</label>
+    ${istHauptadmin() ? `<label class="auswahl" id="hauptadmin-wahl"><input type="checkbox" name="hauptadmin" ${e.hauptadmin ? 'checked disabled' : ''}> 👑 Hauptadmin (oberster Admin: verwaltet alle Admins und kann die Anmeldung mit der Cloud-PIN abschalten; es gibt nur einen)</label>` : ''}
     <p class="fehlertext" id="benutzer-fehler" hidden></p>
     <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="benutzer-weg">Löschen</button>'}<span class="fuell"></span>
       <button type="button" class="knopf text" id="benutzer-zurueck">Zurück</button><button class="knopf voll">Speichern</button></div></form>`);
   const f = $('#benutzer-form');
   const info = () => { $('#rolle-info').textContent = { ADMIN: 'Alles, inklusive Benutzerverwaltung und Lohndaten.', DISPO: 'Alles außer Benutzerverwaltung und Lohndaten (Lohnabrechnungen, Stundenlöhne).', FAHRER: 'Nur „Meine Touren“, eigene Arbeitszeiten, Abwesenheiten, Aufgaben und Schadensmeldungen zu eigenen Touren.' }[f.rolle.value]; };
-  f.rolle.onchange = info; info();
+  const hw = () => { if ($('#hauptadmin-wahl')) $('#hauptadmin-wahl').hidden = f.rolle.value !== 'ADMIN'; };
+  f.rolle.onchange = () => { info(); hw(); }; info(); hw();
   f.mitarbeiterId.onchange = () => { const m = maVon(f.mitarbeiterId.value); if (m) { if (!f.name.value) f.name.value = m.name; if (!f.login.value) f.login.value = loginVorschlag(m.name, liste.filter(x => x.id !== e.id)); } };
   $('#pw-neu').onclick = () => { f.passwort.value = passwortVorschlag(); };
   $('#benutzer-zurueck').onclick = benutzerVerwaltung;
@@ -1110,7 +1135,7 @@ function benutzerDialog(b, liste) {
     const w = Object.fromEntries(new FormData(f)), fehler = $('#benutzer-fehler');
     if (w.rolle === 'FAHRER' && !w.mitarbeiterId) { fehler.textContent = 'Ein Fahrer-Login braucht den verknüpften Mitarbeiter.'; fehler.hidden = false; return; }
     try {
-      await api('benutzerSpeichern', PIN, { id: e.id, login: w.login, name: w.name, rolle: w.rolle, mitarbeiterId: w.mitarbeiterId, aktiv: !!w.aktiv, passwort: w.passwort || null });
+      await api('benutzerSpeichern', PIN, { id: e.id, login: w.login, name: w.name, rolle: w.rolle, mitarbeiterId: w.mitarbeiterId, aktiv: !!w.aktiv, passwort: w.passwort || null, hauptadmin: !!w.hauptadmin || !!e.hauptadmin });
       if (w.passwort) {
         const m = maVon(w.mitarbeiterId), text = zugangText(w.name, w.login.toLowerCase(), w.passwort);
         dialog(`<h2>Zugangsdaten</h2><pre class="vorschau">${esc(text)}</pre><p class="leise">Das Passwort wird nicht gespeichert – bitte jetzt weitergeben.</p>
@@ -1464,6 +1489,8 @@ const NUR_ADMIN = ['#crm-csv', '#sicherung-knopf', '#csv', '#belege-leeren', '[d
   '[data-auswertung-druck]', '#tp-import-knopf', 'label:has(#sicherung-import)', 'label:has(#crm-import)', 'label:has(#personal-import)', 'label:has(#fuhrpark-import)', 'label:has(#firmen-csv-import)'];
 const NUR_ADMIN_DATEI = ['#sicherung-import', '#crm-import', '#personal-import', '#fuhrpark-import', '#firmen-csv-import'];
 const istAdmin = () => rolle() === 'ADMIN';
+/** Hauptadmin: angemeldet mit der Cloud-PIN oder als Login mit Hauptadmin-Kennzeichen. */
+const istHauptadmin = () => istAdmin() && (!String(PIN || '').startsWith('T:') || !!(S.zugang && S.zugang.hauptadmin));
 (() => { const st = document.createElement('style'); st.textContent = `body:not([data-rolle="ADMIN"]) :is(${NUR_ADMIN.join(',')}){display:none!important}`; document.head.appendChild(st); })();
 document.addEventListener('click', e => {
   if (istAdmin()) return;
@@ -1876,7 +1903,9 @@ function zeichneEinstellungenVoll() {
       <button class="knopf" id="crm-csv">CRM für Excel exportieren (6 CSV-Dateien)</button></div></div>
     ${mitCloud() && PIN ? `<div class="karte block"><h3>Anmeldung</h3><p>Angemeldet als <b>${esc((S.zugang || {}).name || 'Admin')}</b> · ${esc(ROLLEN_TEXT[rolle()])}</p>
       ${rolle() === 'ADMIN' ? `<p class="leise" style="margin:6px 0">Fahrer und Büro bekommen eigene Logins. Fahrer sehen nur ihre eigenen Touren, Zeiten, Abwesenheiten und Aufgaben – keine Löhne, Preise, Rechnungen oder Daten anderer. Die Cloud setzt das durch.</p>
-        <div class="zeile"><button class="knopf voll" id="benutzer-knopf">👤 Benutzer und Logins verwalten</button></div>` : ''}</div>` : ''}
+        <div class="zeile"><button class="knopf voll" id="benutzer-knopf">👤 Benutzer und Logins verwalten</button></div>` : ''}
+      ${istHauptadmin() ? `<p class="leise" style="margin:10px 0 6px">${S.zugang && S.zugang.hauptadmin ? '👑 Du bist Hauptadmin.' : 'Angemeldet mit der Cloud-PIN.'} Ist ein Hauptadmin festgelegt (Benutzer → Admin → „👑 Hauptadmin“), kann er die Anmeldung mit der Cloud-PIN abschalten – dann gibt es nur noch persönliche Logins. Notfalls schaltet die Funktion „notfallPinAnmeldungEinschalten“ im Apps-Script-Editor sie wieder ein.</p>
+        <div class="zeile"><button class="knopf" id="pin-schalter">🔐 Anmeldung mit Cloud-PIN …</button></div>` : ''}</div>` : ''}
     <div class="karte block"><h3>Tourenplanung und Personal</h3>
       <p class="leise" style="margin-bottom:8px">Daten der bisherigen Tourenplanung (Fahrzeuge, Personal, Einsatzarten, Auftraggeber, Abwesenheiten, Touren) übernehmen. Gefahrlos wiederholbar bis zum Umstieg.</p>
       <div class="zeile"><button class="knopf voll" id="tp-import-knopf">Aus der bisherigen Tourenplanung übernehmen</button><button class="knopf" id="ea-knopf">Einsatzarten</button></div>
@@ -1963,6 +1992,16 @@ $('#detail').addEventListener('click', e => {
       break;
     }
     case 'jetzt': abgleich(); break;
+    case 'pin-schalter': (async () => {
+      let st; try { st = await api('status'); } catch (x) { toast('Cloud nicht erreichbar'); return; }
+      const aus = !!st.pinAus;
+      bestaetige(aus ? 'Cloud-PIN wieder einschalten?' : 'Anmeldung mit der Cloud-PIN abschalten?',
+        aus ? 'Danach kann man sich wieder mit der Cloud-PIN als Admin anmelden.' : 'Danach gibt es nur noch persönliche Logins; Geräte, die mit der PIN angemeldet sind, werden abgemeldet. Der Hauptadmin-Login bleibt der oberste Zugang. Notfalls im Apps-Script-Editor „notfallPinAnmeldungEinschalten“ ausführen.',
+        aus ? 'Einschalten' : 'Abschalten', async () => {
+          try { const r = await api('pinAnmeldung', PIN, aus); ANSICHT.pinAus = r.pinAus; toast(r.pinAus ? 'Anmeldung mit der Cloud-PIN ist abgeschaltet' : 'Anmeldung mit der Cloud-PIN ist eingeschaltet', 6000); }
+          catch (x) { toast(String(x.message || x), 8000); }
+        });
+    })(); break;
     case 'abmelden': if (String(PIN).startsWith('T:')) api('abmelden', PIN).catch(() => {}); PIN = ''; try { localStorage.removeItem(PIN_SPEICHER); } catch {} S.zugang = null; speichere(); SYNC.fehler = ''; zeichne(); toast('Abgemeldet. Zum Anmelden oben auf „Anmeldung nötig“ tippen.'); break;
     case 'verbinden': {
       const url = $('#cloud-url').value.trim();
@@ -7353,9 +7392,11 @@ window.addEventListener('offline', () => { if (!mitCloud()) return; SYNC.fehler 
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { zeichne(); pruefeStand(); } });
 setInterval(pruefeStand, 45000);
 if (langeMailsKuerzen()) speichere();
+const anmeldeLink = anmeldelinkLesen();
 spracheAnwenden();
 zeichne();
-if (mitCloud()) abgleich();
+if (anmeldeLink && mitCloud()) einloggenMit(anmeldeLink.u, anmeldeLink.p).catch(e => { toast('Anmeldelink: ' + (String(e.message || e).replace(/^.*GESPERRT: /, '')), 7000); anmeldung(); });
+else if (mitCloud()) abgleich();
 mailStart();
 window.__appBereit = true;
 </script>
