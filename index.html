@@ -297,6 +297,7 @@ dialog h2{font-size:22px;font-weight:500;margin-bottom:12px}
 dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
 .dialog-knoepfe{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
 .auswahl{display:flex;align-items:center;gap:12px;padding:8px 4px;cursor:pointer;border-radius:8px}
+.imp-liste{max-height:55vh;overflow:auto}.imp-zeile{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 4px;border-bottom:1px solid var(--linie)}.imp-zeile select{flex:1 1 200px;max-width:100%}.imp-zeile.pruefen{background:color-mix(in srgb,#f5c400 18%,transparent)}
 .auswahl:hover{background:var(--flaeche2)}
 .vorlage{display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px 8px;border-radius:8px;cursor:pointer}
 .vorlage:hover{background:var(--flaeche2)}
@@ -2689,7 +2690,7 @@ function zeichnePersonal(r) {
   }).join('');
   return seitenkopf('Personal', `<button class="knopf voll" data-neuer-mitarbeiter>＋ Mitarbeiter</button>`, `<button class="knopf" data-abwesenheiten>Abwesenheiten</button>
       <button class="knopf" data-gehe-bereich="auswertung">📊 Auswertung</button><button class="knopf" data-anwesenheit>Anwesenheitsliste</button>
-      <label class="knopf">⤓ Import (Lohnabrechnungen)<input type="file" id="personal-import" accept=".json,application/json" hidden></label><button class="knopf" data-personal-csv>CSV</button>`)
+      <label class="knopf">⤓ Import (Lohnabrechnungen)<input type="file" id="personal-import" accept=".json,application/json" hidden></label><button class="knopf" data-personal-csv>CSV</button>${rolle() === 'ADMIN' && maDoppelte().length ? `<button class="knopf" data-doppelte>🔁 Doppelte (${maDoppelte().length})</button>` : ''}`)
     + `<div class="kennzahlen vier">
       <button class="kennzahl" data-personal-filter="AKTIV"><b>${aktive.length}</b><span>Aktiv</span></button>
       <button class="kennzahl" data-personal-filter="EINSATZ"><b>${st.filter(x => x === 'einsatz').length}</b><span>Heute im Einsatz</span></button>
@@ -2794,7 +2795,7 @@ function zeichneMitarbeiter(id) {
       ${dl([['Telefon', m.telefon], ['E-Mail', m.email], ['Anschrift', m.adresse], ['Geburtstag', datumText(m.geburtstag)], ['Notfallkontakt', m.notfallkontakt],
         ['Eintritt', datumText(m.eintritt)], ['Austritt', datumText(m.austritt)], ['Wochenstunden', m.wochenstunden != null ? String(m.wochenstunden) : ''],
         ['Stundenlohn', m.stundenlohnCent != null ? geld(m.stundenlohnCent) : ''], ['Nicht einplanen bei', m.nichtBei], ['Notizen', m.notiz]]) || '<p class="leise">Über ✎ ergänzen.</p>'}</div>
-    <div class="zeile" style="margin:12px 0"><button class="knopf text gefahr" data-ma="loeschen">Mitarbeiter löschen</button></div>`;
+    <div class="zeile" style="margin:12px 0">${rolle() === 'ADMIN' ? '<button class="knopf text" data-ma="zusammen">🔁 Mit anderem zusammenführen …</button>' : ''}<button class="knopf text gefahr" data-ma="loeschen">Mitarbeiter löschen</button></div>`;
   for (const d of dok.filter(d => d.mimeType.startsWith('image/'))) {
     Dateien.adresse(d).then(u => { const ziel = el.querySelector(`[data-bild="${d.id}"]`); if (u && ziel) ziel.innerHTML = `<img src="${u}" alt="">`; }).catch(() => {});
   }
@@ -2922,23 +2923,68 @@ function personalCsv() {
  *   abwesenheiten: [{ personalnummer | name, von, bis, grund }], dokumente: [{ personalnummer | name, art, name, mimeType, base64 }] }
  * Gleiche Personalnummer bzw. gleicher Name = gleiche Person: leere Felder werden ergänzt, vorhandene bleiben. Je Person und Monat gibt es eine Lohnabrechnung.
  */
-async function personalImportieren(text) {
+const personalFinde = x => (x.personalnummer && alle('mitarbeiter').find(m => String(m.personalnummer || '') === String(x.personalnummer))) || maZumNamen(x.name || '');
+/** Vorschlag für Personen, deren Name anders geschrieben ist (z. B. „Mike Engelhardt“ ↔ „Mike Davis Engelhardt“): nur bei eindeutigem Treffer. */
+function personalVorschlag(x) {
+  const t = new Set(nameSchluessel(x.name || '').split(' ').filter(w => w.length > 1));
+  if (!t.size) return null;
+  const l = alle('mitarbeiter').filter(m => !(x.personalnummer && m.personalnummer && String(m.personalnummer) !== String(x.personalnummer))).filter(m => {
+    const u = nameSchluessel(m.name).split(' ').filter(w => w.length > 1), gemeinsam = u.filter(w => t.has(w)).length;
+    return gemeinsam >= 2 || (u.length >= 2 && gemeinsam === u.length);
+  });
+  return l.length === 1 ? l[0] : null;
+}
+/** Zuordnung vor dem Import: jede Person der Datei → vorhandener Mitarbeiter oder neu. */
+function personalImportDialog(text) {
+  const d = JSON.parse(text);
+  if (!d || !(Array.isArray(d.mitarbeiter) || Array.isArray(d.lohn))) throw new Error('Das ist keine Personal-Datei.');
+  const leute = d.mitarbeiter || [], alleMa = mitarbeiterListe();
+  const zeilen = leute.map((x, i) => {
+    const sicher = personalFinde(x), vorschlag = sicher ? null : personalVorschlag(x), wahl = (sicher || vorschlag || {}).id || 'NEU';
+    return [vorschlag ? 0 : sicher ? 2 : 1, `<div class="imp-zeile${vorschlag ? ' pruefen' : ''}"><span class="fuell"><b>${esc(x.name || '')}</b>${x.personalnummer ? ` <span class="leise">Nr. ${esc(x.personalnummer)}</span>` : ''}${vorschlag ? '<br><span class="fehlertext">ähnlicher Name – bitte prüfen</span>' : ''}</span>
+      <select name="z${i}" aria-label="Zuordnung für ${esc(x.name || '')}"><option value="NEU" ${wahl === 'NEU' ? 'selected' : ''}>＋ neu anlegen</option><option value="WEG">– nicht importieren –</option>
+      ${alleMa.map(m => `<option value="${m.id}" ${m.id === wahl ? 'selected' : ''}>${esc(m.name)}${m.personalnummer ? ' (' + esc(m.personalnummer) + ')' : ''}</option>`).join('')}</select></div>`];
+  }).sort((a, b) => a[0] - b[0]).map(z => z[1]);
+  const zaehle = () => { const f = $('#imp-form'), w = leute.map((_, i) => f['z' + i].value); $('#imp-summe').textContent = `${w.filter(v => v !== 'NEU' && v !== 'WEG').length} zugeordnet · ${w.filter(v => v === 'NEU').length} neu · ${w.filter(v => v === 'WEG').length} ausgelassen · ${(d.lohn || []).length} Abrechnungen · ${(d.dokumente || []).length} Dokumente`; };
+  dialog(`<form method="dialog" id="imp-form"><h2>⤓ Personal-Import${d.quelle ? ' – ' + esc(d.quelle) : ''}</h2>
+    <p class="leise">Bitte prüfen, wem die Abrechnungen zugeordnet werden. Gelb markiert = ähnlicher Name gefunden. Vorhandene Angaben bleiben erhalten, leere Felder werden ergänzt; abweichende Namen werden als Alias gespeichert.</p>
+    <div class="imp-liste">${zeilen.join('') || '<p class="leise">Keine Personen in der Datei – nur Abrechnungen.</p>'}</div><p id="imp-summe" class="leise"></p>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Importieren</button></div></form>`);
+  const f = $('#imp-form'); f.onchange = zaehle; zaehle();
+  f.onsubmit = async ev => {
+    ev.preventDefault();
+    const zuordnung = Object.fromEntries(leute.map((_, i) => [i, f['z' + i].value]));
+    $('#dialog').close();
+    try { const r = await personalImportieren(text, zuordnung); toast(`Import: ${r.neu} neu, ${r.ergaenzt} ergänzt, ${r.lohn} Lohnabrechnungen, ${r.abw} Abwesenheiten, ${r.doks} Dokumente`, 7000); }
+    catch (x) { toast('Import nicht möglich: ' + x.message, 6000); }
+  };
+}
+async function personalImportieren(text, zuordnung = null) {
   const d = JSON.parse(text);
   if (!d || !(Array.isArray(d.mitarbeiter) || Array.isArray(d.lohn))) throw new Error('Das ist keine Personal-Datei.');
   const felder = new Set(MITARBEITER_FELDER.flatMap(([, f]) => f.map(([k]) => k)).concat(['stundenlohnCent']));
   felder.delete('stundenlohn');
-  const finde = x => (x.personalnummer && alle('mitarbeiter').find(m => String(m.personalnummer || '') === String(x.personalnummer))) || maZumNamen(x.name || '');
+  const zuNr = {}, zuName = {}, ausgelassen = new Set();
+  const finde = x => (x.personalnummer && zuNr[x.personalnummer] && maVon(zuNr[x.personalnummer])) || (x.personalnummer && ausgelassen.has(String(x.personalnummer)) ? null : personalFinde(x));
   let neu = 0, ergaenzt = 0, lohn = 0, abw = 0, doks = 0;
-  for (const roh of d.mitarbeiter || []) {
-    if (!roh.name && !roh.personalnummer) continue;
+  (d.mitarbeiter || []).forEach((roh, i) => {
+    if (!roh.name && !roh.personalnummer) return;
+    const z = zuordnung ? zuordnung[i] : null;
+    if (z === 'WEG') { if (roh.personalnummer) ausgelassen.add(String(roh.personalnummer)); return; }
     const sauber = Object.fromEntries(Object.entries(roh).filter(([k, v]) => felder.has(k) && v != null && v !== ''));
     if (typeof sauber.aktiv === 'string') sauber.aktiv = !/^(nein|false|0)$/i.test(sauber.aktiv);
     if (typeof sauber.monteur === 'string') sauber.monteur = /^(ja|true|1)$/i.test(sauber.monteur);
-    const alt = finde(roh);
-    if (!alt) { merke('mitarbeiter', { aktiv: true, rolle: 'BEIDES', anstellung: 'VOLLZEIT', ...sauber, name: String(roh.name || roh.personalnummer).trim(), id: uuid(), firmaId: '', geaendertAm: jetztIso() }); neu++; continue; }
+    const alt = z === 'NEU' ? null : (z && maVon(z)) || finde(roh);
+    if (!alt) {
+      const m = merke('mitarbeiter', { aktiv: true, rolle: 'BEIDES', anstellung: 'VOLLZEIT', ...sauber, name: String(roh.name || roh.personalnummer).trim(), id: uuid(), firmaId: '', geaendertAm: jetztIso() }); neu++;
+      if (roh.personalnummer) zuNr[roh.personalnummer] = m.id; return;
+    }
+    if (roh.personalnummer) zuNr[roh.personalnummer] = alt.id;
     const dazu = Object.fromEntries(Object.entries(sauber).filter(([k]) => alt[k] == null || alt[k] === ''));
+    if (roh.name && nameSchluessel(roh.name) !== nameSchluessel(alt.name) && !String(alt.aliase || '').split(';').some(a => nameSchluessel(a) === nameSchluessel(roh.name)))
+      dazu.aliase = [alt.aliase, roh.name].filter(Boolean).join('; ');
     if (Object.keys(dazu).length) { merke('mitarbeiter', { ...alt, ...dazu, geaendertAm: jetztIso() }); ergaenzt++; }
-  }
+  });
   for (const x of d.lohn || []) {
     const m = finde(x); if (!m || !/^\d{4}-\d{2}/.test(x.monat || '')) continue;
     const datum = x.monat.slice(0, 7) + '-01', alt = personalakteVon(m.id).find(e => e.art === 'LOHN' && e.datum === datum);
@@ -2964,11 +3010,96 @@ async function personalImportieren(text) {
   return { neu, ergaenzt, lohn, abw, doks };
 }
 
+// ---------- Mitarbeiter zusammenführen ----------
+/** Mögliche Doppelte: alle Namensteile des einen stecken im anderen („Fatih“ ↔ „Fatih Akyüz“, „Mike Engelhardt“ ↔ „Mike Davis Engelhardt“). */
+function maDoppelte() {
+  const l = mitarbeiterListe().map(m => ({ m, t: nameSchluessel(m.name).split(' ').filter(w => w.length > 1) })).filter(x => x.t.length), paare = [];
+  for (let i = 0; i < l.length; i++) for (let j = i + 1; j < l.length; j++) {
+    const [a, b] = l[i].t.length <= l[j].t.length ? [l[i], l[j]] : [l[j], l[i]];
+    if (a.m.personalnummer && b.m.personalnummer && String(a.m.personalnummer) !== String(b.m.personalnummer)) continue;
+    if (a.t.every(w => b.t.includes(w))) paare.push([a.m, b.m]);
+  }
+  return paare;
+}
+const maTourenAnzahl = id => alle('touren').filter(t => teamVon(t).includes(id)).length;
+/** Alles von `weg` auf `ziel` umhängen, `weg` danach löschen. */
+async function maZusammenfuehren(weg, ziel, name) {
+  const jetzt = jetztIso(), ersetze = id => (id === weg.id ? ziel.id : id);
+  for (const t of alle('touren').filter(t => teamVon(t).includes(weg.id))) {
+    const fahrer = ersetze(t.fahrerId || ''), bf = [...new Set(beifahrerVon(t).map(ersetze))].filter(id => id !== fahrer);
+    merke('touren', { ...t, fahrerId: fahrer, beifahrerIds: bf.join(','), geaendertAm: jetzt });
+  }
+  const lohnMonate = new Set(personalakteVon(ziel.id).filter(e => e.art === 'LOHN').map(e => e.datum));
+  for (const tab of ['zeiten', 'abwesenheiten', 'personaleintraege', 'tachotage'])
+    for (const x of alle(tab).filter(x => x.mitarbeiterId === weg.id)) {
+      if (tab === 'personaleintraege' && x.art === 'LOHN' && lohnMonate.has(x.datum)) { entferne(tab, x, { firmaId: '', geaendertAm: jetzt }); continue; }
+      merke(tab, { ...x, mitarbeiterId: ziel.id, geaendertAm: jetzt });
+    }
+  for (const a of alle('aufgabenIntern').filter(a => a.zustaendigId === weg.id || (a.bezugArt === 'mitarbeiter' && a.bezugId === weg.id)))
+    merke('aufgabenIntern', { ...a, zustaendigId: ersetze(a.zustaendigId || ''), bezugId: a.bezugArt === 'mitarbeiter' ? ersetze(a.bezugId) : a.bezugId, geaendertAm: jetzt });
+  for (const f of faelle().filter(f => f.fahrerId === weg.id)) fallMerken({ ...f, fahrerId: ziel.id });
+  // Dokumente: in der Cloud lassen sich Anlagen nicht umhängen – Kopie beim Ziel, Original weg
+  let fehlt = 0;
+  for (const a of anlagenVon(weg.id)) {
+    try { await Dateien.adresse(a); } catch { /* unten geprüft */ }
+    const blob = await Dateien.hole(a.id);
+    if (!blob) { fehlt++; continue; }
+    const neu = merke('anlagen', { id: uuid(), fallId: ziel.id, anzeigename: a.anzeigename, mimeType: a.mimeType, groesseBytes: blob.size, hinzugefuegtAm: a.hinzugefuegtAm || jetzt, vorhanden: false });
+    await Dateien.lege(neu.id, blob);
+    entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id);
+  }
+  const aliase = [...new Set([ziel.aliase, weg.aliase, weg.name, ziel.name].flatMap(x => String(x || '').split(';')).map(x => x.trim()).filter(x => x && nameSchluessel(x) !== nameSchluessel(name)))].join('; ');
+  const dazu = Object.fromEntries(Object.entries(weg).filter(([k, v]) => !['id', 'name', 'aliase', 'notiz', 'geaendertAm', '_n', 'rev'].includes(k) && v != null && v !== '' && (ziel[k] == null || ziel[k] === '')));
+  merke('mitarbeiter', { ...ziel, ...dazu, name: name || ziel.name, aliase, notiz: [ziel.notiz, weg.notiz].filter(Boolean).filter((x, i, l) => l.indexOf(x) === i).join('\n'), geaendertAm: jetzt });
+  if (S.einstellungen.ichId === weg.id) S.einstellungen.ichId = ziel.id;
+  if (fehlt) for (const a of anlagenVon(weg.id)) entferne('anlagen', a, { fallId: a.fallId });
+  entferne('mitarbeiter', weg, { firmaId: '', geaendertAm: jetzt });
+  nachAenderung();
+  return { fehlt };
+}
+function maZusammenDialog(m, anderer = null) {
+  const andere = mitarbeiterListe().filter(x => x.id !== m.id);
+  if (!andere.length) { toast('Es gibt keinen anderen Mitarbeiter.'); return; }
+  const vorschlag = anderer || (maDoppelte().find(p => p.includes(m)) || []).find(x => x !== m) || andere[0];
+  dialog(`<form method="dialog" id="zus-form"><h2>🔁 Mitarbeiter zusammenführen</h2>
+    <p class="leise">Für doppelt angelegte Personen (z. B. einmal aus der Tourenplanung, einmal aus dem Lohn-Import). Touren, Zeiten, Abwesenheiten, Personalakte, Lohnabrechnungen, Dokumente, Aufgaben und Schadensfälle landen bei einem Eintrag, der andere wird gelöscht. Der andere Name bleibt als Alias erhalten.</p>
+    <label class="feld">Zusammenführen mit<select name="b">${andere.map(x => `<option value="${x.id}" ${x === vorschlag ? 'selected' : ''}>${esc(x.name)}${x.personalnummer ? ' (Nr. ' + esc(x.personalnummer) + ')' : ''}</option>`).join('')}</select></label>
+    <div id="zus-wahl"></div>
+    <label class="feld">Name danach<input name="name" required></label>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Zusammenführen</button></div></form>`);
+  const f = $('#zus-form');
+  const zeige = () => {
+    const b = maVon(f.b.value), info = x => `${maTourenAnzahl(x.id)} Touren · ${personalakteVon(x.id).length} Akteneinträge · ${anlagenVon(x.id).length} Dokumente${x.personalnummer ? ' · Nr. ' + esc(x.personalnummer) : ''}`;
+    const bleibt = maTourenAnzahl(b.id) > maTourenAnzahl(m.id) ? b : m;
+    $('#zus-wahl').innerHTML = `<p style="margin:8px 0 4px"><b>Welcher Eintrag bleibt?</b> <span class="leise">(Logins hängen am bleibenden Eintrag)</span></p>${[m, b].map(x => `<label class="auswahl"><input type="radio" name="bleibt" value="${x.id}" ${x === bleibt ? 'checked' : ''}> <span><b>${esc(x.name)}</b><br><span class="leise">${info(x)}</span></span></label>`).join('')}`;
+    f.name.value = [m, b].map(x => x.name).sort((x, y) => y.length - x.length)[0];
+  };
+  f.b.onchange = zeige; zeige();
+  f.onsubmit = ev => {
+    ev.preventDefault();
+    const b = maVon(f.b.value), ziel = f.bleibt.value === b.id ? b : m, weg = ziel === b ? m : b, name = f.name.value.trim();
+    bestaetige(`„${weg.name}“ in „${ziel.name}“ überführen?`, `Alle Daten von „${weg.name}“ wandern zu „${ziel.name}“ (danach „${name}“). „${weg.name}“ wird gelöscht. Hat „${weg.name}“ einen eigenen Login, diesen danach unter ⚙ → Benutzer dem bleibenden Mitarbeiter zuordnen.`, 'Zusammenführen', async () => {
+      const r = await maZusammenfuehren(weg, ziel, name);
+      gehe('#/mitarbeiter/' + ziel.id);
+      toast(r.fehlt ? `Zusammengeführt – ${r.fehlt} Dokument(e) waren nicht geladen und fehlen` : 'Zusammengeführt', 6000);
+    });
+  };
+}
+function doppelteDialog() {
+  const p = maDoppelte();
+  dialog(`<div><h2>🔁 Mögliche Doppelte</h2>${p.length ? `<p class="leise">Gleiche oder enthaltene Namen. Nur zusammenführen, wenn es wirklich dieselbe Person ist.</p>${p.map(([a, b]) => `<div class="imp-zeile"><span class="fuell"><b>${esc(a.name)}</b> ↔ <b>${esc(b.name)}</b><br><span class="leise">${maTourenAnzahl(a.id)} / ${maTourenAnzahl(b.id)} Touren</span></span><button type="button" class="knopf" data-doppelt="${a.id}:${b.id}">Zusammenführen …</button></div>`).join('')}` : '<p class="leise">Keine möglichen Doppelten gefunden.</p>'}
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Schließen</button></div></div>`);
+}
+document.addEventListener('click', e => {
+  const d = e.target.closest('[data-doppelt]'); if (d) { const [a, b] = d.dataset.doppelt.split(':'); maZusammenDialog(maVon(a), maVon(b)); return; }
+  if (e.target.closest('[data-doppelte]')) doppelteDialog();
+});
+
 // ---------- Ereignisse ----------
 $('#liste').addEventListener('input', e => { if (e.target.id === 'personal-suche') { ANSICHT.personalSuche = e.target.value; zeichneListe(); const s = $('#personal-suche'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); } });
 $('#liste').addEventListener('change', async e => {
   if (e.target.id !== 'personal-import' || !e.target.files[0]) return;
-  try { const r = await personalImportieren(await e.target.files[0].text()); toast(`Import: ${r.neu} neu, ${r.ergaenzt} ergänzt, ${r.lohn} Lohnabrechnungen, ${r.abw} Abwesenheiten, ${r.doks} Dokumente`, 7000); }
+  try { personalImportDialog(await e.target.files[0].text()); }
   catch (x) { toast('Import nicht möglich: ' + x.message, 6000); }
   e.target.value = '';
 });
@@ -3005,6 +3136,7 @@ $('#detail').addEventListener('click', e => {
     'tacho-xlsx': () => { const mo = (ANSICHT.maMonat || heute().slice(0, 7)), b = tachoXlsx([m], mo); if (b) ladeBlobHerunter(`Fahrerkarte_${m.name.replace(/\s+/g, '_')}_${mo}.xlsx`, b); else toast('Keine Fahrerkarten-Daten in diesem Monat'); },
     anrufen: () => oeffne('tel:' + m.telefon.replace(/[^\d+]/g, '')), whatsapp: () => whatsapp(m.telefon, `Hallo ${m.name.split(' ')[0]}, `),
     email: () => (MAIL.konto ? mailAnFirma({ an: m.email }) : oeffne('mailto:' + m.email)),
+    zusammen: () => maZusammenDialog(m),
     loeschen: () => bestaetige('Mitarbeiter löschen?', `${m.name} wird mit Abwesenheiten, Personalakte und Dokumenten gelöscht. In Touren bleibt die Kennung ohne Namen stehen. Ist die Person nur ausgeschieden, besser „inaktiv“ setzen.`, 'Löschen', () => { PersonalAktionen.loeschen(m); gehe('#/'); }) })[akt.dataset.ma]();
 });
 /** Kleiner Dialog: Monat wählen, dann `dann(monat)`. */
