@@ -3361,7 +3361,7 @@ function zeichneTouren() {
         ${beleg ? `<button class="marke gruen" data-beleg-oeffnen="${beleg.id}">€ ${esc(beleg.nummer)}</button>` : ''}</div>
       <div class="tour-knoepfe">
         <button class="symbol" data-tour-akt="hoch" aria-label="Nach oben" ${i ? '' : 'disabled'}>▲</button><button class="symbol" data-tour-akt="runter" aria-label="Nach unten" ${i < touren.length - 1 ? '' : 'disabled'}>▼</button>
-        <button class="symbol" data-tour-akt="senden" aria-label="Tour per WhatsApp an das Team senden" ${teamVon(t).length ? '' : 'disabled'}>💬</button>
+        <button class="symbol" data-tour-akt="senden" aria-label="Tour an das Team senden" ${teamVon(t).length ? '' : 'disabled'}>💬</button>
         <button class="symbol" data-tour-akt="mehr" aria-label="Weitere Aktionen">⋮</button></div></div>`;
   };
   const gruppe = (titel, namen) => (namen.length ? `<p><b>${esc(titel)} (${namen.length}):</b> ${namen.map(n => esc(n)).join(', ')}</p>` : '');
@@ -3438,8 +3438,6 @@ function tourNachricht(t) {
     adr && 'Adresse: ' + adresseText(adr), t.name && 'Tour: ' + t.name, t.kennzeichen && 'Fahrzeug: ' + t.kennzeichen, t.uhrzeit && 'Ladezeit: ' + t.uhrzeit,
     t.einsatzart && 'Einsatz: ' + t.einsatzart, t.fahrerId && 'Fahrer: ' + mitNr(t.fahrerId), ...beifahrerVon(t).map(id => 'Beifahrer: ' + mitNr(id)), t.notiz && 'Hinweis: ' + t.notiz].filter(Boolean).join('\n');
 }
-/** 💬 an der Tour: WhatsApp direkt mit dem Tourtext öffnen – dort Fahrer und Beifahrer gleichzeitig auswählen (wie in der alten Tourenplanung). */
-const tourWhatsapp = t => oeffneLink(`https://wa.me/?text=${encodeURIComponent(tourNachricht(t))}`);
 function tourSenden(t) {
   const text = tourNachricht(t), team = teamVon(t).map(maVon).filter(Boolean);
   const mitNr = team.filter(m => m.telefon);
@@ -3584,7 +3582,6 @@ function tourMehr(t) {
     <label class="feld">Hinweis für das Team<textarea id="tour-notiz">${esc(t.notiz || '')}</textarea></label>
     <div class="liste-knoepfe">
       <button class="vorlage" data-tm="details"><b>⏱ Status, Zeiten und Kilometer</b><br><span class="leise">${esc(tourStatus(t)[0])}${t.beginn ? ' · ' + esc(t.beginn) : ''}${t.ende ? '–' + esc(t.ende) : ''}${tourKm(t) != null ? ' · ' + tourKm(t) + ' km' : ''}</span></button>
-      ${teamVon(t).length ? '<button class="vorlage" data-tm="senden"><b>📨 Einzeln senden (WhatsApp/SMS je Person)</b></button>' : ''}
       <button class="vorlage" data-tm="begleitschein"><b>📄 Begleitschein / Liefernachweis drucken</b></button>
       ${tourAdresse(t) ? `<button class="vorlage" data-tm="navi"><b>🧭 Navigation</b><br><span class="leise">${esc(tourAdresse(t))}</span></button>` : ''}
       <button class="vorlage" data-tm="abliefern"><b>✍ Abliefern mit Unterschrift</b></button>
@@ -3606,7 +3603,7 @@ function tourMehr(t) {
     if (notiz !== (t.notiz || '')) TourAktionen.speichern({ ...t, notiz });
     if (fall) { gehe('#/fall/' + fall.dataset.tmFall); return; }
     const tn = S.touren[t.id] || t;
-    ({ ok: () => {}, schaden: () => schadenAusTour(t), details: () => tourDetailsDialog(tn), begleitschein: () => begleitscheinDrucken([tn]), senden: () => tourSenden(tn), navi: () => navigation(tourAdresse(t)), abliefern: () => abliefernDialog(tn),
+    ({ ok: () => {}, schaden: () => schadenAusTour(t), details: () => tourDetailsDialog(tn), begleitschein: () => begleitscheinDrucken([tn]), navi: () => navigation(tourAdresse(t)), abliefern: () => abliefernDialog(tn),
       aufgabe: () => aufgabeDialog(null, { bezugArt: 'tour', bezugId: t.id, titel: '', faelligAm: t.datum }), storno: () => tourStatusSetzen(tn, tn.status === 'STORNIERT' ? 'GEPLANT' : 'STORNIERT'), firma: () => gehe('#/firma/' + t.auftraggeberId), fahrzeug: () => gehe('#/fahrzeug/' + fahrzeugZumKz(t.kennzeichen).id),
       kopie: () => TourAktionen.neu(t.datum, { kennzeichen: '', tourNr: t.tourNr, auftraggeberId: t.auftraggeberId, auftraggeber: t.auftraggeber, name: t.name, uhrzeit: t.uhrzeit, einsatzart: t.einsatzart }),
       morgen: () => tagWaehlen('Tour kopieren auf', plusTage(t.datum, 1), tag => { TourAktionen.neu(tag, { kennzeichen: t.kennzeichen, tourNr: t.tourNr, auftraggeberId: t.auftraggeberId, auftraggeber: t.auftraggeber, name: t.name, uhrzeit: t.uhrzeit, einsatzart: t.einsatzart }); toast('Kopiert auf ' + datumText(tag)); }),
@@ -3667,7 +3664,7 @@ $('#liste').addEventListener('click', e => {
   }
   if (tz) {
     const t = S.touren[tz.closest('[data-tour-zeile]').dataset.tourZeile]; if (!t) return;
-    ({ hoch: () => TourAktionen.verschieben(t, -1), runter: () => TourAktionen.verschieben(t, 1), senden: () => tourWhatsapp(t), mehr: () => tourMehr(t), details: () => tourDetailsDialog(t) })[tz.dataset.tourAkt]();
+    ({ hoch: () => TourAktionen.verschieben(t, -1), runter: () => TourAktionen.verschieben(t, 1), senden: () => tourSenden(t), mehr: () => tourMehr(t), details: () => tourDetailsDialog(t) })[tz.dataset.tourAkt]();
   }
 });
 document.addEventListener('keydown', e => {
