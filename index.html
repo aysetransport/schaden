@@ -1233,12 +1233,28 @@ const UE_BEOBACHTER = new MutationObserver(liste => {
     else m.addedNodes.forEach(uebersetzeKnoten);
   }
 });
+/** Neuere Übersetzungen aus dem Netz (nur Daten, kein Programmcode) – so kommen sie ohne App-Update auch in Windows- und Android-App. */
+const SPRACHEN_ONLINE = 'https://aysetransport.github.io/schaden/sprachen.json';
+function woerterbuchUebernehmen(d) {
+  if (!d || !Array.isArray(d.schluessel) || typeof d.uebersetzung !== 'object' || (window.UI_STAND || 0) >= (d.stand || 0)) return false;
+  if (!d.schluessel.every(x => typeof x === 'string') || !Object.values(d.uebersetzung).every(l => Array.isArray(l) && l.every(x => typeof x === 'string'))) return false;
+  window.UI_SCHLUESSEL = d.schluessel; window.UI_UEBERSETZUNG = d.uebersetzung; window.UI_STAND = d.stand; UE.wb = {}; return true;
+}
+async function woerterbuchAktualisieren() {
+  try { woerterbuchUebernehmen(JSON.parse(localStorage.getItem('crm-sprachen') || 'null')); } catch {}
+  if (location.protocol.startsWith('http') && location.hostname === 'aysetransport.github.io') return; // die Web-App lädt sprachen.js ohnehin frisch
+  try {
+    const r = await fetch(SPRACHEN_ONLINE, { cache: 'no-cache' }); if (!r.ok) return;
+    const d = await r.json();
+    if (woerterbuchUebernehmen(d)) { try { localStorage.setItem('crm-sprachen', JSON.stringify(d)); } catch {} zeichne(); uebersetzeKnoten(document.body); }
+  } catch { /* offline: mitgelieferte Übersetzungen */ }
+}
 /** Wörterbuch laden (einmal) und Oberfläche übersetzen. */
 function oberflaecheUebersetzen() {
   if (sprache() === 'de') return;
-  if (!window.UI_UEBERSETZUNG) {
-    if (!UE.laedt) UE.laedt = new Promise(ok => { const sc = document.createElement('script'); sc.src = 'sprachen.js'; sc.onload = ok; sc.onerror = ok; document.head.appendChild(sc); })
-      .then(() => { UE.wb = {}; zeichne(); oberflaecheUebersetzen(); });
+  if (!UE.laedt) {
+    UE.laedt = new Promise(ok => { if (window.UI_UEBERSETZUNG) return ok(); const sc = document.createElement('script'); sc.src = 'sprachen.js'; sc.onload = ok; sc.onerror = ok; document.head.appendChild(sc); })
+      .then(() => { UE.wb = {}; zeichne(); oberflaecheUebersetzen(); return woerterbuchAktualisieren(); });
   }
   UE_BEOBACHTER.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['placeholder', 'aria-label', 'title'] });
   uebersetzeKnoten(document.body);
@@ -2902,7 +2918,7 @@ function zeichnePersonal(r) {
       ${fr && fr.tage <= FRIST_VORLAUF ? `<div style="margin-top:6px"><span class="marke ${fristFarbe(fr)}">⏱ ${esc(fr.label)}: ${esc(fristText(fr))}</span></div>` : ''}</button>`;
   }).join('');
   return seitenkopf('Personal', `<button class="knopf voll" data-neuer-mitarbeiter>＋ Mitarbeiter</button>`, `<button class="knopf" data-abwesenheiten>Abwesenheiten</button>
-      <button class="knopf" data-gehe-bereich="auswertung">📊 Auswertung</button><button class="knopf" data-anwesenheit>Anwesenheitsliste</button><button class="knopf" data-fristen-matrix>🎓 Fristen-Matrix</button>${rolle() === 'ADMIN' ? `<button class="knopf" data-ausruestung>🔑 Ausrüstung${ausruestungOffen().length ? ' (' + ausruestungOffen().length + ')' : ''}</button>` : ''}
+      <button class="knopf" data-gehe-bereich="auswertung">📊 Auswertung</button><button class="knopf" data-anwesenheit>Anwesenheitsliste</button><button class="knopf" data-fristen-matrix>🎓 Fristen-Matrix</button>${rolle() !== 'FAHRER' ? `<button class="knopf" data-ausruestung>🔑 Ausrüstung${ausruestungOffen().length ? ' (' + ausruestungOffen().length + ')' : ''}</button>` : ''}
       <label class="knopf">⤓ Import (Lohnabrechnungen)<input type="file" id="personal-import" accept=".json,application/json" hidden></label><button class="knopf" data-personal-csv>CSV</button>${rolle() === 'ADMIN' && maDoppelte().length ? `<button class="knopf" data-doppelte>🔁 Doppelte (${maDoppelte().length})</button>` : ''}`)
     + `<div class="kennzahlen vier">
       <button class="kennzahl" data-personal-filter="AKTIV"><b>${aktive.length}</b><span>Aktiv</span></button>
@@ -3074,7 +3090,7 @@ function personalEintragDialog(m, x, vorgabeArt = 'GESPRAECH') {
   const neu = !x, e = x || { art: vorgabeArt, datum: heute() };
   const g = c => (c != null ? geldOhneSymbol(c) : '');
   dialog(`<form method="dialog" id="pa-form"><h2>${neu ? 'Neuer Eintrag' : 'Eintrag'} · ${esc(m.name)}</h2>
-    <label class="feld">Art<select name="art">${Object.entries(PERSONAL_EINTRAG).map(([k, [l]]) => `<option value="${k}" ${e.art === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+    <label class="feld">Art<select name="art">${Object.entries(PERSONAL_EINTRAG).filter(([k]) => k !== 'LOHN' || istAdmin() || e.art === 'LOHN').map(([k, [l]]) => `<option value="${k}" ${e.art === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
     <label class="feld">Datum<input name="datum" type="date" value="${esc(e.datum || '')}" required></label>
     <label class="feld"><span id="pa-bis-text">${e.art === 'AUSRUESTUNG' ? 'Zurückgegeben am (leer = noch ausgegeben)' : 'Gültig bis / Wiedervorlage (optional)'}</span><input name="bis" type="date" value="${esc(e.bis || '')}"></label>
     <div id="pa-lohn" ${e.art === 'LOHN' ? '' : 'hidden'}><div class="zeile"><label class="feld fuell">Brutto €<input name="brutto" inputmode="decimal" value="${g(e.bruttoCent)}"></label>
