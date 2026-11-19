@@ -1025,13 +1025,13 @@ async function anmeldung(falsch = false) {
 
 /** Anmeldung mit Benutzername und Passwort (vom Admin angelegt). */
 function loginDialog(falsch = false) {
-  dialog(`<form method="dialog" id="login-form"><h2>Anmelden</h2>
-    <p class="leise">Mit den Zugangsdaten, die du vom Büro bekommen hast.</p>
-    <p class="fehlertext" id="login-fehler" ${falsch ? '' : 'hidden'}>Bitte erneut anmelden.</p>
-    <label class="feld">Benutzername<input id="login-name" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
-    <label class="feld">Passwort<input id="login-pw" type="password" autocomplete="current-password" required></label>
+  dialog(`<form method="dialog" id="login-form"><div class="zeile eng"><h2 class="fuell">${esc(t('Anmelden'))}</h2><button type="button" class="knopf text" data-sprache-wahl aria-label="Sprache / Language">🌐 ${esc(SPRACHEN[sprache()][0])}</button></div>
+    <p class="leise">${esc(t('Mit den Zugangsdaten, die du vom Büro bekommen hast.'))}</p>
+    <p class="fehlertext" id="login-fehler" ${falsch ? '' : 'hidden'}>${esc(t('Bitte erneut anmelden.'))}</p>
+    <label class="feld">${esc(t('Benutzername'))}<input id="login-name" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+    <label class="feld">${esc(t('Passwort'))}<input id="login-pw" type="password" autocomplete="current-password" required></label>
     <button type="button" class="knopf text" id="zur-pin" style="padding-left:0">Als Admin mit der Cloud-PIN anmelden</button>
-    <div class="dialog-knoepfe"><button type="button" class="knopf text" id="login-spaeter">Später</button><button class="knopf voll">Anmelden</button></div></form>`, { schliessbar: false });
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" id="login-spaeter">${esc(t('Später'))}</button><button class="knopf voll">${esc(t('Anmelden'))}</button></div></form>`, { schliessbar: false });
   setTimeout(() => $('#login-name') && $('#login-name').focus(), 50);
   $('#login-spaeter').onclick = () => { $('#dialog').close(); zeichneSync(); };
   $('#zur-pin').onclick = () => { ANSICHT.loginArt = 'PIN'; $('#dialog').close(); anmeldung(); };
@@ -1045,7 +1045,7 @@ function loginDialog(falsch = false) {
       if (a.mitarbeiterId) S.einstellungen.ichId = a.mitarbeiterId;
       if (a.rolle === 'FAHRER') { ANSICHT.bereich = 'fahrer'; try { localStorage.setItem('crm-bereich', 'fahrer'); } catch {} }
       speichere(); $('#dialog').close(); SYNC.fehler = ''; SYNC.versionOk = null; zeichne(); abgleich();
-      toast(`Angemeldet als ${a.name}`);
+      toast(`${t('Angemeldet als')} ${a.name}`);
     } catch (e) {
       const m = String(e.message || e);
       zeige(m.includes('GESPERRT') ? m.replace(/^.*GESPERRT: /, '') : e instanceof TypeError ? 'Keine Verbindung zur Cloud.' : m);
@@ -1127,6 +1127,26 @@ const ROLLEN_TEXT = { ADMIN: 'Admin', DISPO: 'Disposition / Büro', FAHRER: 'Fah
 /** Bereiche je Rolle (die Cloud gibt ohnehin nur die erlaubten Daten heraus). */
 const FAHRER_BEREICHE = new Set(['fahrer', 'kalender', 'aufgaben', 'zeiten', 'faelle']);
 
+// ============================== Sprachen (nur Bedienoberfläche für Fahrer/Helfer) ==============================
+// Alles, was nach außen geht (Kunden-SMS/WhatsApp, Statusseite, Belege, Briefe, PDFs, Excel), bleibt bewusst deutsch.
+const SPRACHEN = { de: ['Deutsch', 'de-DE'], tr: ['Türkçe', 'tr-TR'], ar: ['العربية', 'ar-u-nu-latn', 1], fa: ['فارسی / دری', 'fa-u-nu-latn', 1], ru: ['Русский', 'ru-RU'], uk: ['Українська', 'uk-UA'],
+  pl: ['Polski', 'pl-PL'], ro: ['Română', 'ro-RO'], bg: ['Български', 'bg-BG'], sq: ['Shqip', 'sq-AL'], bs: ['Bosanski / Hrvatski / Srpski', 'bs-Latn-BA'], en: ['English', 'en-GB'], ku: ['Kurdî (Kurmancî)', 'ku'] };
+const UI_DE = ["Meine Touren", "Hallo", "Arbeitszeit heute", "noch nichts erfasst", "läuft seit", "Pause seit", "Arbeitsbeginn", "Pause beenden", "Pause", "Feierabend", "Meine Touren (7 Tage)", "Keine Touren eingeplant", "Sobald die Disposition dich einteilt, erscheint die Tour hier.", "Urlaub beantragen", "Krank melden", "Heute", "ab", "Team", "Fahrer", "Unterschrift liegt vor", "Losfahren", "Abliefern", "Navigation", "Foto", "Schaden", "Problem melden", "Disposition", "Person wechseln", "Wer nutzt dieses Gerät?", "Einmal auswählen – danach zeigt die App hier die eigenen Touren, die Stempeluhr und das Abliefern mit Unterschrift.", "Name des Empfängers", "Unterschrift des Empfängers", "Unterschrift löschen", "km-Stand am Ende (optional)", "Bemerkung (z. B. Schaden, Fehlmenge)", "Fotos hinzufügen", "Abbrechen", "Abgeliefert", "Foto(s)", "Abgeliefert mit Bemerkung – die Disposition wurde informiert", "Foto gespeichert", "Problem gemeldet", "Stopp erledigt", "Alle Stopps erledigt – jetzt die Tour abliefern", "km-Stand bei Abfahrt (optional):", "Was ist los?", "erledigt – Name des Empfängers (optional):", "Stopp", "Anmelden", "Mit den Zugangsdaten, die du vom Büro bekommen hast.", "Bitte erneut anmelden.", "Benutzername", "Passwort", "Später", "Angemeldet als", "geplant", "unterwegs", "erledigt", "Problem", "storniert", "Auftrag", "Krankmeldung eingetragen – gute Besserung!", "Feierabend gespeichert ✓", "Abwesenheit eintragen", "Von", "Bis", "Grund", "Notiz", "Speichern", "Sprache", "Zeiten", "Aufgaben", "Kalender", "Schäden", "Urlaub", "Krank", "Abwesend"];
+const UI_TEXTE = {"tr": ["Turlarım", "Merhaba", "Bugünkü çalışma süresi", "henüz kayıt yok", "başlangıç", "mola başlangıcı", "İşe başla", "Molayı bitir", "Mola", "Mesai bitti", "Turlarım (7 gün)", "Planlanmış tur yok", "Sevkiyat seni bir tura atadığında tur burada görünecek.", "İzin talep et", "Hastalık bildir", "Bugün", "saat", "Ekip", "Şoför", "İmza mevcut", "Yola çık", "Teslim et", "Navigasyon", "Fotoğraf", "Hasar", "Sorun bildir", "Sevkiyat", "Kişiyi değiştir", "Bu cihazı kim kullanıyor?", "Bir kez seç – sonra uygulama burada kendi turlarını, mesai saatini ve imzalı teslimatı gösterir.", "Teslim alanın adı", "Teslim alanın imzası", "İmzayı sil", "Bitiş km'si (isteğe bağlı)", "Not (ör. hasar, eksik ürün)", "Fotoğraf ekle", "İptal", "Teslim edildi", "fotoğraf", "Notla teslim edildi – sevkiyata bilgi verildi", "Fotoğraf kaydedildi", "Sorun bildirildi", "Durak tamamlandı", "Tüm duraklar tamamlandı – şimdi turu teslim et", "Çıkıştaki km (isteğe bağlı):", "Ne oldu?", "tamamlandı – teslim alanın adı (isteğe bağlı):", "Durak", "Giriş yap", "Ofisten aldığın giriş bilgileriyle.", "Lütfen tekrar giriş yap.", "Kullanıcı adı", "Şifre", "Sonra", "Giriş yapıldı:", "planlandı", "yolda", "tamamlandı", "Sorun", "iptal", "Sipariş", "Hastalık bildirildi – geçmiş olsun!", "Mesai bitişi kaydedildi ✓", "Devamsızlık gir", "Başlangıç", "Bitiş", "Sebep", "Not", "Kaydet", "Dil", "Saatler", "Görevler", "Takvim", "Hasarlar", "İzin", "Hasta", "Yok"], "ar": ["جولاتي", "مرحبًا", "وقت العمل اليوم", "لم يُسجَّل شيء بعد", "بدأ منذ", "استراحة منذ", "بدء العمل", "إنهاء الاستراحة", "استراحة", "نهاية الدوام", "جولاتي (7 أيام)", "لا توجد جولات مخططة", "عندما يعيّنك قسم التوزيع، ستظهر الجولة هنا.", "طلب إجازة", "الإبلاغ عن مرض", "اليوم", "من الساعة", "الفريق", "السائق", "التوقيع موجود", "انطلق", "تسليم", "الملاحة", "صورة", "ضرر", "الإبلاغ عن مشكلة", "قسم التوزيع", "تغيير الشخص", "من يستخدم هذا الجهاز؟", "اختر مرة واحدة – بعدها يعرض التطبيق هنا جولاتك وساعة الدوام والتسليم مع التوقيع.", "اسم المستلم", "توقيع المستلم", "مسح التوقيع", "عداد الكيلومترات في النهاية (اختياري)", "ملاحظة (مثلًا ضرر، نقص)", "إضافة صور", "إلغاء", "تم التسليم", "صورة/صور", "تم التسليم مع ملاحظة – تم إبلاغ قسم التوزيع", "تم حفظ الصورة", "تم الإبلاغ عن المشكلة", "تم إنجاز المحطة", "تم إنجاز كل المحطات – سلّم الجولة الآن", "عداد الكيلومترات عند الانطلاق (اختياري):", "ما المشكلة؟", "تم – اسم المستلم (اختياري):", "محطة", "تسجيل الدخول", "ببيانات الدخول التي حصلت عليها من المكتب.", "يرجى تسجيل الدخول مرة أخرى.", "اسم المستخدم", "كلمة المرور", "لاحقًا", "تم تسجيل الدخول باسم", "مخطط", "في الطريق", "منجز", "مشكلة", "ملغى", "الطلب", "تم تسجيل الإجازة المرضية – نتمنى لك الشفاء!", "تم حفظ نهاية الدوام ✓", "تسجيل غياب", "من", "إلى", "السبب", "ملاحظة", "حفظ", "اللغة", "الأوقات", "المهام", "التقويم", "الأضرار", "إجازة", "مريض", "غائب"], "fa": ["تورهای من", "سلام", "ساعت کاری امروز", "هنوز چیزی ثبت نشده", "از", "استراحت از", "شروع کار", "پایان استراحت", "استراحت", "پایان کار", "تورهای من (7 روز)", "توری برنامه‌ریزی نشده", "وقتی بخش توزیع تو را تعیین کند، تور اینجا نمایش داده می‌شود.", "درخواست مرخصی", "اعلام بیماری", "امروز", "از ساعت", "تیم", "راننده", "امضا موجود است", "حرکت", "تحویل", "مسیریابی", "عکس", "خسارت", "گزارش مشکل", "بخش توزیع", "تغییر شخص", "چه کسی از این دستگاه استفاده می‌کند؟", "یک بار انتخاب کن – بعد برنامه اینجا تورها، ساعت کار و تحویل با امضا را نشان می‌دهد.", "نام تحویل‌گیرنده", "امضای تحویل‌گیرنده", "پاک کردن امضا", "کیلومتر پایان (اختیاری)", "توضیح (مثلاً خسارت، کسری)", "افزودن عکس", "لغو", "تحویل شد", "عکس", "با توضیح تحویل شد – بخش توزیع مطلع شد", "عکس ذخیره شد", "مشکل گزارش شد", "توقف انجام شد", "همه توقف‌ها انجام شد – حالا تور را تحویل بده", "کیلومتر هنگام حرکت (اختیاری):", "چه اتفاقی افتاده؟", "انجام شد – نام تحویل‌گیرنده (اختیاری):", "توقف", "ورود", "با اطلاعات ورودی که از دفتر گرفته‌ای.", "لطفاً دوباره وارد شو.", "نام کاربری", "رمز عبور", "بعداً", "وارد شدی به عنوان", "برنامه‌ریزی شده", "در راه", "انجام شده", "مشکل", "لغو شده", "سفارش", "بیماری ثبت شد – سلامت باشی!", "پایان کار ذخیره شد ✓", "ثبت غیبت", "از", "تا", "دلیل", "یادداشت", "ذخیره", "زبان", "ساعت‌ها", "کارها", "تقویم", "خسارت‌ها", "مرخصی", "بیمار", "غایب"], "ru": ["Мои рейсы", "Привет", "Рабочее время сегодня", "пока ничего не записано", "идёт с", "перерыв с", "Начало работы", "Закончить перерыв", "Перерыв", "Конец работы", "Мои рейсы (7 дней)", "Рейсов не запланировано", "Как только диспетчер назначит тебя, рейс появится здесь.", "Запросить отпуск", "Сообщить о болезни", "Сегодня", "с", "Команда", "Водитель", "Подпись есть", "Поехали", "Сдать доставку", "Навигация", "Фото", "Повреждение", "Сообщить о проблеме", "Диспетчер", "Сменить человека", "Кто пользуется этим устройством?", "Выбери один раз – потом приложение покажет здесь твои рейсы, учёт времени и доставку с подписью.", "Имя получателя", "Подпись получателя", "Стереть подпись", "Пробег в конце (необязательно)", "Примечание (напр. повреждение, недостача)", "Добавить фото", "Отмена", "Доставлено", "фото", "Доставлено с примечанием – диспетчер уведомлён", "Фото сохранено", "Проблема отправлена", "Остановка выполнена", "Все остановки выполнены – теперь сдай рейс", "Пробег при выезде (необязательно):", "Что случилось?", "выполнена – имя получателя (необязательно):", "Остановка", "Войти", "С данными для входа, которые ты получил в офисе.", "Пожалуйста, войди снова.", "Имя пользователя", "Пароль", "Позже", "Вход выполнен:", "запланирован", "в пути", "выполнен", "Проблема", "отменён", "Заказ", "Больничный записан – выздоравливай!", "Конец работы сохранён ✓", "Отметить отсутствие", "С", "По", "Причина", "Заметка", "Сохранить", "Язык", "Время", "Задачи", "Календарь", "Повреждения", "Отпуск", "Болен", "Отсутствует"], "uk": ["Мої рейси", "Привіт", "Робочий час сьогодні", "ще нічого не записано", "триває з", "перерва з", "Початок роботи", "Завершити перерву", "Перерва", "Кінець роботи", "Мої рейси (7 днів)", "Рейсів не заплановано", "Щойно диспетчер призначить тебе, рейс з’явиться тут.", "Подати заявку на відпустку", "Повідомити про хворобу", "Сьогодні", "з", "Команда", "Водій", "Підпис є", "Вирушити", "Здати доставку", "Навігація", "Фото", "Пошкодження", "Повідомити про проблему", "Диспетчер", "Змінити особу", "Хто користується цим пристроєм?", "Обери один раз – потім застосунок покаже тут твої рейси, облік часу та доставку з підписом.", "Ім’я отримувача", "Підпис отримувача", "Стерти підпис", "Пробіг наприкінці (необов’язково)", "Примітка (напр. пошкодження, нестача)", "Додати фото", "Скасувати", "Доставлено", "фото", "Доставлено з приміткою – диспетчера повідомлено", "Фото збережено", "Проблему надіслано", "Зупинку виконано", "Усі зупинки виконано – тепер здай рейс", "Пробіг при виїзді (необов’язково):", "Що сталося?", "виконано – ім’я отримувача (необов’язково):", "Зупинка", "Увійти", "З даними для входу, які ти отримав в офісі.", "Будь ласка, увійди знову.", "Ім’я користувача", "Пароль", "Пізніше", "Вхід виконано:", "заплановано", "у дорозі", "виконано", "Проблема", "скасовано", "Замовлення", "Лікарняний записано – одужуй!", "Кінець роботи збережено ✓", "Позначити відсутність", "З", "По", "Причина", "Нотатка", "Зберегти", "Мова", "Час", "Завдання", "Календар", "Пошкодження", "Відпустка", "Хворий", "Відсутній"], "pl": ["Moje trasy", "Cześć", "Czas pracy dzisiaj", "jeszcze nic nie zapisano", "trwa od", "przerwa od", "Początek pracy", "Zakończ przerwę", "Przerwa", "Koniec pracy", "Moje trasy (7 dni)", "Brak zaplanowanych tras", "Gdy dyspozytor cię przydzieli, trasa pojawi się tutaj.", "Wniosek o urlop", "Zgłoś chorobę", "Dziś", "od", "Zespół", "Kierowca", "Podpis jest", "Ruszam", "Dostarcz", "Nawigacja", "Zdjęcie", "Szkoda", "Zgłoś problem", "Dyspozycja", "Zmień osobę", "Kto używa tego urządzenia?", "Wybierz raz – potem aplikacja pokaże tu twoje trasy, czas pracy i dostawę z podpisem.", "Imię i nazwisko odbiorcy", "Podpis odbiorcy", "Usuń podpis", "Stan licznika na końcu (opcjonalnie)", "Uwagi (np. szkoda, brak towaru)", "Dodaj zdjęcia", "Anuluj", "Dostarczono", "zdjęć", "Dostarczono z uwagą – dyspozycja została poinformowana", "Zdjęcie zapisane", "Problem zgłoszony", "Przystanek wykonany", "Wszystkie przystanki wykonane – teraz zakończ trasę", "Stan licznika przy wyjeździe (opcjonalnie):", "Co się stało?", "wykonany – imię odbiorcy (opcjonalnie):", "Przystanek", "Zaloguj", "Danymi logowania, które dostałeś w biurze.", "Zaloguj się ponownie.", "Nazwa użytkownika", "Hasło", "Później", "Zalogowano jako", "zaplanowana", "w drodze", "wykonana", "Problem", "anulowana", "Zlecenie", "Choroba zgłoszona – zdrowia!", "Koniec pracy zapisany ✓", "Wpisz nieobecność", "Od", "Do", "Powód", "Notatka", "Zapisz", "Język", "Godziny", "Zadania", "Kalendarz", "Szkody", "Urlop", "Chory", "Nieobecny"], "ro": ["Turele mele", "Salut", "Timp de lucru azi", "încă nimic înregistrat", "de la", "pauză de la", "Început de lucru", "Termină pauza", "Pauză", "Sfârșit de program", "Turele mele (7 zile)", "Nicio tură planificată", "Când dispeceratul te repartizează, tura apare aici.", "Cere concediu", "Anunță boala", "Azi", "de la", "Echipa", "Șofer", "Semnătura există", "Pornește", "Predă livrarea", "Navigație", "Foto", "Daună", "Raportează o problemă", "Dispecerat", "Schimbă persoana", "Cine folosește acest dispozitiv?", "Alege o dată – apoi aplicația îți arată aici turele, pontajul și livrarea cu semnătură.", "Numele destinatarului", "Semnătura destinatarului", "Șterge semnătura", "Kilometraj la final (opțional)", "Observație (ex. daună, lipsă)", "Adaugă poze", "Anulează", "Livrat", "poze", "Livrat cu observație – dispeceratul a fost anunțat", "Poza a fost salvată", "Problema a fost raportată", "Oprire efectuată", "Toate opririle efectuate – acum predă tura", "Kilometraj la plecare (opțional):", "Ce s-a întâmplat?", "efectuată – numele destinatarului (opțional):", "Oprire", "Autentificare", "Cu datele de acces primite de la birou.", "Te rugăm să te autentifici din nou.", "Nume de utilizator", "Parolă", "Mai târziu", "Autentificat ca", "planificată", "pe drum", "efectuată", "Problemă", "anulată", "Comandă", "Concediu medical înregistrat – însănătoșire grabnică!", "Sfârșitul programului salvat ✓", "Înregistrează absența", "De la", "Până la", "Motiv", "Notă", "Salvează", "Limba", "Ore", "Sarcini", "Calendar", "Daune", "Concediu", "Bolnav", "Absent"], "bg": ["Моите курсове", "Здравей", "Работно време днес", "още нищо не е записано", "тече от", "почивка от", "Начало на работа", "Край на почивката", "Почивка", "Край на работния ден", "Моите курсове (7 дни)", "Няма планирани курсове", "Щом диспечерът те разпредели, курсът ще се появи тук.", "Заяви отпуск", "Съобщи за болест", "Днес", "от", "Екип", "Шофьор", "Има подпис", "Тръгвам", "Предай доставката", "Навигация", "Снимка", "Щета", "Съобщи за проблем", "Диспечер", "Смени човека", "Кой използва това устройство?", "Избери веднъж – след това приложението показва тук твоите курсове, отчитането на времето и доставката с подпис.", "Име на получателя", "Подпис на получателя", "Изтрий подписа", "Километраж в края (по желание)", "Бележка (напр. щета, липса)", "Добави снимки", "Отказ", "Доставено", "снимки", "Доставено с бележка – диспечерът е уведомен", "Снимката е запазена", "Проблемът е съобщен", "Спирката е изпълнена", "Всички спирки са изпълнени – сега предай курса", "Километраж при тръгване (по желание):", "Какво се случи?", "изпълнена – име на получателя (по желание):", "Спирка", "Вход", "С данните за вход, които получи от офиса.", "Моля, влез отново.", "Потребителско име", "Парола", "По-късно", "Влезе като", "планиран", "на път", "изпълнен", "Проблем", "отменен", "Поръчка", "Болничният е записан – оздравявай!", "Краят на работния ден е запазен ✓", "Отбележи отсъствие", "От", "До", "Причина", "Бележка", "Запази", "Език", "Часове", "Задачи", "Календар", "Щети", "Отпуск", "Болен", "Отсъства"], "sq": ["Turet e mia", "Përshëndetje", "Koha e punës sot", "ende asgjë e regjistruar", "nga", "pushim nga", "Fillimi i punës", "Mbaro pushimin", "Pushim", "Mbarimi i punës", "Turet e mia (7 ditë)", "Asnjë tur i planifikuar", "Sapo dispeçeria të caktojë, turi shfaqet këtu.", "Kërko pushim vjetor", "Njofto sëmundjen", "Sot", "nga ora", "Ekipi", "Shofer", "Nënshkrimi ekziston", "Nisu", "Dorëzo", "Navigimi", "Foto", "Dëm", "Njofto një problem", "Dispeçeria", "Ndrysho personin", "Kush e përdor këtë pajisje?", "Zgjidh një herë – pastaj aplikacioni tregon këtu turet e tua, orarin e punës dhe dorëzimin me nënshkrim.", "Emri i marrësit", "Nënshkrimi i marrësit", "Fshi nënshkrimin", "Kilometrat në fund (opsionale)", "Shënim (p.sh. dëm, mungesë)", "Shto foto", "Anulo", "U dorëzua", "foto", "U dorëzua me shënim – dispeçeria u njoftua", "Fotoja u ruajt", "Problemi u njoftua", "Ndalesa u krye", "Të gjitha ndalesat u kryen – tani dorëzo turin", "Kilometrat në nisje (opsionale):", "Çfarë ndodhi?", "u krye – emri i marrësit (opsionale):", "Ndalesa", "Hyr", "Me të dhënat e hyrjes që more nga zyra.", "Të lutem hyr përsëri.", "Emri i përdoruesit", "Fjalëkalimi", "Më vonë", "Hyre si", "i planifikuar", "në rrugë", "i kryer", "Problem", "i anuluar", "Porosia", "Sëmundja u regjistrua – shërim të shpejtë!", "Mbarimi i punës u ruajt ✓", "Regjistro mungesën", "Nga", "Deri", "Arsyeja", "Shënim", "Ruaj", "Gjuha", "Orët", "Detyrat", "Kalendari", "Dëmet", "Pushim", "I sëmurë", "Mungon"], "bs": ["Moje ture", "Zdravo", "Radno vrijeme danas", "još ništa nije upisano", "traje od", "pauza od", "Početak rada", "Završi pauzu", "Pauza", "Kraj radnog vremena", "Moje ture (7 dana)", "Nema planiranih tura", "Čim te dispečer rasporedi, tura će se pojaviti ovdje.", "Zatraži godišnji odmor", "Prijavi bolovanje", "Danas", "od", "Tim", "Vozač", "Potpis postoji", "Kreni", "Predaj isporuku", "Navigacija", "Foto", "Šteta", "Prijavi problem", "Dispečer", "Promijeni osobu", "Ko koristi ovaj uređaj?", "Odaberi jednom – nakon toga aplikacija ovdje prikazuje tvoje ture, evidenciju vremena i isporuku s potpisom.", "Ime primaoca", "Potpis primaoca", "Obriši potpis", "Kilometraža na kraju (neobavezno)", "Napomena (npr. šteta, manjak)", "Dodaj fotografije", "Otkaži", "Isporučeno", "foto", "Isporučeno s napomenom – dispečer je obaviješten", "Fotografija sačuvana", "Problem prijavljen", "Stanica završena", "Sve stanice završene – sada predaj turu", "Kilometraža pri polasku (neobavezno):", "Šta se desilo?", "završena – ime primaoca (neobavezno):", "Stanica", "Prijava", "Podacima za prijavu koje si dobio u kancelariji.", "Molimo prijavi se ponovo.", "Korisničko ime", "Lozinka", "Kasnije", "Prijavljen kao", "planirana", "na putu", "završena", "Problem", "otkazana", "Nalog", "Bolovanje upisano – brzo ozdravi!", "Kraj radnog vremena sačuvan ✓", "Upiši odsustvo", "Od", "Do", "Razlog", "Napomena", "Sačuvaj", "Jezik", "Vrijeme", "Zadaci", "Kalendar", "Štete", "Godišnji odmor", "Bolestan", "Odsutan"], "en": ["My tours", "Hello", "Working time today", "nothing recorded yet", "running since", "break since", "Start work", "End break", "Break", "Finish work", "My tours (7 days)", "No tours planned", "As soon as dispatch assigns you, the tour will appear here.", "Request leave", "Report sick", "Today", "from", "Team", "Driver", "Signature available", "Start driving", "Deliver", "Navigation", "Photo", "Damage", "Report a problem", "Dispatch", "Switch person", "Who uses this device?", "Choose once – then the app shows your tours, time clock and delivery with signature here.", "Recipient's name", "Recipient's signature", "Clear signature", "Odometer at the end (optional)", "Remark (e.g. damage, missing items)", "Add photos", "Cancel", "Delivered", "photo(s)", "Delivered with remark – dispatch has been informed", "Photo saved", "Problem reported", "Stop done", "All stops done – now complete the tour", "Odometer at departure (optional):", "What's wrong?", "done – recipient's name (optional):", "Stop", "Sign in", "With the login details you received from the office.", "Please sign in again.", "Username", "Password", "Later", "Signed in as", "planned", "on the way", "done", "Problem", "cancelled", "Order", "Sick leave recorded – get well soon!", "End of work saved ✓", "Enter absence", "From", "To", "Reason", "Note", "Save", "Language", "Times", "Tasks", "Calendar", "Damages", "Leave", "Sick", "Absent"], "ku": ["Turên min", "Silav", "Dema xebatê ya îro", "hîn tiştek nehatiye tomarkirin", "ji", "navber ji", "Destpêka kar", "Navberê biqedîne", "Navber", "Dawiya kar", "Turên min (7 roj)", "Tu tur nehatiye plankirin", "Gava ku dîspeçer te destnîşan bike, tur li vir xuya dibe.", "Destûr bixwaze", "Nexweşiyê ragihîne", "Îro", "ji saet", "Tîm", "Şofêr", "Îmze heye", "Bajo", "Teslîm bike", "Navîgasyon", "Wêne", "Zirar", "Pirsgirêkê ragihîne", "Dîspeçer", "Kesî biguherîne", "Kî vê amûrê bi kar tîne?", "Carekê hilbijêre – paşê sepan li vir turên te, demjimêra kar û teslîmkirina bi îmzeyê nîşan dide.", "Navê wergir", "Îmzeya wergir", "Îmzeyê jê bibe", "Kîlometre di dawiyê de (vebijarkî)", "Têbînî (mînak zirar, kêmasî)", "Wêne lê zêde bike", "Betal bike", "Hate teslîmkirin", "wêne", "Bi têbînî hate teslîmkirin – dîspeçer hate agahdarkirin", "Wêne hate tomarkirin", "Pirsgirêk hate ragihandin", "Rawestgeh qediya", "Hemû rawestgeh qediyan – niha turê teslîm bike", "Kîlometre di destpêkê de (vebijarkî):", "Çi bû?", "qediya – navê wergir (vebijarkî):", "Rawestgeh", "Têkeve", "Bi agahiyên têketinê yên ku te ji ofîsê wergirtine.", "Ji kerema xwe dîsa têkeve.", "Navê bikarhêner", "Şîfre", "Paşê", "Têketî wek", "plankirî", "di rê de", "qediya", "Pirsgirêk", "betal", "Ferman", "Nexweşî hate tomarkirin – zû baş bibî!", "Dawiya kar hate tomarkirin ✓", "Tunebûnê tomar bike", "Ji", "Heta", "Sedem", "Têbînî", "Tomar bike", "Ziman", "Dem", "Erk", "Salname", "Zirar", "Destûr", "Nexweş", "Tune"]};
+const UI_INDEX = new Map(UI_DE.map((x, i) => [x, i]));
+const sprache = () => (SPRACHEN[S.einstellungen && S.einstellungen.sprache] ? S.einstellungen.sprache : 'de');
+/** Übersetzt einen deutschen Bedientext (unbekannte Texte bleiben deutsch). */
+const t = de => { const l = sprache(); if (l === 'de') return de; const i = UI_INDEX.get(de); return (i != null && UI_TEXTE[l] && UI_TEXTE[l][i]) || de; };
+const T = t; // für Stellen, an denen „t“ lokal schon belegt ist
+const datumUI = iso => (sprache() === 'de' ? datumMitTag(iso) : alsTag(iso).toLocaleDateString(SPRACHEN[sprache()][1], { weekday: 'short', day: 'numeric', month: 'short' }));
+function spracheAnwenden() { const l = sprache(); document.documentElement.lang = l === 'bs' ? 'bs' : l; document.documentElement.dir = SPRACHEN[l][2] ? 'rtl' : 'ltr'; }
+function spracheDialog(nachher = null) {
+  dialog(`<div><h2>🌐 ${esc(t('Sprache'))}</h2><div id="sprach-wahl">${Object.entries(SPRACHEN).map(([k, [n]]) => `<button class="vorlage" data-sprache="${k}" lang="${k}" ${k === sprache() ? 'aria-current="true" style="outline:2px solid var(--primaer)"' : ''}><b>${esc(n)}</b></button>`).join('')}</div>
+    <div class="dialog-knoepfe"><button class="knopf text" data-zu>✕</button></div></div>`);
+  $('#sprach-wahl').onclick = e => { const b = e.target.closest('[data-sprache]'); if (!b) return; S.einstellungen.sprache = b.dataset.sprache; speichere(); spracheAnwenden(); $('#dialog').close(); zeichne(); if (nachher) nachher(); };
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-sprache-wahl]'); if (b) spracheDialog(b.closest('#login-form') ? () => loginDialog() : null); });
+
 // ============================== Oberfläche ==============================
 /** Speichert eine Datei als Anlage zu einem Fall oder Fahrzeug (Bilder verkleinert). @return die Anlage oder null */
 async function legeAnlage(fallId, datei, praefix = '') {
@@ -1172,8 +1192,8 @@ function navZahlen() {
 }
 function zeichneNavi() {
   const z = navZahlen(), aktiv = ANSICHT.bereich;
-  const knopf = (k, klasse = '') => `<button class="nav-knopf ${klasse}" data-bereich="${k}" aria-current="${aktiv === k ? 'page' : 'false'}" title="${esc(BEREICHE[k][0])}">
-    <span class="nav-symbol" aria-hidden="true">${BEREICHE[k][1]}</span><span class="nav-text">${esc(BEREICHE[k][0])}</span>${z[k] ? `<span class="zahl">${z[k] > 99 ? '99+' : z[k]}</span>` : ''}</button>`;
+  const knopf = (k, klasse = '') => `<button class="nav-knopf ${klasse}" data-bereich="${k}" aria-current="${aktiv === k ? 'page' : 'false'}" title="${esc(t(BEREICHE[k][0]))}">
+    <span class="nav-symbol" aria-hidden="true">${BEREICHE[k][1]}</span><span class="nav-text">${esc(t(BEREICHE[k][0]))}</span>${z[k] ? `<span class="zahl">${z[k] > 99 ? '99+' : z[k]}</span>` : ''}</button>`;
   const unten = navUnten(), mehrAktiv = !unten.includes(aktiv);
   const gruppen = [...new Set(Object.values(BEREICHE).map(b => b[2]))];
   $('#navi').innerHTML = `<div class="nav-gross">${gruppen.map(g => `<div class="nav-gruppe">${esc(g)}</div>${Object.keys(BEREICHE).filter(k => BEREICHE[k][2] === g && bereichSichtbar(k)).map(k => knopf(k)).join('')}`).join('')}
@@ -1181,7 +1201,7 @@ function zeichneNavi() {
       <button class="nav-knopf" data-nav-thema><span class="nav-symbol" aria-hidden="true">${{ hell: '☀', dunkel: '🌙' }[S.einstellungen.thema] || '🌓'}</span><span class="nav-text">Darstellung: ${{ hell: 'hell', dunkel: 'dunkel' }[S.einstellungen.thema] || 'automatisch'}</span></button>
       <button class="nav-knopf" data-nav-hilfe><span class="nav-symbol" aria-hidden="true">⌨</span><span class="nav-text">Tastenkürzel</span></button></div>
     <div class="nav-klein">${unten.filter(bereichSichtbar).map(k => knopf(k)).join('')}
-      <button class="nav-knopf" data-nav-mehr aria-current="${mehrAktiv ? 'page' : 'false'}"><span class="nav-symbol" aria-hidden="true">☰</span><span class="nav-text">${mehrAktiv ? esc(BEREICHE[aktiv][0]) : 'Mehr'}</span>
+      <button class="nav-knopf" data-nav-mehr aria-current="${mehrAktiv ? 'page' : 'false'}"><span class="nav-symbol" aria-hidden="true">☰</span><span class="nav-text">${mehrAktiv ? esc(t(BEREICHE[aktiv][0])) : 'Mehr'}</span>
         ${Object.keys(BEREICHE).filter(k => !unten.includes(k)).some(k => z[k]) ? '<span class="zahl">•</span>' : ''}</button></div>`;
 }
 function bereichWechseln(k) {
@@ -1781,6 +1801,7 @@ function zeichneEinstellungen() {
       <button class="knopf" data-buchhaltung>📒 Rechnungsausgangsbuch exportieren</button></div>
     <div class="karte block"><h3>Bedienung</h3>
       <label class="feld">Wer nutzt dieses Gerät? (für „Meine Touren“, Stempeluhr und „Meine Aufgaben“)<select data-einst-wahl="ichId"><option value="">– niemand Bestimmtes –</option>${mitarbeiterListe(true).map(m => `<option value="${m.id}" ${e.ichId === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
+      <label class="feld">Sprache der Bedienung (für Fahrer und Helfer; Kunden-Nachrichten, Belege und PDFs bleiben deutsch)<select data-einst-wahl="sprache">${Object.entries(SPRACHEN).map(([k, [n]]) => `<option value="${k}" ${sprache() === k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
       <label class="feld">Darstellung<select data-einst-wahl="thema">${[['auto', 'automatisch (wie das Gerät)'], ['hell', 'hell'], ['dunkel', 'dunkel']].map(([k, l]) => `<option value="${k}" ${(e.thema || 'auto') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label><p class="leise" style="margin-bottom:8px">Diese vier Bereiche stehen am Handy in der unteren Leiste (die übrigen unter „Mehr“):</p>
       <div class="chips">${Object.entries(BEREICHE).map(([k, [l, sy]]) => `<button class="chip" data-nav-unten="${k}" aria-pressed="${navUnten().includes(k)}">${sy} ${l}</button>`).join('')}</div></div>
     <div class="karte block"><h3>Daten</h3><button class="knopf" id="csv">Fallliste für Excel exportieren (CSV)</button>
@@ -1800,7 +1821,7 @@ $('#detail').addEventListener('input', e => {
 });
 $('#detail').addEventListener('change', e => {
   const w = e.target.dataset.einstWahl; if (!w) return;
-  S.einstellungen[w] = e.target.value; speichere(); feiertage.cache = {}; themaSetzen(); zeichne();
+  S.einstellungen[w] = e.target.value; speichere(); feiertage.cache = {}; themaSetzen(); spracheAnwenden(); zeichne();
 });
 $('#detail').addEventListener('change', async e => {
   if (e.target.id !== 'crm-import' || !e.target.files.length) return;
@@ -2880,15 +2901,15 @@ function mitarbeiterDialog(m, vorgabe = {}) {
 function abwesenheitDialog(m, a, vorgabeTag) {
   const neu = !a, e = a || { von: vorgabeTag || heute(), bis: vorgabeTag || heute(), grund: 'Urlaub' };
   const personen = mitarbeiterListe(true).filter(p => rolle() !== 'FAHRER' || p.id === ichId());
-  dialog(`<form method="dialog" id="abwesenheit-form"><h2>${neu ? 'Abwesenheit eintragen' : 'Abwesenheit'}</h2>
+  dialog(`<form method="dialog" id="abwesenheit-form"><h2>${neu ? esc(T('Abwesenheit eintragen')) : 'Abwesenheit'}</h2>
     ${m ? `<p class="leise">${esc(m.name)}</p>` : `<label class="feld">Mitarbeiter<select name="mitarbeiterId">${personen.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label>`}
-    <div class="zeile"><label class="feld fuell">Von<input name="von" type="date" value="${esc(e.von)}" required></label><label class="feld fuell">Bis<input name="bis" type="date" value="${esc(e.bis || e.von)}" required></label></div>
-    <label class="feld">Grund<input name="grund" list="abw-gruende" value="${esc(e.grund || '')}"></label><datalist id="abw-gruende">${ABWESENHEIT_GRUENDE.map(g => `<option value="${g}">`).join('')}</datalist>
-    <label class="feld">Notiz<input name="notiz" value="${esc(e.notiz || '')}"></label>
+    <div class="zeile"><label class="feld fuell">${esc(T('Von'))}<input name="von" type="date" value="${esc(e.von)}" required></label><label class="feld fuell">${esc(T('Bis'))}<input name="bis" type="date" value="${esc(e.bis || e.von)}" required></label></div>
+    <label class="feld">${esc(T('Grund'))}<input name="grund" list="abw-gruende" value="${esc(e.grund || '')}"></label><datalist id="abw-gruende">${ABWESENHEIT_GRUENDE.map(g => `<option value="${g}">`).join('')}</datalist>
+    <label class="feld">${esc(T('Notiz'))}<input name="notiz" value="${esc(e.notiz || '')}"></label>
     <p class="fehlertext" id="abw-fehler" hidden></p><p class="leise" id="abw-hinweis"></p>
     ${!neu && grundArt(a.grund) === 'Urlaub' && m ? `<button type="button" class="knopf text" style="padding-left:0" data-brief="URLAUB" data-abwesenheit="${a.id}">✉ Urlaubsbestätigung drucken</button>` : ''}
     <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="abw-weg">Löschen</button>'}<span class="fuell"></span>
-      <button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
+      <button type="button" class="knopf text" data-zu>${esc(T('Abbrechen'))}</button><button class="knopf voll">${esc(T('Speichern'))}</button></div></form>`);
   const f = $('#abwesenheit-form');
   const hinweis = () => {
     const w = Object.fromEntries(new FormData(f)), id = m ? m.id : w.mitarbeiterId;
@@ -3727,18 +3748,18 @@ function fahrerStoppsHtml(x) {
   const l = stoppsVon(x.id); if (!l.length) return '';
   const naechster = l.find(s => s.status !== 'ERLEDIGT');
   return `<div class="fahrer-stopps">${l.map(s => `<div class="stopp ${s.status === 'ERLEDIGT' ? 'fertig' : ''} ${s === naechster ? 'naechster' : ''}" data-fstopp="${s.id}">
-    <b class="stopp-nr">${s.reihenfolge}</b><span class="fuell"><b>${STOPP_ART[s.art] ? STOPP_ART[s.art][1] + ' ' : ''}${esc(s.kundeName || '')}</b>${s.zeitfenster ? ` · ${esc(s.zeitfenster)}` : ''}<br><span class="leise">${esc(s.adresse || '')}</span>${s.notiz ? `<br><span class="leise">ℹ ${esc(s.notiz)}</span>` : ''}${s.auftragNr ? `<br><span class="leise">Auftrag ${esc(s.auftragNr)}</span>` : ''}${s.betragCent ? ` <span class="marke gelb">💶 ${geld(s.betragCent)}</span>` : ''}
+    <b class="stopp-nr">${s.reihenfolge}</b><span class="fuell"><b>${STOPP_ART[s.art] ? STOPP_ART[s.art][1] + ' ' : ''}${esc(s.kundeName || '')}</b>${s.zeitfenster ? ` · ${esc(s.zeitfenster)}` : ''}<br><span class="leise">${esc(s.adresse || '')}</span>${s.notiz ? `<br><span class="leise">ℹ ${esc(s.notiz)}</span>` : ''}${s.auftragNr ? `<br><span class="leise">${esc(T('Auftrag'))} ${esc(s.auftragNr)}</span>` : ''}${s.betragCent ? ` <span class="marke gelb">💶 ${geld(s.betragCent)}</span>` : ''}
       ${s.status === 'ERLEDIGT' ? `<br><span class="marke gruen">✓ ${esc(uhrText(s.erledigtAm))}${s.empfaenger ? ' · ' + esc(s.empfaenger) : ''}</span>` : ''}</span>
-    ${s.status !== 'ERLEDIGT' && x.datum === heute() ? `<span class="stopp-knoepfe">${s.adresse ? '<button class="symbol" data-fs="navi" aria-label="Navigation">🧭</button>' : ''}${s.kundeTelefon ? `<a class="symbol" href="tel:${esc(intNummer(s.kundeTelefon))}" aria-label="Anrufen">☎</a>` : ''}<button class="knopf tonal" data-fs="fertig">✓</button></span>` : ''}</div>`).join('')}</div>`;
+    ${s.status !== 'ERLEDIGT' && x.datum === heute() ? `<span class="stopp-knoepfe">${s.adresse ? `<button class="symbol" data-fs="navi" aria-label="${esc(T('Navigation'))}">🧭</button>` : ''}${s.kundeTelefon ? `<a class="symbol" href="tel:${esc(intNummer(s.kundeTelefon))}" aria-label="Anrufen">☎</a>` : ''}<button class="knopf tonal" data-fs="fertig">✓</button></span>` : ''}</div>`).join('')}</div>`;
 }
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-tour-stopps]'); if (t && S.touren[t.dataset.tourStopps]) { stoppListeDialog(S.touren[t.dataset.tourStopps]); return; }
   const b = e.target.closest('[data-fs]'); if (!b) return;
   const s = S.stopps[b.closest('[data-fstopp]').dataset.fstopp]; if (!s) return;
   if (b.dataset.fs === 'navi') { navigation(s.adresse); return; }
-  const wer = prompt(`Stopp ${s.reihenfolge} erledigt – Name des Empfängers (optional):`, s.kundeName || '');
+  const wer = prompt(`${T('Stopp')} ${s.reihenfolge} ${T('erledigt – Name des Empfängers (optional):')}`, s.kundeName || '');
   if (wer === null) return;
-  if (StoppAktionen.erledigen(s, wer.trim())) toast('Alle Stopps erledigt – jetzt die Tour abliefern', 6000); else toast('Stopp erledigt');
+  if (StoppAktionen.erledigen(s, wer.trim())) toast(T('Alle Stopps erledigt – jetzt die Tour abliefern'), 6000); else toast(T('Stopp erledigt'));
 });
 
 // ---------- Rollkarte (PDF) → Stoppliste ----------
@@ -5664,7 +5685,7 @@ const stempel = () => { try { return JSON.parse(localStorage.getItem('stempel') 
 const setzeStempel = v => { try { if (v) localStorage.setItem('stempel', JSON.stringify(v)); else localStorage.removeItem('stempel'); } catch {} };
 function zeichneFahrer() {
   const ich = maVon(ichId());
-  if (!ich) return seitenkopf('Meine Touren') + `<div class="karte block"><h3>Wer nutzt dieses Gerät?</h3><p class="leise">Einmal auswählen – danach zeigt die App hier die eigenen Touren, die Stempeluhr und das Abliefern mit Unterschrift.</p>
+  if (!ich) return seitenkopf(T('Meine Touren'), '', `<button class="knopf" data-sprache-wahl>🌐 ${esc(SPRACHEN[sprache()][0])}</button>`) + `<div class="karte block"><h3>${esc(T('Wer nutzt dieses Gerät?'))}</h3><p class="leise">${esc(T('Einmal auswählen – danach zeigt die App hier die eigenen Touren, die Stempeluhr und das Abliefern mit Unterschrift.'))}</p>
     <div id="ich-wahl">${mitarbeiterListe(true).map(m => `<button class="vorlage" data-ich="${m.id}"><b>${esc(m.name)}</b> <span class="leise">${esc(ROLLE[m.rolle] || '')}</span></button>`).join('') || '<p class="leise">Noch kein Personal angelegt.</p>'}</div></div>`;
   const t = heute(), st = stempel(), heuteZeiten = zeitenVon(ich.id, t, t).filter(zeitZaehlt), gearbeitet = heuteZeiten.reduce((n, z) => n + (zeitDauer(z) || 0), 0);
   const laufend = st && st.id === ich.id && st.datum === t;
@@ -5672,27 +5693,27 @@ function zeichneFahrer() {
   const karte = x => {
     const fertig = x.status === 'ERLEDIGT', adr = tourAdresse(x), sig = anlagenVon(x.id).some(a => /^Unterschrift/.test(a.anzeigename));
     return `<div class="karte fahrer-tour ${fertig ? 'fertig' : ''}" data-fahrer-tour="${x.id}">
-      <div class="zeile eng"><b class="titel fuell">${esc(x.datum === t ? 'Heute' : datumMitTag(x.datum))}${x.uhrzeit ? ' · ab ' + esc(x.uhrzeit) : ''}</b><span class="marke ${tourStatus(x)[1]}">${esc(tourStatus(x)[0])}</span></div>
+      <div class="zeile eng"><b class="titel fuell">${esc(x.datum === heute() ? T('Heute') : datumUI(x.datum))}${x.uhrzeit ? ` · ${esc(T('ab'))} ` + esc(x.uhrzeit) : ''}</b><span class="marke ${tourStatus(x)[1]}">${esc(T(tourStatus(x)[0]))}</span></div>
       <p style="font-size:17px;margin:6px 0"><b>${esc(x.kennzeichen || '–')}</b> · ${esc([x.tourNr && 'Tour ' + x.tourNr, tourAuftraggeberName(x), x.name].filter(Boolean).join(' · '))}</p>
       <p class="leise">${esc(x.einsatzart || '')}${adr ? ' · ' + esc(adr) : ''}</p>
-      <p class="leise">Team: ${esc(teamVon(x).map(id => maName(id) + (id === x.fahrerId ? ' (Fahrer)' : '')).join(', '))}</p>
-      ${x.notiz ? `<p class="hinweis-box">ℹ ${esc(x.notiz)}</p>` : ''}${fahrerStoppsHtml(x)}${sig ? '<p class="leise">✍ Unterschrift liegt vor</p>' : ''}
+      <p class="leise">${esc(T('Team'))}: ${esc(teamVon(x).map(id => maName(id) + (id === x.fahrerId ? ` (${T('Fahrer')})` : '')).join(', '))}</p>
+      ${x.notiz ? `<p class="hinweis-box">ℹ ${esc(x.notiz)}</p>` : ''}${fahrerStoppsHtml(x)}${sig ? `<p class="leise">✍ ${esc(T('Unterschrift liegt vor'))}</p>` : ''}
       ${x.datum === t ? `<div class="fahrer-knoepfe">
-        ${!fertig && x.status !== 'UNTERWEGS' ? '<button class="knopf voll" data-fahrer="los">▶ Losfahren</button>' : ''}
-        ${!fertig ? '<button class="knopf voll" data-fahrer="abliefern">✓ Abliefern</button>' : ''}
-        ${adr ? '<button class="knopf tonal" data-fahrer="navi">🧭 Navigation</button>' : ''}
-        <button class="knopf tonal" data-fahrer="foto">📷 Foto</button><button class="knopf tonal" data-fahrer="schaden">⚠ Schaden</button>
-        <button class="knopf" data-fahrer="problem">❗ Problem melden</button></div>` : ''}</div>`;
+        ${!fertig && x.status !== 'UNTERWEGS' ? `<button class="knopf voll" data-fahrer="los">▶ ${esc(T('Losfahren'))}</button>` : ''}
+        ${!fertig ? `<button class="knopf voll" data-fahrer="abliefern">✓ ${esc(T('Abliefern'))}</button>` : ''}
+        ${adr ? `<button class="knopf tonal" data-fahrer="navi">🧭 ${esc(T('Navigation'))}</button>` : ''}
+        <button class="knopf tonal" data-fahrer="foto">📷 ${esc(T('Foto'))}</button><button class="knopf tonal" data-fahrer="schaden">⚠ ${esc(T('Schaden'))}</button>
+        <button class="knopf" data-fahrer="problem">❗ ${esc(T('Problem melden'))}</button></div>` : ''}</div>`;
   };
   const dispo = rechnungsDaten().telefon;
-  return seitenkopf(`Hallo ${ich.name.split(' ')[0]}`, '', `${rolle() === 'FAHRER' ? '' : '<button class="knopf" data-ich="">Person wechseln</button>'}${dispo ? `<button class="knopf" data-fahrer-dispo>☎ Disposition</button>` : ''}`)
-    + `<div class="karte stempeluhr"><div class="zeile eng"><div class="fuell"><b>Arbeitszeit heute</b><br><span class="leise">${heuteZeiten.length ? heuteZeiten.map(z => `${z.beginn}–${z.ende}`).join(', ') + ' · ' + stdText(gearbeitet) : 'noch nichts erfasst'}
-      ${laufend ? ` · läuft seit ${esc(st.beginn)}${st.pauseAb ? ` · Pause seit ${esc(st.pauseAb)}` : ''}` : ''}</span></div></div>
-      <div class="fahrer-knoepfe">${!laufend ? '<button class="knopf voll" data-stempel="start">⏵ Arbeitsbeginn</button>'
-        : `${st.pauseAb ? '<button class="knopf voll" data-stempel="weiter">⏵ Pause beenden</button>' : '<button class="knopf tonal" data-stempel="pause">⏸ Pause</button>'}<button class="knopf voll" data-stempel="ende">⏹ Feierabend</button>`}</div></div>
-    <h3 class="abschnitt">Meine Touren (7 Tage)</h3>${meine.map(karte).join('') || '<div class="leer"><b>Keine Touren eingeplant</b>Sobald die Disposition dich einteilt, erscheint die Tour hier.</div>'}
-    ${abwesenheitenVon(ich.id).filter(a => (a.bis || a.von) >= t).slice(-3).reverse().map(a => `<p class="leise">🏖 ${esc(a.grund || 'Abwesend')}: ${esc(datumText(a.von))} – ${esc(datumText(a.bis || a.von))}</p>`).join('')}
-    <div class="zeile" style="margin-top:12px"><button class="knopf" data-fahrer-urlaub>🏖 Urlaub beantragen</button><button class="knopf" data-fahrer-krank>🤒 Krank melden</button></div>`;
+  return seitenkopf(`${T('Hallo')} ${ich.name.split(' ')[0]}`, '', `<button class="knopf" data-sprache-wahl>🌐 ${esc(SPRACHEN[sprache()][0])}</button>${rolle() === 'FAHRER' ? '' : `<button class="knopf" data-ich="">${esc(T('Person wechseln'))}</button>`}${dispo ? `<button class="knopf" data-fahrer-dispo>☎ ${esc(T('Disposition'))}</button>` : ''}`)
+    + `<div class="karte stempeluhr"><div class="zeile eng"><div class="fuell"><b>${esc(T('Arbeitszeit heute'))}</b><br><span class="leise">${heuteZeiten.length ? heuteZeiten.map(z => `${z.beginn}–${z.ende}`).join(', ') + ' · ' + stdText(gearbeitet) : esc(T('noch nichts erfasst'))}
+      ${laufend ? ` · ${esc(T('läuft seit'))} ${esc(st.beginn)}${st.pauseAb ? ` · ${esc(T('Pause seit'))} ${esc(st.pauseAb)}` : ''}` : ''}</span></div></div>
+      <div class="fahrer-knoepfe">${!laufend ? `<button class="knopf voll" data-stempel="start">⏵ ${esc(T('Arbeitsbeginn'))}</button>`
+        : `${st.pauseAb ? `<button class="knopf voll" data-stempel="weiter">⏵ ${esc(T('Pause beenden'))}</button>` : `<button class="knopf tonal" data-stempel="pause">⏸ ${esc(T('Pause'))}</button>`}<button class="knopf voll" data-stempel="ende">⏹ ${esc(T('Feierabend'))}</button>`}</div></div>
+    <h3 class="abschnitt">${esc(T('Meine Touren (7 Tage)'))}</h3>${meine.map(karte).join('') || `<div class="leer"><b>${esc(T('Keine Touren eingeplant'))}</b>${esc(T('Sobald die Disposition dich einteilt, erscheint die Tour hier.'))}</div>`}
+    ${abwesenheitenVon(ich.id).filter(a => (a.bis || a.von) >= t).slice(-3).reverse().map(a => `<p class="leise">🏖 ${esc(a.grund || T('Abwesend'))}: ${esc(datumText(a.von))} – ${esc(datumText(a.bis || a.von))}</p>`).join('')}
+    <div class="zeile" style="margin-top:12px"><button class="knopf" data-fahrer-urlaub>🏖 ${esc(T('Urlaub beantragen'))}</button><button class="knopf" data-fahrer-krank>🤒 ${esc(T('Krank melden'))}</button></div>`;
 }
 /** Unterschrift auf dem Bildschirm (Finger oder Maus). */
 function unterschriftFeld(canvas) {
@@ -5705,17 +5726,17 @@ function unterschriftFeld(canvas) {
   return { leer: () => leer, loeschen: () => { ctx.fillRect(0, 0, canvas.width, canvas.height); leer = true; }, blob: () => new Promise(ok => canvas.toBlob(ok, 'image/png')) };
 }
 function abliefernDialog(t) {
-  dialog(`<form method="dialog" id="abliefern-form"><h2>Abliefern</h2><p class="leise">${esc(tourText(t))}</p>
-    <label class="feld">Name des Empfängers<input name="empfaenger" value="${esc(t.empfaenger || '')}" autocomplete="off"></label>
-    <p class="leise" style="margin:6px 0 2px">Unterschrift des Empfängers</p><canvas id="sig" width="600" height="220" class="unterschrift-feld"></canvas>
-    <button type="button" class="knopf text" id="sig-weg">Unterschrift löschen</button>
-    <label class="feld">km-Stand am Ende (optional)<input name="kmEnde" inputmode="numeric" value="${t.kmEnde ?? ''}"></label>
-    <label class="feld">Bemerkung (z. B. Schaden, Fehlmenge)<textarea name="bemerkung"></textarea></label>
-    <label class="knopf">📷 Fotos hinzufügen<input type="file" id="ablief-foto" accept="image/*" capture="environment" multiple hidden></label><span class="leise" id="ablief-fotos"></span>
-    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">✓ Abgeliefert</button></div></form>`);
+  dialog(`<form method="dialog" id="abliefern-form"><h2>${esc(T('Abliefern'))}</h2><p class="leise">${esc(tourText(t))}</p>
+    <label class="feld">${esc(T('Name des Empfängers'))}<input name="empfaenger" value="${esc(t.empfaenger || '')}" autocomplete="off"></label>
+    <p class="leise" style="margin:6px 0 2px">${esc(T('Unterschrift des Empfängers'))}</p><canvas id="sig" width="600" height="220" class="unterschrift-feld" dir="ltr"></canvas>
+    <button type="button" class="knopf text" id="sig-weg">${esc(T('Unterschrift löschen'))}</button>
+    <label class="feld">${esc(T('km-Stand am Ende (optional)'))}<input name="kmEnde" inputmode="numeric" value="${t.kmEnde ?? ''}"></label>
+    <label class="feld">${esc(T('Bemerkung (z. B. Schaden, Fehlmenge)'))}<textarea name="bemerkung"></textarea></label>
+    <label class="knopf">📷 ${esc(T('Fotos hinzufügen'))}<input type="file" id="ablief-foto" accept="image/*" capture="environment" multiple hidden></label><span class="leise" id="ablief-fotos"></span>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>${esc(T('Abbrechen'))}</button><button class="knopf voll">✓ ${esc(T('Abgeliefert'))}</button></div></form>`);
   const sig = unterschriftFeld($('#sig')); let fotos = [];
   $('#sig-weg').onclick = () => sig.loeschen();
-  $('#ablief-foto').onchange = e => { fotos = fotos.concat([...e.target.files]); $('#ablief-fotos').textContent = fotos.length + ' Foto(s)'; };
+  $('#ablief-foto').onchange = e => { fotos = fotos.concat([...e.target.files]); $('#ablief-fotos').textContent = fotos.length + ' ' + T('Foto(s)'); };
   $('#abliefern-form').onsubmit = async ev => {
     ev.preventDefault();
     const w = Object.fromEntries([...new FormData(ev.target)].map(([k, v]) => [k, String(v).trim()])), zeit = `${datumText(heute())} ${jetztZeit()}`;
@@ -5725,7 +5746,7 @@ function abliefernDialog(t) {
     tourStatusSetzen(S.touren[t.id], w.bemerkung ? 'PROBLEM' : 'ERLEDIGT', { empfaenger: w.empfaenger, abgeliefertAm: zeit, kmEnde: w.kmEnde ? Number(w.kmEnde.replace(/\D/g, '')) : t.kmEnde ?? null,
       notiz: w.bemerkung ? [t.notiz, `Bei Ablieferung (${zeit}): ${w.bemerkung}`].filter(Boolean).join('\n') : t.notiz });
     if (w.bemerkung) AufgabeAktionen.speichern({ titel: `Bemerkung bei Ablieferung prüfen: ${tourText(t)}`, text: w.bemerkung, faelligAm: heute(), prioritaet: 'HOCH', bezugArt: 'tour', bezugId: t.id });
-    toast(w.bemerkung ? 'Abgeliefert mit Bemerkung – die Disposition wurde informiert' : 'Abgeliefert ✓');
+    toast(w.bemerkung ? T('Abgeliefert mit Bemerkung – die Disposition wurde informiert') : T('Abgeliefert') + ' ✓');
   };
 }
 $('#liste').addEventListener('click', async e => {
@@ -5734,7 +5755,7 @@ $('#liste').addEventListener('click', async e => {
   if (ich) { S.einstellungen.ichId = ich.dataset.ich; speichere(); zeichneListe(); return; }
   if (e.target.closest('[data-fahrer-dispo]')) { oeffne('tel:' + rechnungsDaten().telefon.replace(/[^\d+]/g, '')); return; }
   if (e.target.closest('[data-fahrer-urlaub]')) { abwesenheitDialog(maVon(ichId()), null, plusTage(heute(), 14)); setTimeout(() => { const g = $('#abwesenheit-form [name=grund]'); if (g) g.value = 'Urlaub (beantragt)'; }, 0); return; }
-  if (e.target.closest('[data-fahrer-krank]')) { PersonalAktionen.abwesenheit({ mitarbeiterId: ichId(), von: heute(), bis: heute(), grund: 'Krank', notiz: 'Im Fahrer-Modus gemeldet' }); AufgabeAktionen.speichern({ titel: `${maName(ichId())} hat sich krank gemeldet – Touren prüfen`, faelligAm: heute(), prioritaet: 'HOCH', bezugArt: 'mitarbeiter', bezugId: ichId() }); toast('Krankmeldung eingetragen – gute Besserung!'); return; }
+  if (e.target.closest('[data-fahrer-krank]')) { PersonalAktionen.abwesenheit({ mitarbeiterId: ichId(), von: heute(), bis: heute(), grund: 'Krank', notiz: 'Im Fahrer-Modus gemeldet' }); AufgabeAktionen.speichern({ titel: `${maName(ichId())} hat sich krank gemeldet – Touren prüfen`, faelligAm: heute(), prioritaet: 'HOCH', bezugArt: 'mitarbeiter', bezugId: ichId() }); toast(T('Krankmeldung eingetragen – gute Besserung!')); return; }
   if (s) {
     const st = stempel(), id = ichId(), jetzt = jetztZeit();
     if (s.dataset.stempel === 'start') setzeStempel({ id, datum: heute(), beginn: jetzt, pause: 0 });
@@ -5744,18 +5765,18 @@ $('#liste').addEventListener('click', async e => {
       const pause = (st.pause || 0) + (st.pauseAb ? Math.max(0, zeitMin(jetzt) - zeitMin(st.pauseAb)) : 0);
       ZeitAktionen.speichern({ mitarbeiterId: id, datum: st.datum, beginn: st.beginn, ende: jetzt, pauseMin: pause, quelle: 'STEMPEL', bestaetigt: true });
       setzeStempel(null);
-      const h = arbzgPruefen(id, st.datum).filter(([fa]) => fa === 'rot'); toast(h.length ? 'Gespeichert – Hinweis: ' + h[0][1] : 'Feierabend gespeichert ✓', 6000);
+      const h = arbzgPruefen(id, st.datum).filter(([fa]) => fa === 'rot'); toast(h.length ? 'Gespeichert – Hinweis: ' + h[0][1] : T('Feierabend gespeichert ✓'), 6000);
     }
     zeichneListe(); return;
   }
   if (!f) return;
   const t = S.touren[f.closest('[data-fahrer-tour]').dataset.fahrerTour]; if (!t) return;
-  ({ los: () => { const km = prompt('km-Stand bei Abfahrt (optional):', t.kmStart ?? (fahrzeugZumKz(t.kennzeichen) || {}).kmStand ?? ''); tourStatusSetzen(t, 'UNTERWEGS', km ? { kmStart: Number(String(km).replace(/\D/g, '')) } : {}); },
+  ({ los: () => { const km = prompt(T('km-Stand bei Abfahrt (optional):'), t.kmStart ?? (fahrzeugZumKz(t.kennzeichen) || {}).kmStand ?? ''); tourStatusSetzen(t, 'UNTERWEGS', km ? { kmStart: Number(String(km).replace(/\D/g, '')) } : {}); },
     abliefern: () => abliefernDialog(t), navi: () => navigation(tourAdresse(t)), schaden: () => schadenAusTour(t),
     foto: () => { const i = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', multiple: true }); i.setAttribute('capture', 'environment');
-      i.onchange = async () => { for (const d of i.files) await legeAnlage(t.id, d, 'Foto – '); nachAenderung(); toast('Foto gespeichert'); }; i.click(); },
-    problem: () => { const text = prompt('Was ist los?'); if (!text) return; tourStatusSetzen(t, 'PROBLEM', { notiz: [t.notiz, `Problem (${jetztZeit()}): ${text}`].filter(Boolean).join('\n') });
-      AufgabeAktionen.speichern({ titel: `Problem bei Tour: ${text}`, faelligAm: heute(), prioritaet: 'HOCH', bezugArt: 'tour', bezugId: t.id }); toast('Problem gemeldet'); } })[f.dataset.fahrer]();
+      i.onchange = async () => { for (const d of i.files) await legeAnlage(t.id, d, 'Foto – '); nachAenderung(); toast(T('Foto gespeichert')); }; i.click(); },
+    problem: () => { const text = prompt(T('Was ist los?')); if (!text) return; tourStatusSetzen(t, 'PROBLEM', { notiz: [t.notiz, `Problem (${jetztZeit()}): ${text}`].filter(Boolean).join('\n') });
+      AufgabeAktionen.speichern({ titel: `Problem bei Tour: ${text}`, faelligAm: heute(), prioritaet: 'HOCH', bezugArt: 'tour', bezugId: t.id }); toast(T('Problem gemeldet')); } })[f.dataset.fahrer]();
 });
 
 // ============================== Preiskalkulator ==============================
@@ -7227,6 +7248,7 @@ window.addEventListener('offline', () => { if (!mitCloud()) return; SYNC.fehler 
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { zeichne(); pruefeStand(); } });
 setInterval(pruefeStand, 45000);
 if (langeMailsKuerzen()) speichere();
+spracheAnwenden();
 zeichne();
 if (mitCloud()) abgleich();
 mailStart();
