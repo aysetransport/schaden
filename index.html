@@ -30,8 +30,26 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigat
   --tuerkis-f:#1E4D52;--tuerkis-t:#BFE9EC;--orange-f:#75390D;--orange-t:#FFDBC8;--gruen-f:#1F4F2A;--gruen-t:#BDEFC2;--grau-f:#43474E;--grau-t:#E1E2E8;--rot-f:#93000A;--rot-t:#FFDAD6;
   color-scheme:dark;
 }}
+:root[data-thema=hell]{  --bg:#F8F9FF;--flaeche:#F2F3FA;--flaeche2:#ECEEF4;--hoch:#E1E2E8;--text:#191C20;--leise:#43474E;--rand:#C3C7CF;--linie:#DFE2EB;
+  --primaer:#36618E;--auf-primaer:#fff;--primaer-hell:#D1E4FF;--auf-primaer-hell:#194975;--fehler:#BA1A1A;
+  --blau-f:#D1E4FF;--blau-t:#0B3A63;--violett-f:#E3DFFF;--violett-t:#2F2A7A;--gelb-f:#FFDF9E;--gelb-t:#4F3A00;--lila-f:#F2DAFF;--lila-t:#4A3657;
+  --tuerkis-f:#BFE9EC;--tuerkis-t:#00363A;--orange-f:#FFDBC8;--orange-t:#6A2D00;--gruen-f:#BDEFC2;--gruen-t:#0C3A18;--grau-f:#E1E2E8;--grau-t:#43474E;--rot-f:#FFDAD6;--rot-t:#93000A;
+  color-scheme:light;
+}
+:root[data-thema=dunkel]{
+  --bg:#111418;--flaeche:#191C20;--flaeche2:#1D2024;--hoch:#32353A;--text:#E1E2E8;--leise:#C3C7CF;--rand:#43474E;--linie:#32353A;
+  --primaer:#A0CAFD;--auf-primaer:#003258;--primaer-hell:#194975;--auf-primaer-hell:#D1E4FF;--fehler:#FFB4AB;
+  --blau-f:#194975;--blau-t:#D1E4FF;--violett-f:#454093;--violett-t:#E3DFFF;--gelb-f:#5B4300;--gelb-t:#FFDF9E;--lila-f:#523F5F;--lila-t:#F2DAFF;
+  --tuerkis-f:#1E4D52;--tuerkis-t:#BFE9EC;--orange-f:#75390D;--orange-t:#FFDBC8;--gruen-f:#1F4F2A;--gruen-t:#BDEFC2;--grau-f:#43474E;--grau-t:#E1E2E8;--rot-f:#93000A;--rot-t:#FFDAD6;
+  color-scheme:dark;
+}
+
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text)}
+html,body{margin:0;background:var(--bg);color:var(--text);overflow-x:hidden;max-width:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html{overscroll-behavior-x:none}
+img,video,canvas,svg,table{max-width:100%}
+main,main>section,.karte,.dashboard>*{min-width:0}
+.karte,.vorlage,dd,.titel,.leise{overflow-wrap:anywhere}
 body{min-height:100vh}
 h1,h2,h3,p{margin:0}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -51,6 +69,12 @@ header{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:10px;
 main{display:grid;grid-template-columns:minmax(0,1fr);margin:0 auto}
 main>section{padding:14px calc(16px + env(safe-area-inset-right)) 32px calc(16px + env(safe-area-inset-left));min-width:0}
 #navi{z-index:7}
+.nav-gruppe{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--leise);padding:12px 12px 4px;opacity:.8}
+.nav-gruppe:empty{border-top:1px solid var(--linie);padding:0;margin:8px 0}
+#nav-schleier{display:none}
+kbd{font:600 12px ui-monospace,monospace;background:var(--flaeche2);border:1px solid var(--rand);border-radius:6px;padding:2px 6px}
+.werkzeug-mehr{display:none}
+#sync{white-space:nowrap}
 .nav-knopf{position:relative;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:var(--leise);cursor:pointer;border-radius:12px;font-weight:500;text-align:left}
 .nav-knopf:hover{background:var(--flaeche2)}
 .nav-knopf[aria-current=page]{background:var(--primaer-hell);color:var(--auf-primaer-hell);font-weight:600}
@@ -59,7 +83,12 @@ main>section{padding:14px calc(16px + env(safe-area-inset-right)) 32px calc(16px
 @media (min-width:900px){
   #navi{position:fixed;left:0;top:var(--kopf-hoehe);bottom:0;width:var(--nav-breite);padding:12px 10px 16px;background:var(--flaeche);border-right:1px solid var(--linie);overflow:auto}
   .nav-klein{display:none}.nav-gross{display:flex;flex-direction:column;gap:2px}
-  .nav-knopf{padding:10px 12px;width:100%}
+  .nav-knopf{padding:8px 12px;width:100%}
+  body.nav-schmal{--nav-breite:76px}
+  body.nav-schmal .nav-knopf{flex-direction:column;gap:2px;padding:7px 2px;text-align:center;font-size:11px}
+  body.nav-schmal .nav-knopf .zahl{position:absolute;top:2px;right:6px;margin:0}
+  body.nav-schmal .nav-gruppe:not(:empty){font-size:0;padding:4px 0;border-top:1px solid var(--linie);margin-top:4px}
+  body.nav-schmal header #app-titel{width:auto}
   header{position:fixed;left:0;right:0}
   header #app-titel{width:calc(var(--nav-breite) - 16px);text-align:left}
   main{margin-left:var(--nav-breite);padding-top:var(--kopf-hoehe);grid-template-columns:minmax(340px,420px) minmax(0,1fr);align-items:start;max-width:calc(1500px + var(--nav-breite))}
@@ -79,6 +108,16 @@ main>section{padding:14px calc(16px + env(safe-area-inset-right)) 32px calc(16px
 @media (max-width:899px){
   #navi{position:fixed;left:0;right:0;bottom:0;background:var(--flaeche);border-top:1px solid var(--linie);padding:4px calc(4px + env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) calc(4px + env(safe-area-inset-left))}
   .nav-gross{display:none}.nav-klein{display:grid;grid-template-columns:repeat(5,1fr);gap:2px}
+  body.nav-offen .nav-gross{display:flex;flex-direction:column;gap:2px;position:fixed;left:0;top:0;bottom:0;width:min(300px,84vw);background:var(--flaeche);z-index:30;overflow:auto;
+    padding:calc(12px + env(safe-area-inset-top)) 10px calc(16px + env(safe-area-inset-bottom));box-shadow:4px 0 24px rgba(0,0,0,.25)}
+  body.nav-offen .nav-gross .nav-knopf{flex-direction:row;gap:12px;padding:10px 12px;font-size:15px;text-align:left}
+  body.nav-offen .nav-gross .nav-knopf .zahl{position:static;margin-left:auto}
+  body.nav-offen #nav-schleier{display:block;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:29}
+  body.nav-offen #navi{z-index:31}
+  .werkzeuge:not(.offen) > :nth-child(n+4):not(.werkzeug-mehr){display:none}
+  .werkzeuge .werkzeug-mehr{display:inline-flex}
+  .werkzeuge:not(:has(> :nth-child(5))) .werkzeug-mehr{display:none}
+  .werkzeuge.offen .werkzeug-mehr{order:99}
   .nav-knopf{flex-direction:column;gap:1px;padding:6px 2px;font-size:11px;text-align:center;min-width:0}
   .nav-knopf .nav-text{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .nav-knopf .zahl{position:absolute;top:1px;right:calc(50% - 26px);margin:0}
@@ -172,7 +211,31 @@ pre.vorschau{white-space:pre-wrap;font:inherit;background:var(--flaeche2);paddin
 .balken.neg{background:var(--rot-t)}
 .tabelle.kreuz td,.tabelle.kreuz th{white-space:nowrap}
 .rangliste{margin:0;padding-left:22px}.rangliste li{margin:0}.rangliste .vorlage{padding:6px 4px}
-.mail-karte.ungelesen .titel{font-weight:700}.mail-karte.ungelesen{border-left:4px solid var(--primaer)}
+.mail-karte.ungelesen .titel{font-weight:700}
+/* Kalender */
+.kal-gitter{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.kal-wt{font-size:12px;font-weight:600;color:var(--leise);text-align:center;padding:2px 0}
+.kal-zelle{background:var(--flaeche);border:1px solid var(--linie);border-radius:8px;min-height:96px;padding:4px;cursor:pointer;overflow:hidden;min-width:0}
+.kal-gitter.woche .kal-zelle{min-height:260px}
+.kal-zelle.fremd{opacity:.45}.kal-zelle.we{background:var(--flaeche2)}.kal-zelle.heute{outline:2px solid var(--primaer)}
+.kal-zelle:hover{border-color:var(--primaer)}
+.kal-kopf{font-size:13px;margin-bottom:2px}
+.kal-eintrag{font-size:11.5px;line-height:1.3;border-radius:5px;padding:1px 4px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:700px){.kal-zelle{min-height:62px;padding:2px}.kal-eintrag{font-size:0;height:6px;padding:0;margin-top:2px}.kal-gitter.woche{grid-template-columns:1fr}.kal-gitter.woche .kal-wt{display:none}
+  .kal-gitter.woche .kal-zelle{min-height:auto}.kal-gitter.woche .kal-eintrag{font-size:12px;height:auto;padding:1px 4px}}
+/* Aufgaben, Zeiten, Wochenplan, Fahrer */
+.aufgabe.erledigt b{text-decoration:line-through;opacity:.6}
+.tabelle tr.gewaehlt td{background:var(--primaer-hell)}
+.tabelle tr.entwurf td{background:var(--gelb-f);color:var(--gelb-t)}
+.wochenplan td{vertical-align:top;min-width:110px}.wochenplan td.we{background:var(--flaeche2)}.wochenplan th.heute{color:var(--primaer)}
+.wochenplan td[data-tp-gehe]{cursor:pointer}
+.wp-tour{background:var(--blau-f);color:var(--blau-t);border-radius:6px;padding:3px 5px;margin:2px 0;font-size:12px}.wp-tour .leise{color:inherit;opacity:.8;font-size:11px}
+.stempeluhr{border:2px solid var(--primaer-hell)}
+.fahrer-knoepfe{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:10px}
+.fahrer-knoepfe .knopf{padding:14px 10px;font-size:16px;border-radius:14px}
+.fahrer-tour.fertig{opacity:.7}
+.hinweis-box{background:var(--gelb-f);color:var(--gelb-t);border-radius:8px;padding:6px 8px;margin:6px 0;white-space:pre-wrap}
+.unterschrift-feld{width:100%;height:auto;aspect-ratio:600/220;border:2px dashed var(--rand);border-radius:10px;background:#fff;touch-action:none;display:block}
 .karte{background:var(--flaeche);border-radius:14px;padding:16px;margin-bottom:12px}
 .karte.klickbar{cursor:pointer;display:block;width:100%;text-align:left;border:0}
 .karte.klickbar:hover,.karte.gewaehlt{background:var(--flaeche2)}
@@ -249,10 +312,30 @@ dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
 .positionen td{padding:2px 4px}.positionen input{width:100%;padding:6px;border:1px solid var(--rand);border-radius:6px;background:transparent;color:inherit}
 .positionen td:nth-child(3){width:70px}.positionen td:nth-child(4){width:110px}.positionen td:nth-child(5){width:36px}
 [hidden]{display:none!important}
+/* Handy: alles bedienbar, nichts seitlich */
+@media (max-width:700px){
+  input,select,textarea,button{font-size:16px}
+  label.feld input,label.feld select,label.feld textarea{font-size:16px}
+  dialog{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0;border-radius:0;padding:calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}
+  .dialog-knoepfe{position:sticky;bottom:calc(-16px - env(safe-area-inset-bottom));background:var(--flaeche);padding:10px 0 calc(6px + env(safe-area-inset-bottom));margin-bottom:-16px}
+  .seitenkopf h1{font-size:20px}
+  .kennzahlen{grid-template-columns:1fr 1fr!important}
+  .kennzahl b{font-size:17px}
+  .tp-frei{grid-template-columns:1fr}
+  dl{grid-template-columns:minmax(90px,38%) minmax(0,1fr)}
+  .knopf{padding:9px 14px}
+  .chips{flex-wrap:wrap}
+  .tabelle{font-size:13px}.tabelle td,.tabelle th{padding:6px 5px}
+  .tabelle .marke{white-space:normal}
+  #sync{font-size:11px;max-width:92px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:4px 8px}
+  #toast{left:12px;right:12px;transform:none;max-width:none;bottom:calc(84px + env(safe-area-inset-bottom))}
+}
+@media (hover:none){.nav-knopf,.knopf,.chip,.vorlage,.kachel{min-height:40px}}.mail-karte.ungelesen{border-left:4px solid var(--primaer)}
 </style>
 </head>
 <body>
 <header>
+  <button class="symbol" id="menue-knopf" aria-label="Menü">☰</button>
   <button class="symbol" id="zurueck" aria-label="Zurück" hidden>←</button>
   <button id="app-titel" title="Zur Übersicht">Ayse CRM</button>
   <div id="suche-global" role="search"><input id="globale-suche" type="search" placeholder="Suchen: Firma, Fall, Tour, Mitarbeiter, Fahrzeug … (Strg+K)" aria-label="Alles durchsuchen" autocomplete="off"><div id="suchtreffer" hidden></div></div>
@@ -261,7 +344,7 @@ dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
   <button id="sync" class="grau" title="Jetzt abgleichen"></button>
   <button class="symbol" id="einstellungen-knopf" aria-label="Einstellungen">⚙</button>
 </header>
-<nav id="navi" aria-label="Bereiche"></nav>
+<nav id="navi" aria-label="Bereiche"></nav><div id="nav-schleier"></div>
 <main>
   <section id="liste" aria-label="Liste"></section>
   <section id="detail" aria-label="Ansicht"></section>
@@ -538,7 +621,7 @@ function csvErstellen(faelle, anlagenJeFall) {
 // ============================== Daten im Browser ==============================
 const SPEICHER = 'schadensfaelle-v1', PIN_SPEICHER = 'schadensfaelle-pin';
 const CRM_TABELLEN = ['adressen', 'ansprechpartner', 'preise', 'aktivitaeten', 'aufgaben', 'dokumente', 'chancen', 'belege', 'fahrzeuge', 'fahrzeugeintraege',
-  'mitarbeiter', 'personaleintraege', 'abwesenheiten', 'einsatzarten', 'touren'];
+  'mitarbeiter', 'personaleintraege', 'abwesenheiten', 'einsatzarten', 'touren', 'zeiten', 'aufgabenIntern', 'tachotage'];
 const LEER = () => ({ faelle: {}, verlauf: {}, anlagen: {}, auftraggeber: {}, ...Object.fromEntries(CRM_TABELLEN.map(t => [t, {}])), seit: 0, kennung: '', apiUrl: '', nurLokal: false,
   einstellungen: { firma: '', bearbeiter: '', funktion: '', wiedervorlageTage: 7 } });
 let S = LEER();
@@ -779,7 +862,7 @@ async function api(fn, ...args) {
   return j.ok;
 }
 const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber', ...CRM_TABELLEN];
-const CLOUD_API = 7;
+const CLOUD_API = 8;
 const VERALTET = 'Das Cloud-Skript ist veraltet – bitte die neue Code.gs bereitstellen.';
 const offeneAnzahl = () => TABELLEN.reduce((n, t) => n + offene(t).length, 0);
 const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
@@ -942,11 +1025,12 @@ function formularFeld(e, [name, label, art = ''], liste = '') {
 }
 // ---------- Rahmen: Navigation, Suche, „Neu“ ----------
 /** Bereiche der App: Name, Symbol. Am PC als Leiste links, am Handy unten (vier frei wählbar + „Mehr“). */
-const BEREICHE = { uebersicht: ['Übersicht', '🏠'], touren: ['Touren', '🚚'], faelle: ['Schäden', '⚠'], firmen: ['Firmen', '🏢'], termine: ['Termine', '📅'],
-  personal: ['Personal', '👥'], fuhrpark: ['Fuhrpark', '🚐'], finanzen: ['Finanzen', '€'], postfach: ['Postfach', '✉'], auswertung: ['Statistik', '📊'] };
+const BEREICHE = { uebersicht: ['Übersicht', '🏠', 'Heute'], fahrer: ['Meine Touren', '🧭', 'Heute'], kalender: ['Kalender', '📆', 'Heute'], termine: ['Termine', '📅', 'Heute'], aufgaben: ['Aufgaben', '✅', 'Heute'],
+  touren: ['Touren', '🚚', 'Disposition'], personal: ['Personal', '👥', 'Disposition'], zeiten: ['Zeiten', '⏱', 'Disposition'], fuhrpark: ['Fuhrpark', '🚐', 'Disposition'],
+  firmen: ['Firmen', '🏢', 'Kunden'], faelle: ['Schäden', '⚠', 'Kunden'], postfach: ['Postfach', '✉', 'Kunden'], finanzen: ['Finanzen', '€', 'Kunden'], auswertung: ['Statistik', '📊', 'Auswertung'] };
 /** Bereiche über die ganze Breite (ohne Detail-Spalte). */
-const BREIT = new Set(['touren', 'auswertung', 'uebersicht']);
-const NAV_UNTEN_VORGABE = ['uebersicht', 'touren', 'faelle', 'firmen'];
+const BREIT = new Set(['touren', 'auswertung', 'uebersicht', 'kalender', 'zeiten', 'fahrer']);
+const NAV_UNTEN_VORGABE = ['uebersicht', 'touren', 'kalender', 'faelle'];
 const navUnten = () => { const l = (S.einstellungen.navUnten || NAV_UNTEN_VORGABE).filter(k => BEREICHE[k]); return l.length ? l.slice(0, 4) : NAV_UNTEN_VORGABE; };
 const bereichSichtbar = k => k !== 'postfach' || !!MAIL.konto;
 function navZahlen() {
@@ -959,7 +1043,11 @@ function zeichneNavi() {
   const knopf = (k, klasse = '') => `<button class="nav-knopf ${klasse}" data-bereich="${k}" aria-current="${aktiv === k ? 'page' : 'false'}" title="${esc(BEREICHE[k][0])}">
     <span class="nav-symbol" aria-hidden="true">${BEREICHE[k][1]}</span><span class="nav-text">${esc(BEREICHE[k][0])}</span>${z[k] ? `<span class="zahl">${z[k] > 99 ? '99+' : z[k]}</span>` : ''}</button>`;
   const unten = navUnten(), mehrAktiv = !unten.includes(aktiv);
-  $('#navi').innerHTML = `<div class="nav-gross">${Object.keys(BEREICHE).filter(bereichSichtbar).map(k => knopf(k)).join('')}</div>
+  const gruppen = [...new Set(Object.values(BEREICHE).map(b => b[2]))];
+  $('#navi').innerHTML = `<div class="nav-gross">${gruppen.map(g => `<div class="nav-gruppe">${esc(g)}</div>${Object.keys(BEREICHE).filter(k => BEREICHE[k][2] === g && bereichSichtbar(k)).map(k => knopf(k)).join('')}`).join('')}
+      <div class="nav-gruppe"></div><button class="nav-knopf" data-nav-einstellungen><span class="nav-symbol" aria-hidden="true">⚙</span><span class="nav-text">Einstellungen</span></button>
+      <button class="nav-knopf" data-nav-thema><span class="nav-symbol" aria-hidden="true">${{ hell: '☀', dunkel: '🌙' }[S.einstellungen.thema] || '🌓'}</span><span class="nav-text">Darstellung: ${{ hell: 'hell', dunkel: 'dunkel' }[S.einstellungen.thema] || 'automatisch'}</span></button>
+      <button class="nav-knopf" data-nav-hilfe><span class="nav-symbol" aria-hidden="true">⌨</span><span class="nav-text">Tastenkürzel</span></button></div>
     <div class="nav-klein">${unten.filter(bereichSichtbar).map(k => knopf(k)).join('')}
       <button class="nav-knopf" data-nav-mehr aria-current="${mehrAktiv ? 'page' : 'false'}"><span class="nav-symbol" aria-hidden="true">☰</span><span class="nav-text">${mehrAktiv ? esc(BEREICHE[aktiv][0]) : 'Mehr'}</span>
         ${Object.keys(BEREICHE).filter(k => !unten.includes(k)).some(k => z[k]) ? '<span class="zahl">•</span>' : ''}</button></div>`;
@@ -971,24 +1059,41 @@ function bereichWechseln(k) {
   if (route().art) gehe('#/'); else zeichne();
   window.scrollTo(0, 0);
 }
-function mehrDialogNavi() {
-  const z = navZahlen();
-  dialog(`<h2>Bereiche</h2><div class="kacheln">${Object.keys(BEREICHE).filter(bereichSichtbar).map(k => `<button class="kachel" data-mehr-bereich="${k}"><span>${BEREICHE[k][1]}</span>${esc(BEREICHE[k][0])}${z[k] ? ` <b class="zahl">${z[k]}</b>` : ''}</button>`).join('')}
-    <button class="kachel" data-mehr-bereich="einstellungen"><span>⚙</span>Einstellungen</button></div>
-    <p class="leise" style="margin-top:10px">Welche vier unten stehen, lässt sich unter ⚙ → Bedienung einstellen.</p><div class="dialog-knoepfe"><button class="knopf" data-zu>Schließen</button></div>`);
-  $('#dialog').onclick = e => {
-    const b = e.target.closest('[data-mehr-bereich]'); if (!b) return;
-    $('#dialog').onclick = null; $('#dialog').close();
-    if (b.dataset.mehrBereich === 'einstellungen') gehe('#/einstellungen'); else bereichWechseln(b.dataset.mehrBereich);
-  };
-}
 $('#navi').addEventListener('click', e => {
   const b = e.target.closest('[data-bereich]');
-  if (b) { bereichWechseln(b.dataset.bereich); return; }
-  if (e.target.closest('[data-nav-mehr]')) mehrDialogNavi();
+  if (b) { document.body.classList.remove('nav-offen'); bereichWechseln(b.dataset.bereich); return; }
+  if (e.target.closest('[data-nav-mehr]')) { document.body.classList.add('nav-offen'); return; }
+  if (e.target.closest('[data-nav-einstellungen]')) { document.body.classList.remove('nav-offen'); gehe('#/einstellungen'); return; }
+  if (e.target.closest('[data-nav-thema]')) { S.einstellungen.thema = { auto: 'hell', hell: 'dunkel', dunkel: 'auto' }[S.einstellungen.thema || 'auto']; speichere(); themaSetzen(); zeichneNavi(); return; }
+  if (e.target.closest('[data-nav-hilfe]')) { document.body.classList.remove('nav-offen'); hilfeTasten(); }
+});
+/** ☰: am PC Leiste schmal/breit, am Handy Seitenleiste ein/aus. */
+function menueUmschalten() {
+  if (matchMedia('(max-width:899px)').matches) { document.body.classList.toggle('nav-offen'); return; }
+  const schmal = !document.body.classList.contains('nav-schmal');
+  document.body.classList.toggle('nav-schmal', schmal); try { localStorage.setItem('nav-schmal', schmal ? '1' : ''); } catch {}
+}
+$('#menue-knopf').onclick = menueUmschalten;
+$('#nav-schleier').onclick = () => document.body.classList.remove('nav-offen');
+try { if (localStorage.getItem('nav-schmal')) document.body.classList.add('nav-schmal'); } catch {}
+function themaSetzen() { const t = S.einstellungen.thema; if (t === 'hell' || t === 'dunkel') document.documentElement.dataset.thema = t; else delete document.documentElement.dataset.thema; }
+themaSetzen();
+/** Werkzeugleiste: am Handy nur die ersten Knöpfe, der Rest hinter „⋯ Mehr“. */
+document.addEventListener('click', e => { const m = e.target.closest('[data-werkzeug-mehr]'); if (m) m.closest('.werkzeuge').classList.toggle('offen'); });
+const TASTEN = [['/ oder Strg+K', 'Suchen'], ['N', 'Neu anlegen'], ['Alt+1 … Alt+9', 'Bereiche der Reihe nach'], ['T', 'Tourenplanung heute'], ['K', 'Kalender'], ['G', 'Übersicht'],
+  ['Strg+Z', 'Tourenplanung: rückgängig'], ['Esc', 'Dialog bzw. Suche schließen'], ['?', 'diese Hilfe']];
+function hilfeTasten() { dialog(`<h2>Tastenkürzel</h2><dl>${TASTEN.map(([k, l]) => `<dt><kbd>${esc(k)}</kbd></dt><dd>${esc(l)}</dd>`).join('')}</dl><div class="dialog-knoepfe"><button class="knopf voll" data-zu>OK</button></div>`); }
+document.addEventListener('keydown', e => {
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName) || $('#dialog').open || e.ctrlKey || e.metaKey) return;
+  const sichtbar = Object.keys(BEREICHE).filter(bereichSichtbar);
+  if (e.altKey && /^[1-9]$/.test(e.key)) { e.preventDefault(); const k = sichtbar[Number(e.key) - 1]; if (k) bereichWechseln(k); return; }
+  if (e.altKey) return;
+  const aktion = { '/': () => { document.body.classList.add('sucht'); $('#globale-suche').focus(); }, n: neuMenue, t: () => { ANSICHT.tourTag = heute(); bereichWechseln('touren'); },
+    k: () => bereichWechseln('kalender'), g: () => bereichWechseln('uebersicht'), '?': hilfeTasten }[e.key.toLowerCase()];
+  if (aktion) { e.preventDefault(); aktion(); }
 });
 /** Kopf eines Bereichs: Titel, Hauptaktion und weitere Knöpfe (umbrechend, nie seitlich scrollend). */
-const seitenkopf = (titel, haupt = '', weitere = '') => `<div class="seitenkopf"><h1>${esc(titel)}</h1><div class="sk-haupt">${haupt}</div></div>${weitere ? `<div class="werkzeuge">${weitere}</div>` : ''}`;
+const seitenkopf = (titel, haupt = '', weitere = '') => `<div class="seitenkopf"><h1>${esc(titel)}</h1><div class="sk-haupt">${haupt}</div></div>${weitere ? `<div class="werkzeuge">${weitere}<button class="knopf werkzeug-mehr" data-werkzeug-mehr aria-label="Weitere Werkzeuge">⋯</button></div>` : ''}`;
 
 /** Suche über alles: Firmen, Ansprechpartner, Fälle, Touren, Personal, Fahrzeuge, Rechnungen, Mails. */
 function globaleSuche(text) {
@@ -1002,6 +1107,7 @@ function globaleSuche(text) {
     ...gruppe('Personal', mitarbeiterListe().filter(m => p(m.name, m.telefon, m.personalnummer)).map(m => ({ ziel: '#/mitarbeiter/' + m.id, bereich: 'personal', text: m.name, unter: heuteStatus(m).text }))),
     ...gruppe('Fahrzeuge', fahrzeugListe().filter(z => p(z.kennzeichen, z.bezeichnung, z.marke, z.modell, z.fin)).map(z => ({ ziel: '#/fahrzeug/' + z.id, bereich: 'fuhrpark', text: z.kennzeichen, unter: [z.bezeichnung, fahrzeugStatus(z)[0]].filter(Boolean).join(' · ') }))),
     ...gruppe('Touren', alle('touren').filter(t => p(t.tourNr, t.name, t.kennzeichen, tourAuftraggeberName(t))).sort((a, b) => b.datum.localeCompare(a.datum)).map(t => ({ tourTag: t.datum, text: `${datumText(t.datum)} · ${t.kennzeichen || ''}`, unter: tourText(t) }))),
+    ...gruppe('Aufgaben', aufgabenListe().filter(a => p(a.titel, a.text)).map(a => ({ aufgabe: a.id, text: a.titel, unter: [a.erledigt ? 'erledigt' : a.faelligAm ? 'bis ' + datumText(a.faelligAm) : 'offen', maName(a.zustaendigId)].filter(Boolean).join(' · ') }))),
     ...gruppe('Rechnungen und Angebote', alle('belege').filter(b => p(b.nummer, (S.auftraggeber[b.firmaId] || {}).name)).map(b => ({ ziel: '#/beleg/' + b.id, bereich: 'finanzen', text: `${b.nummer} · ${(S.auftraggeber[b.firmaId] || {}).name || ''}`, unter: geld(belegSummen(b).brutto) }))),
     ...(MAIL.konto ? gruppe('E-Mails', mailListe().filter(m => m.ablage !== 'PAPIERKORB' && p(m.betreff, m.von, m.an)).map(m => ({ ziel: '#/mail/' + encodeURIComponent(m.id), bereich: 'postfach', text: m.betreff || '(ohne Betreff)', unter: m.von }))) : []),
   ];
@@ -1017,7 +1123,8 @@ function zeigeSuchtreffer() {
 }
 function trefferOeffnen(t) {
   $('#globale-suche').value = ''; $('#suchtreffer').hidden = true; document.body.classList.remove('sucht');
-  if (t.tourTag) { ANSICHT.bereich = 'touren'; ANSICHT.tourTag = t.tourTag; gehe('#/'); return; }
+  if (t.tourTag) { ANSICHT.bereich = 'touren'; ANSICHT.tourTag = t.tourTag; ANSICHT.tourAnsicht = 'TAG'; gehe('#/'); return; }
+  if (t.aufgabe) { aufgabeDialog(S.aufgabenIntern[t.aufgabe]); return; }
   if (t.bereich && !BREIT.has(t.bereich)) ANSICHT.bereich = t.bereich;
   gehe(t.ziel);
 }
@@ -1042,7 +1149,7 @@ document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.ke
 function neuMenue() {
   const eintraege = [['fall', '⚠', 'Schadensfall'], ['tour', '🚚', 'Tour (heute)'], ['firma', '🏢', 'Firma'], ['interessent', '🎯', 'Interessent'], ['mitarbeiter', '👤', 'Mitarbeiter'],
     ['abwesenheit', '🏖', 'Abwesenheit'], ['fahrzeug', '🚐', 'Fahrzeug'], ['rechnung', '€', 'Rechnung'], ['angebot', '📄', 'Angebot'], ['rechnung-touren', '🧾', 'Rechnung aus Touren'],
-    ...(MAIL.konto ? [['mail', '✉', 'E-Mail']] : []), ['anruf', '📞', 'Anrufliste (Akquise)']];
+    ...(MAIL.konto ? [['mail', '✉', 'E-Mail']] : []), ['anruf', '📞', 'Anrufliste (Akquise)'], ['aufgabe', '✅', 'Aufgabe'], ['zeit', '⏱', 'Arbeitszeit'], ['tacho', '💳', 'Fahrerkarte einlesen'], ['kalk', '🧮', 'Preis kalkulieren']];
   dialog(`<h2>Neu anlegen</h2><div class="kacheln">${eintraege.map(([k, s, l]) => `<button class="kachel" data-neu-art="${k}"><span>${s}</span>${l}</button>`).join('')}</div>
     <div class="dialog-knoepfe"><button class="knopf" data-zu>Abbrechen</button></div>`);
   $('#dialog').onclick = e => {
@@ -1051,7 +1158,8 @@ function neuMenue() {
     ({ fall: () => { ANSICHT.bereich = 'faelle'; gehe('#/neu'); }, tour: () => { ANSICHT.bereich = 'touren'; ANSICHT.tourTag = heute(); gehe('#/'); setTimeout(() => TourAktionen.neu(heute()), 0); },
       firma: () => crmDialog('auftraggeber', null, null, id => { ANSICHT.bereich = 'firmen'; gehe('#/firma/' + id); }), interessent: interessentDialog,
       mitarbeiter: () => mitarbeiterDialog(null), abwesenheit: () => abwesenheitDialog(null), fahrzeug: () => fahrzeugDialog(null),
-      rechnung: () => belegNeuDialog('RECHNUNG'), angebot: () => belegNeuDialog('ANGEBOT'), 'rechnung-touren': () => rechnungAusTouren(), mail: () => mailAnFirma(), anruf: anruflisteStarten })[b.dataset.neuArt]();
+      rechnung: () => belegNeuDialog('RECHNUNG'), angebot: () => belegNeuDialog('ANGEBOT'), 'rechnung-touren': () => rechnungAusTouren(), mail: () => mailAnFirma(), anruf: anruflisteStarten,
+      aufgabe: () => aufgabeDialog(null), zeit: () => zeitDialog(null), tacho: tachoImportDialog, kalk: () => kalkulatorDialog() })[b.dataset.neuArt]();
   };
 }
 $('#neu-knopf').onclick = neuMenue;
@@ -1079,6 +1187,8 @@ function zeichneUebersicht() {
       <div class="karte block"><h3>⏱ Heute zu tun (${w.ueberfaellig.length + w.heute.length})</h3>
         ${[...w.ueberfaellig, ...w.heute].slice(0, 7).map(x => terminEintrag(x)).join('') || '<p class="leise">Nichts fällig. 👍</p>'}
         ${w.ueberfaellig.length + w.heute.length > 7 ? '<button class="knopf text" data-gehe-bereich="termine">Alle Termine →</button>' : ''}</div>
+      <div class="karte block"><h3>✅ Aufgaben</h3>${aufgabenListe().filter(a => !a.erledigt).slice(0, 5).map(aufgabeZeile).join('') || '<p class="leise">Keine offenen Aufgaben.</p>'}
+        <form id="aufgabe-schnell" class="zeile eng" style="margin-top:6px"><input class="suche fuell" style="margin:0" name="titel" placeholder="Neue Aufgabe … (z. B. „TÜV RS-AT 100 morgen @Ali“)" autocomplete="off"></form></div>
       <div class="karte block"><h3>⚠ Schäden</h3><div class="kennzahlen vier" style="margin:0">${kachel(kz.offen, 'offen', 'faelle')}${kachel(kz.faellig, 'fällig', 'faelle', kz.faellig ? 'rot' : '')}
         ${kachel(geld(kz.forderung), 'Forderungen', 'faelle')}${kachel(faelle().filter(f => (f.schadensdatum || '') >= zeitraum('MONAT').von).length, 'diesen Monat', 'faelle')}</div></div>
       <div class="karte block"><h3>€ Finanzen</h3><div class="kennzahlen vier" style="margin:0">${kachel(geld(k.offen), `offen (${k.offenAnzahl})`, 'finanzen')}${kachel(geld(k.ueberfaellig), `überfällig (${k.ueberfaelligAnzahl})`, 'finanzen', k.ueberfaelligAnzahl ? 'rot' : '')}
@@ -1139,7 +1249,8 @@ function zeichneListe(r = route()) {
       clearTimeout(zeichneListe.spaeter); zeichneListe.spaeter = setTimeout(() => zeichneListe(), 1500); return;
     }
     const inhalt = { termine: () => zeichneTermine(), postfach: () => zeichnePostfach(r), finanzen: () => zeichneFinanzen(r), fuhrpark: () => zeichneFuhrpark(r), uebersicht: () => zeichneUebersicht(),
-      touren: () => zeichneTouren(), personal: () => zeichnePersonal(r), auswertung: () => zeichneAuswertung() }[bereichSichtbar(ANSICHT.bereich) ? ANSICHT.bereich : 'uebersicht'];
+      touren: () => zeichneTouren(), personal: () => zeichnePersonal(r), auswertung: () => zeichneAuswertung(), kalender: () => zeichneKalender(), aufgaben: () => zeichneAufgaben(),
+      zeiten: () => zeichneZeiten(), fahrer: () => zeichneFahrer() }[bereichSichtbar(ANSICHT.bereich) ? ANSICHT.bereich : 'uebersicht'];
     el.innerHTML = inhalt ? inhalt() : zeichneFirmenliste(r);
     if (fokus) { const s = $('#firmen-suche'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
     return;
@@ -1518,7 +1629,19 @@ function zeichneEinstellungen() {
       ${[['personalTag', 'Personalkosten je Mitarbeiter und Arbeitstag (€)', '200'], ['fahrzeugTag', 'Fahrzeugkosten je Einsatztag (€)', '90'], ['zuschlag', 'Arbeitgeber-Zuschlag auf Lohn (%)', '30'],
         ['selbstbeteiligung', 'Selbstbeteiligung je Schaden bei Versicherung (€, leer = voller Betrag)', ''], ['gemein', 'Gemeinkosten in % vom Erlös (Büro, Miete …)', '0']]
         .map(([k, l, ph]) => `<label class="feld">${l}<input data-kosten="${k}" inputmode="decimal" placeholder="${ph}" value="${esc((e.kosten || {})[k] ?? '')}"></label>`).join('')}</div>
-    <div class="karte block"><h3>Bedienung</h3><p class="leise" style="margin-bottom:8px">Diese vier Bereiche stehen am Handy in der unteren Leiste (die übrigen unter „Mehr“):</p>
+    <div class="karte block"><h3>Arbeitszeit und Kalender</h3>
+      <label class="feld">Bundesland (Feiertage)<select data-einst-wahl="bundesland">${Object.entries(BUNDESLAENDER).map(([k, l]) => `<option value="${k}" ${(e.bundesland || 'NW') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="feld">Gesetzlicher Mindestlohn (€/Std.)<input data-einst="mindestlohn" inputmode="decimal" placeholder="13,90" value="${esc(e.mindestlohn || '')}"></label>
+      <div class="zeile"><label class="feld fuell">Üblicher Arbeitsbeginn<input type="time" data-einst="tagesbeginn" value="${esc(e.tagesbeginn || '07:00')}"></label>
+        <label class="feld fuell">Übliche Tagesdauer (Std., für Entwürfe)<input data-einst="tagesdauer" inputmode="decimal" placeholder="8,5" value="${esc(e.tagesdauer || '')}"></label></div></div>
+    <div class="karte block"><h3>Datensicherung</h3><p class="leise" style="margin-bottom:8px">Alle Daten in einer Datei (ohne Mail-Passwörter). Empfohlen einmal im Monat${e.letzteSicherung ? ` – letzte Sicherung ${esc(datumText(e.letzteSicherung))}` : ' – bisher keine Sicherung'}.</p>
+      <div class="zeile"><button class="knopf voll" id="sicherung-knopf">⤓ Sicherung erstellen</button><label class="knopf">⤒ Sicherung einspielen<input type="file" id="sicherung-import" accept=".json,application/json" hidden></label></div></div>
+    <div class="karte block"><h3>Buchhaltung</h3>
+      <div class="zeile"><label class="feld fuell">Erlöskonto<input data-buch="erloeskonto" placeholder="8400" value="${esc((e.buchhaltung || {}).erloeskonto || '')}"></label><label class="feld fuell">Sammel-Debitor<input data-buch="debitor" placeholder="10000" value="${esc((e.buchhaltung || {}).debitor || '')}"></label></div>
+      <button class="knopf" data-buchhaltung>📒 Rechnungsausgangsbuch exportieren</button></div>
+    <div class="karte block"><h3>Bedienung</h3>
+      <label class="feld">Wer nutzt dieses Gerät? (für „Meine Touren“, Stempeluhr und „Meine Aufgaben“)<select data-einst-wahl="ichId"><option value="">– niemand Bestimmtes –</option>${mitarbeiterListe(true).map(m => `<option value="${m.id}" ${e.ichId === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
+      <label class="feld">Darstellung<select data-einst-wahl="thema">${[['auto', 'automatisch (wie das Gerät)'], ['hell', 'hell'], ['dunkel', 'dunkel']].map(([k, l]) => `<option value="${k}" ${(e.thema || 'auto') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label><p class="leise" style="margin-bottom:8px">Diese vier Bereiche stehen am Handy in der unteren Leiste (die übrigen unter „Mehr“):</p>
       <div class="chips">${Object.entries(BEREICHE).map(([k, [l, sy]]) => `<button class="chip" data-nav-unten="${k}" aria-pressed="${navUnten().includes(k)}">${sy} ${l}</button>`).join('')}</div></div>
     <div class="karte block"><h3>Daten</h3><button class="knopf" id="csv">Fallliste für Excel exportieren (CSV)</button>
       <p class="leise" style="margin:10px 0 6px">Nach Tests: alle Angebote und Rechnungen samt erfasster Zahlungen entfernen – auf allen Geräten. Die Nummern beginnen danach wieder bei der Startnummer.</p>
@@ -1527,12 +1650,17 @@ function zeichneEinstellungen() {
 }
 $('#detail').addEventListener('input', e => {
   const k = e.target.dataset.einst; if (k) { S.einstellungen[k] = e.target.value; speichere(); }
+  const bu = e.target.dataset.buch; if (bu) { S.einstellungen.buchhaltung = { ...(S.einstellungen.buchhaltung || {}), [bu]: e.target.value.trim() }; speichere(); }
   const ko = e.target.dataset.kosten; if (ko) { S.einstellungen.kosten = { ...(S.einstellungen.kosten || {}), [ko]: e.target.value.replace(',', '.').trim() }; speichere(); }
   if (e.target.id === 'bausteine') {
     S.einstellungen.textbausteine = e.target.value.split('\n').map(z => z.match(/^([^:]{1,40}):\s*(.+)$/)).filter(Boolean).map(([, t, x]) => ({ titel: t.trim(), text: x.replace(/\\n/g, '\n') }));
     speichere();
   }
   const r = e.target.dataset.rechnung; if (r) { S.einstellungen.rechnung = { ...rechnungsDaten(), [r]: e.target.value }; speichere(); }
+});
+$('#detail').addEventListener('change', e => {
+  const w = e.target.dataset.einstWahl; if (!w) return;
+  S.einstellungen[w] = e.target.value; speichere(); feiertage.cache = {}; themaSetzen(); zeichne();
 });
 $('#detail').addEventListener('change', async e => {
   if (e.target.id !== 'crm-import' || !e.target.files.length) return;
@@ -1554,6 +1682,7 @@ $('#detail').addEventListener('click', e => {
   }
   switch (e.target.id) {
     case 'tp-import-knopf': tpImportDialog(); break;
+    case 'sicherung-knopf': sicherungErstellen(); zeichneEinstellungen(); break;
     case 'ea-knopf': einsatzartenDialog(); break;
     default: {
       const einrichten = e.target.closest('[data-mail-einrichten]'), entfernen = e.target.closest('[data-mail-entfernen]');
@@ -1564,6 +1693,7 @@ $('#detail').addEventListener('click', e => {
         bestaetige('E-Mail-Konto entfernen?', 'Konto und Passwort werden von diesem Rechner entfernt. Bereits zugeordnete Mails bleiben im Verlauf.', 'Entfernen',
           async () => { await window.desktop.mail.trennen(art); MAIL.konten[art] = null; aktualisiereKonto(); zeichne(); toast('E-Mail-Konto entfernt'); });
       }
+      break;
     }
     case 'jetzt': abgleich(); break;
     case 'abmelden': PIN = ''; try { localStorage.removeItem(PIN_SPEICHER); } catch {} SYNC.fehler = ''; zeichneSync(); toast('Abgemeldet. Zum Anmelden oben auf „Anmeldung nötig“ tippen.'); break;
@@ -1621,6 +1751,7 @@ function wiedervorlagen() {
     ...faelle().filter(f => status(f).offen && f.wiedervorlageAm).map(f => ({ art: 'fall', datum: f.wiedervorlageAm, titel: `Fall ${f.fallnummer} · ${anzeigeName(f)}`,
       zusatz: [f.auftraggeber, f.wartetAuf && 'wartet auf ' + PARTNER[f.wartetAuf], f.wiedervorlageNotiz].filter(Boolean).join(' · '), f })),
     ...fahrzeugTermine(), ...personalTermine(),
+    ...alle('aufgabenIntern').filter(a => !a.erledigt && a.faelligAm).map(a => ({ art: 'intern', datum: a.faelligAm, titel: '✅ ' + a.titel, zusatz: [a.zustaendigId && maName(a.zustaendigId), PRIORITAET[a.prioritaet] && a.prioritaet === 'HOCH' && 'wichtig'].filter(Boolean).join(' · '), aufgabe: a })),
     ...Object.entries(mails()).filter(([, m]) => m.erinnerungAm && m.ablage !== 'PAPIERKORB').map(([id, m]) => ({ art: 'mail', datum: m.erinnerungAm, titel: '✉ ' + (m.betreff || '(ohne Betreff)'), zusatz: m.eingehend ? m.von : 'an ' + (m.an || ''), mailId: id })),
   ].sort((a, b) => a.datum.localeCompare(b.datum) || a.titel.localeCompare(b.titel));
   return { ueberfaellig: termine.filter(x => x.datum < t), heute: termine.filter(x => x.datum === t), demnaechst: termine.filter(x => x.datum > t),
@@ -1665,7 +1796,8 @@ function zeichneFirmenliste(r) {
     ? '<div class="leer">🏢<b>Noch keine Auftraggeber</b>Lege die erste Firma an oder importiere die Sicherung des Browser-CRM unter ⚙ → CRM. Auftraggeber aus Schadensfällen kommen automatisch dazu.</div>'
     : `<div class="leer"><b>Keine Treffer</b>${such ? `Zu „${esc(ANSICHT.firmenSuche.trim())}“ wurde nichts gefunden.` : 'In dieser Ansicht gibt es keine Firmen.'}</div>`;
   return seitenkopf('Firmen', '<button class="knopf voll" data-neue-firma>＋ Firma</button>', `<button class="knopf" data-firmen-akt="interessent">🎯 ＋ Interessent</button>
-      <button class="knopf" data-firmen-akt="anrufliste">📞 Anrufliste</button><button class="knopf" data-firmen-akt="serienmail">✉ Serienmail</button>`) + `<input class="suche" id="firmen-suche" type="search" placeholder="Firma, Ansprechpartner, Notiz, Fall …" aria-label="Firmen durchsuchen" value="${esc(ANSICHT.firmenSuche)}">
+      <button class="knopf" data-firmen-akt="anrufliste">📞 Anrufliste</button><button class="knopf" data-firmen-akt="serienmail">✉ Serienmail</button>
+      <label class="knopf">⤓ Liste importieren (CSV)<input type="file" id="firmen-csv-import" accept=".csv,text/csv" hidden></label>`) + `<input class="suche" id="firmen-suche" type="search" placeholder="Firma, Ansprechpartner, Notiz, Fall …" aria-label="Firmen durchsuchen" value="${esc(ANSICHT.firmenSuche)}">
     <div class="chips" role="group" aria-label="Status"><button class="chip" data-firmen-status="" aria-pressed="${!ANSICHT.firmenStatus}">Alle</button>
       <button class="chip" data-firmen-status="PAUSE" aria-pressed="${ANSICHT.firmenStatus === 'PAUSE'}">Lange kein Kontakt</button>${Object.entries(FIRMEN_STATUS).map(([k, [l]]) =>
       `<button class="chip" data-firmen-status="${k}" aria-pressed="${ANSICHT.firmenStatus === k}">${l}</button>`).join('')}</div>
@@ -1680,12 +1812,13 @@ function terminEintrag(x) {
   const unter = esc([x.datum && x.datum !== heute() && datumText(x.datum), x.zusatz].filter(Boolean).join(' · '));
   if (x.art === 'aufgabe') return `<div class="termin"><input type="checkbox" data-erledigt="${x.a.id}" aria-label="Erledigt"><button class="vorlage fuell" data-firma="${x.a.firmaId}"><b>${esc(x.titel)}</b><br><span class="leise">${unter}</span></button>
       <button class="knopf text" data-verschieben="${x.a.id}" data-tage="1">Morgen</button><button class="knopf text" data-verschieben="${x.a.id}" data-tage="7">+1 Woche</button></div>`;
+  if (x.aufgabe) return aufgabeZeile(x.aufgabe);
   const [symbol, attr] = x.z ? ['🚐', `data-fahrzeug="${x.z.id}"`] : x.m ? ['👤', `data-mitarbeiter="${x.m.id}"`] : x.mailId ? ['✉', `data-mail="${esc(encodeURIComponent(x.mailId))}"`] : ['⚠', `data-fall="${x.f.id}"`];
   return `<div class="termin"><span class="termin-symbol">${symbol}</span><button class="vorlage fuell" ${attr}><b>${esc(x.titel)}</b><br><span class="leise">${unter}</span></button></div>`;
 }
 function zeichneTermine() {
   const w = wiedervorlagen();
-  const eintrag = x => (x.art === 'aufgabe' || x.z || x.m || x.mailId ? terminEintrag(x) : x.art === 'aufgabe'
+  const eintrag = x => (x.art === 'aufgabe' || x.z || x.m || x.mailId || x.aufgabe ? terminEintrag(x) : x.art === 'aufgabe'
     ? `<div class="termin"><input type="checkbox" data-erledigt="${x.a.id}" aria-label="Erledigt"><button class="vorlage fuell" data-firma="${x.a.firmaId}"><b>${esc(x.titel)}</b><br><span class="leise">${esc([x.datum !== heute() && datumText(x.datum), x.zusatz].filter(Boolean).join(' · '))}</span></button>
       <button class="knopf text" data-verschieben="${x.a.id}" data-tage="1">Morgen</button><button class="knopf text" data-verschieben="${x.a.id}" data-tage="7">+1 Woche</button></div>`
     : x.z ? `<div class="termin"><span class="termin-symbol">🚐</span><button class="vorlage fuell" data-fahrzeug="${x.z.id}"><b>${esc(x.titel)}</b><br><span class="leise">${esc([x.datum !== heute() && datumText(x.datum), x.zusatz].filter(Boolean).join(' · '))}</span></button></div>`
@@ -2089,7 +2222,8 @@ function zeichneFinanzen(r) {
       : f === 'BEZAHLT' ? b.status === 'BEZAHLT' : f === 'UEBERFAELLIG' ? istUeberfaellig(b) : istRechnungOffen(b);
   }).sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || String(b.nummer).localeCompare(String(a.nummer)));
   return seitenkopf('Finanzen', '<button class="knopf voll" data-neuer-beleg="RECHNUNG">＋ Rechnung</button>', `<button class="knopf" data-neuer-beleg="ANGEBOT">＋ Angebot</button>
-      <button class="knopf" data-rechnung-touren="">🧾 Rechnung aus Touren</button><button class="knopf" data-belege-csv>CSV</button>`) + `<div class="kennzahlen" style="grid-template-columns:1fr 1fr">
+      <button class="knopf" data-rechnung-touren="">🧾 Rechnung aus Touren</button><button class="knopf" data-kalkulator>🧮 Kalkulator</button><button class="knopf" data-belege-csv>CSV</button>
+      <button class="knopf" data-buchhaltung>📒 Buchhaltung (CSV)</button>`) + `<div class="kennzahlen" style="grid-template-columns:1fr 1fr">
       <button class="kennzahl" data-beleg-filter="OFFEN"><b>${geld(k.offen)}</b><span>Offen (${k.offenAnzahl} Rechnungen)</span></button>
       <button class="kennzahl ${k.ueberfaelligAnzahl ? 'rot' : ''}" data-beleg-filter="UEBERFAELLIG"><b>${geld(k.ueberfaellig)}</b><span>Überfällig (${k.ueberfaelligAnzahl})</span></button>
       <div class="kennzahl"><b>${geld(k.monat)}</b><span>Umsatz diesen Monat (netto)</span></div><div class="kennzahl"><b>${geld(k.jahr)}</b><span>Umsatz ${heute().slice(0, 4)} (netto)</span></div></div>
@@ -2247,7 +2381,7 @@ const ABWESENHEIT_GRUENDE = ['Urlaub', 'Krank', 'Kind krank', 'Berufsschule', 'S
 const PERSONAL_EINTRAG = {
   GESPRAECH: ['Gespräch', '💬'], SCHULUNG: ['Schulung / Weiterbildung', '🎓'], UNTERWEISUNG: ['Unterweisung (z. B. Ladungssicherung)', '📋'],
   FUEHRERSCHEIN: ['Führerscheinkontrolle', '🪪'], LOHN: ['Lohnabrechnung', '€'], VERTRAG: ['Vertrag / Gehaltsänderung', '📝'], LOB: ['Lob / Anerkennung', '⭐'],
-  ABMAHNUNG: ['Abmahnung', '⚠'], VORFALL: ['Vorfall / Schaden', '🛠'], AUSRUESTUNG: ['Ausrüstung (Schlüssel, Kleidung, Tankkarte …)', '🔑'], SONSTIGES: ['Sonstiges', '•'],
+  ABMAHNUNG: ['Abmahnung', '⚠'], FAHRERKARTE: ['Fahrerkarte ausgelesen', '💳'], VORFALL: ['Vorfall / Schaden', '🛠'], AUSRUESTUNG: ['Ausrüstung (Schlüssel, Kleidung, Tankkarte …)', '🔑'], SONSTIGES: ['Sonstiges', '•'],
 };
 const PERSONAL_DOKUMENTE = ['Arbeitsvertrag', 'Führerschein', 'Fahrerkarte', 'Modul-95-Nachweis', 'Unterweisung', 'Lohnabrechnung', 'Krankmeldung', 'Bescheinigung', 'Sonstiges'];
 const PERSONAL_FRISTEN = [['fuehrerscheinBis', 'Führerschein gültig bis'], ['fahrerkarteBis', 'Fahrerkarte gültig bis'], ['modul95Bis', 'Berufskraftfahrer-Weiterbildung (Modul 95)'],
@@ -2256,7 +2390,8 @@ const MITARBEITER_FELDER = [
   ['Person', [['name', 'Name (Vor- und Nachname)', 'pflicht'], ['telefon', 'Telefon (für Anruf und WhatsApp)', 'tel'], ['email', 'E-Mail', 'email'], ['adresse', 'Anschrift', 'lang'],
     ['geburtstag', 'Geburtstag', 'date'], ['notfallkontakt', 'Notfallkontakt (Name und Telefon)']]],
   ['Einsatz in der Tourenplanung', [['aktiv', 'Wird eingeplant', { ja: 'Ja – aktiv', nein: 'Nein – inaktiv / ausgeschieden' }], ['rolle', 'Rolle', ROLLE], ['monteur', 'Monteur', JA_NEIN],
-    ['fuehrerschein', 'Führerscheinklassen (z. B. B, C1, CE)'], ['nichtBei', 'Nicht einplanen bei (Auftraggeber, durch Komma getrennt)']]],
+    ['fuehrerschein', 'Führerscheinklassen (z. B. B, C1, CE)'], ['fahrerkarteNr', 'Fahrerkarten-Nummer'], ['nichtBei', 'Nicht einplanen bei (Auftraggeber, durch Komma getrennt)'],
+    ['aliase', 'Andere Schreibweisen des Namens (durch ; getrennt, z. B. „Demir, Ali; A. Demir“)']]],
   ['Anstellung', [['personalnummer', 'Personalnummer'], ['anstellung', 'Anstellung', ANSTELLUNG], ['eintritt', 'Eintritt', 'date'], ['austritt', 'Austritt', 'date'],
     ['wochenstunden', 'Wochenstunden', 'zahl'], ['stundenlohn', 'Stundenlohn in Euro', 'geld'], ['urlaubstage', 'Urlaubstage pro Jahr', 'zahl'], ['resturlaub', 'Resturlaub aus dem Vorjahr (Tage)', 'zahl']]],
   ['Fristen', PERSONAL_FRISTEN.map(([k, l]) => [k, l, 'date'])],
@@ -2270,7 +2405,7 @@ const maVon = id => (id && S.mitarbeiter[id] && !S.mitarbeiter[id].geloescht ? S
 const maName = id => (maVon(id) ? maVon(id).name : '');
 /** Namen vergleichen ohne Groß-/Kleinschreibung und Reihenfolge („Demir, Ali“ = „Ali Demir“). */
 const nameSchluessel = n => normal(n).replace(/[,.]/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
-const maZumNamen = name => { const n = nameSchluessel(name); return n ? alle('mitarbeiter').find(m => nameSchluessel(m.name) === n) || null : null; };
+const maZumNamen = name => { const n = nameSchluessel(name); return n ? alle('mitarbeiter').find(m => nameSchluessel(m.name) === n) || alle('mitarbeiter').find(m => String(m.aliase || '').split(';').some(a => a.trim() && nameSchluessel(a) === n)) || null : null; };
 const mitarbeiterNamen = () => mitarbeiterListe(true).map(m => m.name);
 const abwesenheitenVon = id => alle('abwesenheiten').filter(a => a.mitarbeiterId === id).sort((a, b) => String(b.von).localeCompare(String(a.von)));
 const abwesendAm = (id, tag) => alle('abwesenheiten').find(a => a.mitarbeiterId === id && a.von <= tag && tag <= (a.bis || a.von)) || null;
@@ -2292,14 +2427,16 @@ function arbeitstage(von, bis) {
   if (!von || !bis || bis < von) return 0;
   const sechs = Number(S.einstellungen.arbeitstageWoche) === 6;
   let n = 0;
-  for (let d = alsTag(von), ende = alsTag(bis); d <= ende; d.setDate(d.getDate() + 1)) { const w = d.getDay(); if (w !== 0 && (sechs || w !== 6)) n++; }
+  for (let d = alsTag(von), ende = alsTag(bis); d <= ende; d.setDate(d.getDate() + 1)) { const w = d.getDay(); if (w !== 0 && (sechs || w !== 6) && !feiertagAm(isoTag(d))) n++; }
   return n;
 }
 
 /** Fristen eines Mitarbeiters (nur aktive), sortiert nach Datum. */
 function personalFristen(m) {
   if (!maAktiv(m)) return [];
-  return PERSONAL_FRISTEN.filter(([k]) => m[k]).map(([k, l]) => ({ feld: k, label: l, datum: m[k], tage: tageBis(m[k]) })).sort((a, b) => a.datum.localeCompare(b.datum));
+  const l = PERSONAL_FRISTEN.filter(([k]) => m[k]).map(([k, l]) => ({ feld: k, label: l, datum: m[k], tage: tageBis(m[k]) }));
+  if (m.fahrerkarteNr) { const d = letzteAuslesung(m) ? plusTage(letzteAuslesung(m), 28) : heute(); l.push({ feld: 'auslesen', label: 'Fahrerkarte auslesen (alle 28 Tage)', datum: d, tage: tageBis(d) }); }
+  return l.sort((a, b) => a.datum.localeCompare(b.datum));
 }
 /** Fristen und Geburtstage der nächsten Tage für „Termine“ und die Übersicht. */
 function personalTermine() {
@@ -2473,7 +2610,8 @@ function zeichneMitarbeiter(id) {
         <button class="knopf tonal" data-ma="anrufen" ${m.telefon ? '' : 'disabled'}>☎ Anrufen</button>
         <button class="knopf tonal" data-ma="whatsapp" ${m.telefon ? '' : 'disabled'}>💬 WhatsApp</button>
         <button class="knopf tonal" data-ma="email" ${m.email ? '' : 'disabled'}>✉ E-Mail</button></div>
-      <div class="zeile" style="margin-top:8px"><button class="knopf voll" data-ma="abwesenheit">＋ Abwesenheit</button><button class="knopf" data-ma="eintrag">＋ Personalakte</button></div>
+      <div class="zeile" style="margin-top:8px"><button class="knopf voll" data-ma="abwesenheit">＋ Abwesenheit</button><button class="knopf" data-ma="eintrag">＋ Personalakte</button>
+        <button class="knopf" data-ma="zeit">＋ Arbeitszeit</button><button class="knopf" data-neue-aufgabe data-bezug-art="mitarbeiter" data-bezug-id="${m.id}">＋ Aufgabe</button></div>
     </div>
     <div class="karte block"><div class="zeile eng"><h3 class="fuell" style="margin:0">Auswertung · ${esc(zr.text)}</h3></div>
       <div class="chips" style="margin:8px 0">${Object.entries(ZEITRAEUME).map(([k, l]) => `<button class="chip" data-ma-zeitraum="${k}" aria-pressed="${(ANSICHT.maZeitraum || 'MONAT') === k}">${l}</button>`).join('')}</div>
@@ -2486,6 +2624,12 @@ function zeichneMitarbeiter(id) {
         ['Brutto / Netto', a.bruttoCent ? `${geld(a.bruttoCent)} / ${geld(a.nettoCent)}` : ''], ['Stunden (Abrechnung)', a.stunden ? a.stunden.toLocaleString('de-DE') : ''],
         ['Schadensfälle', a.schaeden.length ? String(a.schaeden.length) + (a.touren ? ` (${(a.schaeden.length / a.touren * 100).toFixed(1).replace('.', ',')} je 100 Touren)` : '') : ''],
         ['Deckungsbeitrag', (() => { const l = einsaetzeVon(m.id, zr.von, zr.bis).filter(tourGefahren); if (!l.length) return ''; const db = l.reduce((n, t) => n + tourRechnung(t).db / Math.max(1, teamVon(t).length), 0); return `${geld(Math.round(db))} (Anteil an den Touren) · ${geld(Math.round(db / Math.max(1, a.tage)))} je Arbeitstag`; })()]])}</div>
+    ${(() => { const mon = zr.von.slice(0, 7), z = zeitMonat(m, heute().slice(0, 7)); return `<div class="karte block"><div class="zeile eng"><h3 class="fuell" style="margin:0">Arbeitszeit ${esc(ZEIT_DIMS.monat[2](heute().slice(0, 7)))}</h3>
+      <button class="knopf text" data-ma="zeiten">Zeiterfassung →</button></div><p>${stdText(z.summe)} an ${z.arbeitstage} Tagen${z.soll != null ? ` · Soll ${stdText(z.soll)} · Saldo ${stdText(z.ueber)}` : ''}</p>
+      ${z.verstoesse ? `<p class="fehlertext">${z.verstoesse} Verstöße gegen das Arbeitszeitgesetz</p>` : ''}${z.entwuerfe ? `<p class="leise">${z.entwuerfe} Entwürfe noch nicht bestätigt</p>` : ''}${z.ohneZeit ? `<p class="leise">${z.ohneZeit} Einsatztage ohne erfasste Zeit</p>` : ''}</div>`; })()}
+    ${m.fahrerkarteNr || tachotageVon(m.id).length ? `<div class="karte block"><div class="zeile eng"><h3 class="fuell" style="margin:0">💳 Fahrerkarte · ${esc(zr.text)}</h3>
+      <button class="knopf text" data-ma="tacho">Einlesen</button><button class="knopf text" data-ma="tacho-xlsx">⤓ Excel</button></div>
+      <p class="leise">${m.fahrerkarteNr ? 'Karte ' + esc(m.fahrerkarteNr) : ''}${letzteAuslesung(m) ? ' · zuletzt ausgelesen ' + esc(datumText(letzteAuslesung(m))) : ' · noch nie ausgelesen'}</p>${tachoBerichtHtml(m, zr.von, zr.bis)}</div>` : ''}
     <div class="karte block"><h3>Urlaub ${heute().slice(0, 4)}</h3>
       ${m.urlaubstage ? `<div class="kennzahlen vier" style="margin:0"><div class="kennzahl"><b>${u.anspruch}</b><span>Anspruch</span></div><div class="kennzahl"><b>${u.genommen}</b><span>genommen</span></div>
         <div class="kennzahl"><b>${u.geplant}</b><span>geplant</span></div><div class="kennzahl ${u.rest < 0 ? 'rot' : ''}"><b>${u.rest}</b><span>Rest</span></div></div>`
@@ -2729,7 +2873,9 @@ $('#detail').addEventListener('click', e => {
   if (dok) { oeffneAnlage(S.anlagen[dok.dataset.maDok]); return; }
   if (dokWeg) { const a = S.anlagen[dokWeg.dataset.maDokWeg]; bestaetige('Dokument entfernen?', `„${a.anzeigename}“ wird gelöscht.`, 'Entfernen', () => { entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id); nachAenderung(); }); return; }
   if (!akt) return;
-  ({ bearbeiten: () => mitarbeiterDialog(m), abwesenheit: () => abwesenheitDialog(m), eintrag: () => personalEintragDialog(m),
+  ({ bearbeiten: () => mitarbeiterDialog(m), abwesenheit: () => abwesenheitDialog(m), eintrag: () => personalEintragDialog(m), zeit: () => zeitDialog(null, { mitarbeiterId: m.id }),
+    zeiten: () => { ANSICHT.zeitMa = m.id; bereichWechseln('zeiten'); }, tacho: tachoImportDialog,
+    'tacho-xlsx': () => { const mo = (ANSICHT.maMonat || heute().slice(0, 7)), b = tachoXlsx([m], mo); if (b) ladeBlobHerunter(`Fahrerkarte_${m.name.replace(/\s+/g, '_')}_${mo}.xlsx`, b); else toast('Keine Fahrerkarten-Daten in diesem Monat'); },
     anrufen: () => oeffne('tel:' + m.telefon.replace(/[^\d+]/g, '')), whatsapp: () => whatsapp(m.telefon, `Hallo ${m.name.split(' ')[0]}, `),
     email: () => (MAIL.konto ? mailAnFirma({ an: m.email }) : oeffne('mailto:' + m.email)),
     loeschen: () => bestaetige('Mitarbeiter löschen?', `${m.name} wird mit Abwesenheiten, Personalakte und Dokumenten gelöscht. In Touren bleibt die Kennung ohne Namen stehen. Ist die Person nur ausgeschieden, besser „inaktiv“ setzen.`, 'Löschen', () => { PersonalAktionen.loeschen(m); gehe('#/'); }) })[akt.dataset.ma]();
@@ -2753,10 +2899,11 @@ const teamVon = t => [t.fahrerId, ...beifahrerVon(t)].filter(Boolean);
 const tourenAm = tag => alle('touren').filter(t => t.datum === tag).sort((a, b) => (a.reihenfolge ?? 0) - (b.reihenfolge ?? 0) || String(a.id).localeCompare(String(b.id)));
 const tourAuftraggeberName = t => (t.auftraggeberId && S.auftraggeber[t.auftraggeberId] && !S.auftraggeber[t.auftraggeberId].geloescht ? S.auftraggeber[t.auftraggeberId].name : t.auftraggeber || '');
 const tourText = t => [t.tourNr && 'Tour ' + t.tourNr, tourAuftraggeberName(t), t.name, t.uhrzeit && 'ab ' + t.uhrzeit, t.einsatzart].filter(Boolean).join(' · ');
-const tourGefahren = t => !!(t.kennzeichen && t.fahrerId);
+const tourGefahren = t => !!(t.kennzeichen && t.fahrerId) && t.status !== 'STORNIERT';
 const einsatzartListe = () => alle('einsatzarten').sort((a, b) => String(a.name).localeCompare(String(b.name), 'de'));
 const einsatzartZu = name => alle('einsatzarten').find(e => normal(e.name) === normal(name)) || null;
-const fahrzeugZumKz = kz => { const k = kzNormal(kz); return k ? alle('fahrzeuge').find(z => kzNormal(z.kennzeichen) === k) || null : null; };
+/** Fahrzeug zum Kennzeichen – auch über Aliase (andere Schreibweise, altes Kennzeichen, Kennzeichen aus der Fahrerkarte). */
+const fahrzeugZumKz = kz => { const k = kzNormal(kz); return k ? alle('fahrzeuge').find(z => kzNormal(z.kennzeichen) === k) || alle('fahrzeuge').find(z => String(z.aliase || '').split(',').some(a => kzNormal(a) === k)) || null : null; };
 /** Touren einer Firma (über Kennung oder gleichen Namen). */
 const tourenVonFirma = (firma, von = '0000', bis = '9999') => alle('touren').filter(t => t.datum >= von && t.datum <= bis
   && (t.auftraggeberId === firma.id || (!t.auftraggeberId && normal(t.auftraggeber) === normal(firma.name))));
@@ -2949,7 +3096,8 @@ function zeichneTouren() {
         ${t.einsatzart && !art ? `<option selected>${esc(t.einsatzart)}</option>` : ''}</select></label>
       <label class="tf fahrer"><span>Fahrer</span><input data-feld="fahrer" list="tp-fahrer" value="${name(t.fahrerId)}" autocomplete="off"></label>
       <div class="tf team"><span>Beifahrer</span><div class="bf">${Array.from({ length: plaetze }, (_, k) => `<input data-feld="beifahrer" data-index="${k}" list="tp-bf" value="${name(bf[k])}" aria-label="Beifahrer ${k + 1}" autocomplete="off">`).join('')}</div></div>
-      <div class="tour-hinweise">${h.map(([f, x]) => `<span class="marke ${f}">${esc(x)}</span>`).join('')}
+      <div class="tour-hinweise">${t.status && t.status !== 'GEPLANT' ? `<button class="marke ${tourStatus(t)[1]}" data-tour-akt="details">${esc(tourStatus(t)[0])}${t.beginn ? ' ' + esc(t.beginn) : ''}${t.ende ? '–' + esc(t.ende) : ''}${tourKm(t) != null ? ' · ' + tourKm(t) + ' km' : ''}</button>` : ''}
+        ${anlagenVon(t.id).length ? `<span class="marke grau">📎 ${anlagenVon(t.id).length}${anlagenVon(t.id).some(a => /^Unterschrift/.test(a.anzeigename)) ? ' ✍' : ''}</span>` : ''}${h.map(([f, x]) => `<span class="marke ${f}">${esc(x)}</span>`).join('')}
         ${schaeden.map(f => `<button class="marke rot" data-fall-oeffnen="${f.id}">⚠ Fall ${esc(f.fallnummer)}</button>`).join('')}
         ${beleg ? `<button class="marke gruen" data-beleg-oeffnen="${beleg.id}">€ ${esc(beleg.nummer)}</button>` : ''}</div>
       <div class="tour-knoepfe">
@@ -2961,13 +3109,16 @@ function zeichneTouren() {
   return seitenkopf('Tourenplanung', `<button class="knopf voll" data-tp="neu">＋ Tour</button>`,
       `<button class="knopf" data-tp="auffuellen">✨ Teams auffüllen</button><button class="knopf" data-tp="rueckgaengig" ${TourAktionen.undo.length ? '' : 'disabled'}>↶ Rückgängig</button>
       <button class="knopf" data-tp="uebernehmen">⧉ Übernehmen …</button><button class="knopf" data-tp="drucken">🖨 Drucken</button><button class="knopf" data-tp="fahrer-pdf">📱 Für Fahrer</button>
-      <button class="knopf" data-tp="alle-senden">💬 An alle</button><button class="knopf" data-tp="berichte">📊 Berichte</button><button class="knopf" data-tp="einsatzarten">⚙ Einsatzarten</button>`)
-    + `<div class="tp-datum">
+      <button class="knopf" data-tp="alle-senden">💬 An alle</button><button class="knopf" data-tp="begleitscheine">📄 Begleitscheine</button><button class="knopf" data-tp="berichte">📊 Berichte</button>
+      <button class="knopf" data-tp="einsatzarten">⚙ Einsatzarten</button>`)
+    + `<div class="chips">${[['TAG', 'Tag'], ['WOCHE', 'Woche']].map(([k, l]) => `<button class="chip" data-tp-ansicht="${k}" aria-pressed="${(ANSICHT.tourAnsicht || 'TAG') === k}">${l}</button>`).join('')}</div>
+    ${(ANSICHT.tourAnsicht || 'TAG') === 'WOCHE' ? `<div class="tp-datum"><button class="knopf" data-tp-tag="-7" aria-label="Vorige Woche">◀</button><b class="tp-wochentag">${esc(kw(tag).slice(5))} · ab ${esc(datumText(plusTage(tag, -((alsTag(tag).getDay() + 6) % 7))))}</b>
+      <button class="knopf" data-tp-tag="7" aria-label="Nächste Woche">▶</button><button class="knopf text" data-tp-tag="0">Heute</button></div>${wochenplanHtml(tag)}` : `<div class="tp-datum">
       <button class="knopf" data-tp-tag="-1" aria-label="Voriger Tag">◀</button>
       <input type="date" id="tp-datum" value="${tag}" aria-label="Datum">
       <button class="knopf" data-tp-tag="1" aria-label="Nächster Tag">▶</button>
       ${tag !== heute() ? '<button class="knopf text" data-tp-tag="0">Heute</button>' : ''}
-      <b class="tp-wochentag">${wochentag(tag)}</b>
+      <b class="tp-wochentag">${wochentag(tag)}${feiertagAm(tag) ? ` · <span style="color:var(--rot-t)">${esc(feiertagAm(tag))}</span>` : ''}</b>
       <span class="marke blau" id="tp-zaehler">${touren.filter(t => t.kennzeichen || t.fahrerId).length} Touren · ${nPers} Personal (${nFahrer} Fahrer, ${nPers - nFahrer} Beifahrer)</span></div>
     <datalist id="tp-kz">${fahrzeugListe().filter(z => z.status !== 'STILLGELEGT').map(z => `<option value="${esc(z.kennzeichen)}">${esc([z.zgg && zahlText(z.zgg, 'kg'), FAHRZEUG_STATUS[z.status] && z.status !== 'AKTIV' ? fahrzeugStatus(z)[0] : '', z.leihfahrzeug ? 'Leihfahrzeug' : ''].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>
     <datalist id="tp-ag">${auftraggeberListe().filter(f => f.status !== 'EHEMALIG').map(f => `<option value="${esc(f.name)}">`).join('')}</datalist>
@@ -2982,7 +3133,7 @@ function zeichneTouren() {
         + gruppe('Beifahrer', fr.frei.filter(m => m.rolle === 'BEIFAHRER').map(m => m.name)) || '<p class="leise">Niemand frei.</p>'}
         ${fr.weg.length ? `<p><b>Abwesend (${fr.weg.length}):</b> ${fr.weg.map(m => `<button class="knopf text" style="padding:0 4px" data-mitarbeiter="${m.id}">${esc(m.name)}</button> <span class="leise">(${esc(abwesendAm(m.id, tag).grund || 'abwesend')})</span>`).join(', ')}</p>` : ''}</div>
       <div><h3>Freie Fahrzeuge</h3>${fr.gruppen.map(([t, l]) => gruppe(t, l.map(z => z.kennzeichen))).join('') || '<p class="leise">Keine freien Fahrzeuge.</p>'}
-        ${fr.werkstatt.length ? `<p><b>In der Werkstatt:</b> ${fr.werkstatt.map(z => esc(z.kennzeichen)).join(', ')}</p>` : ''}</div></div>`;
+        ${fr.werkstatt.length ? `<p><b>In der Werkstatt:</b> ${fr.werkstatt.map(z => esc(z.kennzeichen)).join(', ')}</p>` : ''}</div></div>`}`;
 }
 
 /** Wird in der Tourenplanung gerade etwas getippt, das noch nicht gespeichert ist? */
@@ -3163,6 +3314,13 @@ function tourMehr(t) {
       <dt>Ergebnis</dt><dd><b style="${r.db < 0 ? 'color:var(--rot-t)' : ''}">${geld(r.db)}</b></dd></dl></div>`; })()}
     <label class="feld">Hinweis für das Team<textarea id="tour-notiz">${esc(t.notiz || '')}</textarea></label>
     <div class="liste-knoepfe">
+      <button class="vorlage" data-tm="details"><b>⏱ Status, Zeiten und Kilometer</b><br><span class="leise">${esc(tourStatus(t)[0])}${t.beginn ? ' · ' + esc(t.beginn) : ''}${t.ende ? '–' + esc(t.ende) : ''}${tourKm(t) != null ? ' · ' + tourKm(t) + ' km' : ''}</span></button>
+      <button class="vorlage" data-tm="begleitschein"><b>📄 Begleitschein / Liefernachweis drucken</b></button>
+      ${tourAdresse(t) ? `<button class="vorlage" data-tm="navi"><b>🧭 Navigation</b><br><span class="leise">${esc(tourAdresse(t))}</span></button>` : ''}
+      <button class="vorlage" data-tm="abliefern"><b>✍ Abliefern mit Unterschrift</b></button>
+      ${anlagenVon(t.id).map(a => `<button class="vorlage" data-tm-anlage="${a.id}"><b>📎 ${esc(a.anzeigename)}</b></button>`).join('')}
+      <button class="vorlage" data-tm="aufgabe"><b>✅ Aufgabe zu dieser Tour</b></button>
+      <button class="vorlage" data-tm="storno"><b>${t.status === 'STORNIERT' ? '↺ Stornierung aufheben' : '✕ Tour stornieren'}</b><br><span class="leise">Stornierte Touren zählen nicht in Abrechnung und Statistik</span></button>
       <button class="vorlage" data-tm="schaden"><b>⚠ Schaden zu dieser Tour melden</b><br><span class="leise">Neuer Schadensfall mit Fahrzeug, Team, Auftraggeber und Datum</span></button>
       ${schaeden.map(f => `<button class="vorlage" data-tm-fall="${f.id}"><b>Fall ${esc(f.fallnummer)} öffnen</b><br><span class="leise">${esc(anzeigeName(f))} · ${esc(status(f).label)}</span></button>`).join('')}
       ${t.auftraggeberId && S.auftraggeber[t.auftraggeberId] ? `<button class="vorlage" data-tm="firma"><b>🏢 ${esc(tourAuftraggeberName(t))} öffnen</b></button>` : ''}
@@ -3171,12 +3329,15 @@ function tourMehr(t) {
       <button class="vorlage" data-tm="morgen"><b>→ Auf einen anderen Tag kopieren</b></button></div>
     <div class="dialog-knoepfe"><button class="knopf text gefahr" data-tm="loeschen">Tour löschen</button><span class="fuell"></span><button class="knopf voll" data-tm="ok">Fertig</button></div>`);
   $('#dialog').onclick = e => {
-    const b = e.target.closest('[data-tm]'), fall = e.target.closest('[data-tm-fall]'); if (!b && !fall) return;
+    const b = e.target.closest('[data-tm]'), fall = e.target.closest('[data-tm-fall]'), anl = e.target.closest('[data-tm-anlage]'); if (!b && !fall && !anl) return;
+    if (anl) { oeffneAnlage(S.anlagen[anl.dataset.tmAnlage]); return; }
     const notiz = $('#tour-notiz') ? $('#tour-notiz').value.trim() : t.notiz;
     $('#dialog').onclick = null; $('#dialog').close();
     if (notiz !== (t.notiz || '')) TourAktionen.speichern({ ...t, notiz });
     if (fall) { gehe('#/fall/' + fall.dataset.tmFall); return; }
-    ({ ok: () => {}, schaden: () => schadenAusTour(t), firma: () => gehe('#/firma/' + t.auftraggeberId), fahrzeug: () => gehe('#/fahrzeug/' + fahrzeugZumKz(t.kennzeichen).id),
+    const tn = S.touren[t.id] || t;
+    ({ ok: () => {}, schaden: () => schadenAusTour(t), details: () => tourDetailsDialog(tn), begleitschein: () => begleitscheinDrucken([tn]), navi: () => navigation(tourAdresse(t)), abliefern: () => abliefernDialog(tn),
+      aufgabe: () => aufgabeDialog(null, { bezugArt: 'tour', bezugId: t.id, titel: '', faelligAm: t.datum }), storno: () => tourStatusSetzen(tn, tn.status === 'STORNIERT' ? 'GEPLANT' : 'STORNIERT'), firma: () => gehe('#/firma/' + t.auftraggeberId), fahrzeug: () => gehe('#/fahrzeug/' + fahrzeugZumKz(t.kennzeichen).id),
       kopie: () => TourAktionen.neu(t.datum, { kennzeichen: '', tourNr: t.tourNr, auftraggeberId: t.auftraggeberId, auftraggeber: t.auftraggeber, name: t.name, uhrzeit: t.uhrzeit, einsatzart: t.einsatzart }),
       morgen: () => tagWaehlen('Tour kopieren auf', plusTage(t.datum, 1), tag => { TourAktionen.neu(tag, { kennzeichen: t.kennzeichen, tourNr: t.tourNr, auftraggeberId: t.auftraggeberId, auftraggeber: t.auftraggeber, name: t.name, uhrzeit: t.uhrzeit, einsatzart: t.einsatzart }); toast('Kopiert auf ' + datumText(tag)); }),
       loeschen: () => bestaetige('Tour löschen?', tourText(t) || 'Die Tour wird gelöscht.', 'Löschen', () => TourAktionen.loeschen(t)) })[b.dataset.tm]();
@@ -3223,17 +3384,20 @@ $('#liste').addEventListener('click', e => {
   const tagK = e.target.closest('[data-tp-tag]'), akt = e.target.closest('[data-tp]'), tz = e.target.closest('[data-tour-akt]'), kopie = e.target.closest('[data-tp-kopie]');
   const tag = ANSICHT.tourTag || heute();
   if (tagK) { const n = Number(tagK.dataset.tpTag); ANSICHT.tourTag = n ? plusTage(tag, n) : heute(); zeichneListe(); return; }
+  const ans = e.target.closest('[data-tp-ansicht]'), geh = e.target.closest('[data-tp-gehe]');
+  if (ans) { ANSICHT.tourAnsicht = ans.dataset.tpAnsicht; zeichneListe(); return; }
+  if (geh) { ANSICHT.tourTag = geh.dataset.tpGehe; ANSICHT.tourAnsicht = 'TAG'; zeichneListe(); return; }
   if (kopie) { TourAktionen.uebernehmen(kopie.dataset.tpKopie, tag, true); toast('Übernommen – bitte prüfen'); return; }
   if (akt) {
     ({ neu: () => { TourAktionen.neu(tag); setTimeout(() => { const l = [...document.querySelectorAll('#tourplan [data-feld="kennzeichen"]')].pop(); if (l) l.focus(); }, 30); },
       auffuellen: () => auffuellenDialog(tag), rueckgaengig: () => { if (!TourAktionen.rueckgaengig()) toast('Nichts rückgängig zu machen'); },
       uebernehmen: () => uebernehmenDialog(tag), drucken: () => druckeHtml(tagesplanHtml(tag)), 'fahrer-pdf': () => fahrerPdf(tag), 'alle-senden': () => alleSenden(tag),
-      berichte: berichteDialog, einsatzarten: einsatzartenDialog })[akt.dataset.tp]();
+      berichte: berichteDialog, einsatzarten: einsatzartenDialog, begleitscheine: () => begleitscheinDrucken(tourenAm(tag).filter(t => t.kennzeichen && t.status !== 'STORNIERT')) })[akt.dataset.tp]();
     return;
   }
   if (tz) {
     const t = S.touren[tz.closest('[data-tour-zeile]').dataset.tourZeile]; if (!t) return;
-    ({ hoch: () => TourAktionen.verschieben(t, -1), runter: () => TourAktionen.verschieben(t, 1), senden: () => tourSenden(t), mehr: () => tourMehr(t) })[tz.dataset.tourAkt]();
+    ({ hoch: () => TourAktionen.verschieben(t, -1), runter: () => TourAktionen.verschieben(t, 1), senden: () => tourSenden(t), mehr: () => tourMehr(t), details: () => tourDetailsDialog(t) })[tz.dataset.tourAkt]();
   }
 });
 document.addEventListener('keydown', e => {
@@ -3581,12 +3745,14 @@ const QUELLEN = {
     dims: { auftraggeber: ['Auftraggeber', t => tourAuftraggeberName(t) || '(ohne)'], fahrzeug: ['Fahrzeug', t => t.kennzeichen || '(ohne)'], fahrer: ['Fahrer', t => maName(t.fahrerId) || '(ohne)'],
       mitarbeiter: ['Mitarbeiter (Team)', t => teamVon(t).map(maName).filter(Boolean)], einsatzart: ['Einsatzart', t => t.einsatzart || '(ohne)'], tour: ['Tour (Nr./Name)', tourGruppe],
       abgerechnet: ['Abgerechnet', t => jaNeinText(t.belegId && S.belege[t.belegId] && !S.belege[t.belegId].geloescht)], team: ['Teamgröße', t => teamVon(t).length + ' Personen'],
-      gewicht: ['Gewichtsklasse', t => gewichtsklasse(fahrzeugZumKz(t.kennzeichen))], schaden: ['Mit Schaden', t => jaNeinText(schaedenVonTour(t).length)], ergebnis: ['Ergebnis', t => (tourRechnung(t).db >= 0 ? 'Gewinn' : 'Verlust')] },
+      gewicht: ['Gewichtsklasse', t => gewichtsklasse(fahrzeugZumKz(t.kennzeichen))], status: ['Status', t => tourStatus(t)[0]], schaden: ['Mit Schaden', t => jaNeinText(schaedenVonTour(t).length)], ergebnis: ['Ergebnis', t => (tourRechnung(t).db >= 0 ? 'Gewinn' : 'Verlust')] },
     masse: { anzahl: ['Anzahl Touren', () => 1], gefahren: ['Gefahrene Touren', t => (tourGefahren(t) ? 1 : 0)], einsatztage: ['Einsatztage', t => t.datum, 'eindeutig'],
       personal: ['Personaleinsätze', t => teamVon(t).length], schaeden: ['Schäden', t => schaedenVonTour(t).length],
       erloes: ['Erlös', t => tourRechnung(t).erloes, 'geld'], kosten: ['Kosten gesamt', t => tourRechnung(t).kosten, 'geld'], kostenPersonal: ['Personalkosten', t => tourRechnung(t).personal, 'geld'],
       kostenFahrzeug: ['Fahrzeugkosten', t => tourRechnung(t).fahrzeug, 'geld'], kostenSchaden: ['Schadenkosten', t => tourRechnung(t).schaeden, 'geld'], db: ['Deckungsbeitrag (Gewinn/Verlust)', t => tourRechnung(t).db, 'geld'],
-      dbSchnitt: ['Ø Deckungsbeitrag je Tour', t => tourRechnung(t).db, 'geld', 'schnitt'], erloesSchnitt: ['Ø Erlös je Tour', t => tourRechnung(t).erloes, 'geld', 'schnitt'] } },
+      dbSchnitt: ['Ø Deckungsbeitrag je Tour', t => tourRechnung(t).db, 'geld', 'schnitt'], erloesSchnitt: ['Ø Erlös je Tour', t => tourRechnung(t).erloes, 'geld', 'schnitt'],
+      km: ['Kilometer (Fahrtenbuch)', t => tourKm(t) || 0, 'zahl'], dauer: ['Ø Dauer (Std.)', t => { const b = zeitMin(t.beginn), e = zeitMin(t.ende); return b != null && e != null && e > b ? (e - b) / 60 : null; }, 'zahl', 'schnitt'],
+      problem: ['Touren mit Problem', t => (t.status === 'PROBLEM' ? 1 : 0)], unterschrift: ['Mit Unterschrift', t => (anlagenVon(t.id).some(a => /^Unterschrift/.test(a.anzeigename)) ? 1 : 0)] } },
   schaeden: { titel: 'Schadensfälle', datum: f => f.schadensdatum || f.meldedatum || (f.erstelltAm || '').slice(0, 10), zeilen: () => faelle(),
     dims: { status: ['Status', f => status(f).label], schadensart: ['Schadensart', f => SCHADENSART[f.schadensart] || 'Sonstiges'], auftraggeber: ['Auftraggeber', f => f.auftraggeber || '(ohne)'],
       fahrzeug: ['Fahrzeug', f => fallFahrzeug(f) || '(ohne)'], fahrer: ['Fahrer', f => (f.fahrerId && maName(f.fahrerId)) || f.fahrer || '(ohne)'], mitarbeiter: ['Mitarbeiter (beteiligt)', f => fallMitarbeiter(f)],
@@ -3638,6 +3804,19 @@ const QUELLEN = {
     dims: { richtung: ['Richtung', m => (m.eingehend ? 'erhalten' : 'gesendet')], konto: ['Postfach', m => MAIL_KONTEN[m.konto || 'SCHADEN']], auftraggeber: ['Firma', m => (S.auftraggeber[m.firmaId] || {}).name || (m.fallId ? 'Schadensfall' : '(nicht zugeordnet)')],
       domain: ['Absender-Domain', m => domainVon(m.eingehend ? m.von : m.an) || '–'] },
     masse: { anzahl: ['Anzahl', () => 1] } },
+  arbeitszeit: { titel: 'Arbeitszeit (Zeiterfassung)', datum: z => z.datum, zeilen: () => alle('zeiten').filter(z => maVon(z.mitarbeiterId)),
+    dims: { mitarbeiter: ['Mitarbeiter', z => maName(z.mitarbeiterId)], quelle: ['Herkunft', z => (ZEIT_QUELLE[z.quelle] || ZEIT_QUELLE.ERFASST)[0]], art: ['Art', z => ZEIT_ART[z.art] || 'Arbeit'],
+      bestaetigt: ['Nachweis', z => (zeitZaehlt(z) ? 'bestätigt' : 'Entwurf')], verstoss: ['ArbZG-Verstoß', z => (arbzgPruefen(z.mitarbeiterId, z.datum).some(([f]) => f === 'rot') ? 'ja' : 'nein')] },
+    masse: { stunden: ['Stunden', z => (zeitZaehlt(z) ? (zeitDauer(z) || 0) / 60 : 0), 'zahl'], tage: ['Arbeitstage', z => z.mitarbeiterId + z.datum, 'zahl', 'eindeutig'],
+      schnitt: ['Ø Stunden je Eintrag', z => (zeitZaehlt(z) ? (zeitDauer(z) || 0) / 60 : null), 'zahl', 'schnitt'], pause: ['Ø Pause (min)', z => z.pauseMin || 0, 'zahl', 'schnitt'] } },
+  fahrerkarte: { titel: 'Fahrerkarten (Tachograph)', datum: t => t.datum, zeilen: () => alle('tachotage'),
+    dims: { mitarbeiter: ['Fahrer', t => maName(t.mitarbeiterId) || t.fahrerName], fahrzeug: ['Fahrzeug', t => String(t.fahrzeuge || '(ohne)').split(',').map(x => x.trim()).filter(Boolean)] },
+    masse: { lenken: ['Lenkzeit (Std.)', t => (t.fahrMin || 0) / 60, 'zahl'], arbeit: ['Arbeit (Std.)', t => (t.arbeitMin || 0) / 60, 'zahl'], bereit: ['Bereitschaft (Std.)', t => (t.bereitMin || 0) / 60, 'zahl'],
+      km: ['Kilometer', t => t.km || 0, 'zahl'], tage: ['Tage', () => 1], lenkSchnitt: ['Ø Lenkzeit je Tag (Std.)', t => (t.fahrMin || 0) / 60, 'zahl', 'schnitt'] } },
+  aufgaben: { titel: 'Aufgaben', datum: a => a.faelligAm || (a.geaendertAm || '').slice(0, 10), zeilen: () => alle('aufgabenIntern'),
+    dims: { zustaendig: ['Zuständig', a => maName(a.zustaendigId) || '(niemand)'], status: ['Status', a => (a.erledigt ? 'erledigt' : a.faelligAm && a.faelligAm < heute() ? 'überfällig' : 'offen')],
+      prioritaet: ['Priorität', a => PRIORITAET[a.prioritaet || 'NORMAL'][0]], bezug: ['Bezug', a => (BEZUG_ARTEN[a.bezugArt] || ['ohne'])[0]] },
+    masse: { anzahl: ['Anzahl', () => 1], erledigt: ['Erledigt', a => (a.erledigt ? 1 : 0)], quote: ['Erledigt %', a => (a.erledigt ? 100 : 0), 'prozent', 'schnitt'] } },
   firmen: { titel: 'Firmen (Bestand)', ohneZeit: true, zeilen: () => alle('auftraggeber'),
     dims: { status: ['Status', f => (FIRMEN_STATUS[f.status] || ['–'])[0]], schlagwort: ['Schlagwort', f => schlagwortListe(f).length ? schlagwortListe(f) : ['(ohne)']], ort: ['Ort', f => (vonFirma('adressen', f.id)[0] || {}).ort || '(ohne)'] },
     masse: { anzahl: ['Anzahl Firmen', () => 1], kontakte: ['Ansprechpartner', f => kontakteVon(f.id).length], preise: ['Preise hinterlegt', f => (vonFirma('preise', f.id).length ? 1 : 0)] } },
@@ -3731,6 +3910,18 @@ const FERTIGE = [
   ['Fuhrpark', 'Einsatztage je Fahrzeug', { q: 'touren', m: 'einsatztage', d: 'fahrzeug' }],
   ['Fuhrpark', 'Werkstattkosten je Werkstatt', { q: 'fahrzeugkosten', m: 'kosten', d: 'werkstatt' }],
   ['Fuhrpark', 'Getankte Liter je Monat', { q: 'fahrzeugkosten', m: 'liter', d: 'monat' }],
+  ['Personal', 'Arbeitsstunden je Mitarbeiter', { q: 'arbeitszeit', m: 'stunden', d: 'mitarbeiter' }],
+  ['Personal', 'Arbeitsstunden je Mitarbeiter und Monat', { q: 'arbeitszeit', m: 'stunden', d: 'mitarbeiter', d2: 'monat' }],
+  ['Personal', 'Tage mit ArbZG-Verstoß je Mitarbeiter', { q: 'arbeitszeit', m: 'tage', d: 'mitarbeiter', f: { dim: 'verstoss', wert: 'ja' } }],
+  ['Personal', 'Lenkzeit je Fahrer (Fahrerkarte)', { q: 'fahrerkarte', m: 'lenken', d: 'mitarbeiter' }],
+  ['Personal', 'Kilometer je Fahrer (Fahrerkarte)', { q: 'fahrerkarte', m: 'km', d: 'mitarbeiter' }],
+  ['Fuhrpark', 'Kilometer je Fahrzeug (Fahrtenbuch)', { q: 'touren', m: 'km', d: 'fahrzeug' }],
+  ['Fuhrpark', 'Lenkzeit je Fahrzeug (Fahrerkarte)', { q: 'fahrerkarte', m: 'lenken', d: 'fahrzeug' }],
+  ['Touren', 'Touren nach Status', { q: 'touren', m: 'anzahl', d: 'status' }],
+  ['Touren', 'Ø Tourdauer je Auftraggeber', { q: 'touren', m: 'dauer', d: 'auftraggeber' }],
+  ['Touren', 'Touren mit Problem je Fahrer', { q: 'touren', m: 'problem', d: 'fahrer' }],
+  ['Organisation', 'Offene Aufgaben je Zuständigem', { q: 'aufgaben', m: 'anzahl', d: 'zustaendig', f: { dim: 'status', wert: 'offen' } }],
+  ['Organisation', 'Erledigungsquote je Zuständigem', { q: 'aufgaben', m: 'quote', d: 'zustaendig' }],
   ['Vertrieb', 'Kontakte je Firma', { q: 'kontakte', m: 'anzahl', d: 'auftraggeber' }],
   ['Vertrieb', 'Anruf-Ergebnisse', { q: 'kontakte', m: 'anzahl', d: 'ergebnis', f: { dim: 'art', wert: 'Anruf' } }],
   ['Vertrieb', 'Kontakte je Monat und Art', { q: 'kontakte', m: 'anzahl', d: 'monat', d2: 'art' }],
@@ -4059,6 +4250,919 @@ function tpTagUebernehmen(tag, liste) {
   return ids.size;
 }
 
+// ============================== Feiertage ==============================
+const BUNDESLAENDER = { BW: 'Baden-Württemberg', BY: 'Bayern', BE: 'Berlin', BB: 'Brandenburg', HB: 'Bremen', HH: 'Hamburg', HE: 'Hessen', MV: 'Mecklenburg-Vorpommern',
+  NI: 'Niedersachsen', NW: 'Nordrhein-Westfalen', RP: 'Rheinland-Pfalz', SL: 'Saarland', SN: 'Sachsen', ST: 'Sachsen-Anhalt', SH: 'Schleswig-Holstein', TH: 'Thüringen' };
+/** Gesetzliche Feiertage eines Jahres im Bundesland (Vorgabe NRW): { 'JJJJ-MM-TT': Name }. */
+function feiertage(jahr, land = S.einstellungen.bundesland || 'NW') {
+  const c = feiertage.cache || (feiertage.cache = {}), k = jahr + land; if (c[k]) return c[k];
+  // Ostersonntag (Gauß/Meeus)
+  const a = jahr % 19, b = Math.floor(jahr / 100), cc = jahr % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(cc / 4), kk = cc % 4, l = (32 + 2 * e + 2 * i - h - kk) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const monat = Math.floor((h + l - 7 * m + 114) / 31), tag = ((h + l - 7 * m + 114) % 31) + 1, ostern = isoTag(new Date(jahr, monat - 1, tag));
+  const o = n => plusTage(ostern, n), f2 = (mm, dd) => `${jahr}-${pad(mm)}-${pad(dd)}`;
+  const l2 = { [f2(1, 1)]: 'Neujahr', [o(-2)]: 'Karfreitag', [o(1)]: 'Ostermontag', [f2(5, 1)]: 'Tag der Arbeit', [o(39)]: 'Christi Himmelfahrt', [o(50)]: 'Pfingstmontag',
+    [f2(10, 3)]: 'Tag der Deutschen Einheit', [f2(12, 25)]: '1. Weihnachtstag', [f2(12, 26)]: '2. Weihnachtstag' };
+  const dazu = (laender, datum, name) => { if (laender.includes(land)) l2[datum] = name; };
+  dazu(['BW', 'BY', 'ST'], f2(1, 6), 'Heilige Drei Könige');
+  dazu(['BE', 'MV'], f2(3, 8), 'Internationaler Frauentag');
+  dazu(['BW', 'BY', 'HE', 'NW', 'RP', 'SL'], o(60), 'Fronleichnam');
+  dazu(['SL'], f2(8, 15), 'Mariä Himmelfahrt');
+  dazu(['TH'], f2(9, 20), 'Weltkindertag');
+  dazu(['BB', 'HB', 'HH', 'MV', 'NI', 'SN', 'ST', 'SH', 'TH'], f2(10, 31), 'Reformationstag');
+  dazu(['BW', 'BY', 'NW', 'RP', 'SL'], f2(11, 1), 'Allerheiligen');
+  if (land === 'SN') { const x = new Date(jahr, 10, 23); while (x.getDay() !== 3) x.setDate(x.getDate() - 1); l2[isoTag(x)] = 'Buß- und Bettag'; }
+  return (c[k] = l2);
+}
+const feiertagAm = iso => (iso ? feiertage(Number(iso.slice(0, 4)))[iso] || '' : '');
+
+// ============================== Interne Aufgaben ==============================
+const PRIORITAET = { HOCH: ['Hoch', 'rot'], NORMAL: ['Normal', 'blau'], NIEDRIG: ['Niedrig', 'grau'] };
+const BEZUG_ARTEN = { fall: ['Schadensfall', f => S.faelle[f] && !S.faelle[f].geloescht ? `Fall ${S.faelle[f].fallnummer} · ${anzeigeName(S.faelle[f])}` : ''],
+  firma: ['Firma', f => (S.auftraggeber[f] && !S.auftraggeber[f].geloescht ? S.auftraggeber[f].name : '')], fahrzeug: ['Fahrzeug', f => (S.fahrzeuge[f] && !S.fahrzeuge[f].geloescht ? S.fahrzeuge[f].kennzeichen : '')],
+  mitarbeiter: ['Mitarbeiter', maName], tour: ['Tour', f => (S.touren[f] && !S.touren[f].geloescht ? `${datumText(S.touren[f].datum)} · ${tourText(S.touren[f])}` : '')] };
+const bezugLink = (art, id) => ({ fall: '#/fall/', firma: '#/firma/', fahrzeug: '#/fahrzeug/', mitarbeiter: '#/mitarbeiter/' }[art] ? { fall: '#/fall/', firma: '#/firma/', fahrzeug: '#/fahrzeug/', mitarbeiter: '#/mitarbeiter/' }[art] + id : '');
+const ichId = () => (maVon(S.einstellungen.ichId) ? S.einstellungen.ichId : '');
+const aufgabenListe = () => alle('aufgabenIntern').sort((a, b) => (a.erledigt - b.erledigt) || String(a.faelligAm || '9').localeCompare(String(b.faelligAm || '9'))
+  || Object.keys(PRIORITAET).indexOf(a.prioritaet || 'NORMAL') - Object.keys(PRIORITAET).indexOf(b.prioritaet || 'NORMAL'));
+const AufgabeAktionen = {
+  speichern(a) { const x = merke('aufgabenIntern', { prioritaet: 'NORMAL', erledigt: false, ...a, id: a.id || uuid(), firmaId: '', geaendertAm: jetztIso() }); nachAenderung(); return x.id; },
+  erledigt(a, wert = true) { merke('aufgabenIntern', { ...a, erledigt: wert, erledigtAm: wert ? heute() : null, geaendertAm: jetztIso() }); nachAenderung(); },
+  loeschen(a) { entferne('aufgabenIntern', a, { firmaId: '', geaendertAm: jetztIso() }); nachAenderung(); },
+};
+const AUFGABEN_FILTER = { OFFEN: 'Offen', MEINE: 'Meine', UEBERFAELLIG: 'Überfällig', HEUTE: 'Heute', WOCHE: 'Diese Woche', OHNE: 'Ohne Zuständige', ERLEDIGT: 'Erledigt', ALLE: 'Alle' };
+function aufgabeZeile(a) {
+  const ueber = !a.erledigt && a.faelligAm && a.faelligAm < heute(), bezug = a.bezugArt && BEZUG_ARTEN[a.bezugArt] ? BEZUG_ARTEN[a.bezugArt][1](a.bezugId) : '';
+  return `<div class="termin aufgabe ${a.erledigt ? 'erledigt' : ''}"><input type="checkbox" data-aufgabe-erledigt="${a.id}" ${a.erledigt ? 'checked' : ''} aria-label="Erledigt">
+    <button class="vorlage fuell" data-aufgabe="${a.id}"><b>${esc(a.titel)}</b>${a.prioritaet === 'HOCH' ? ' <span class="marke rot">wichtig</span>' : ''}<br>
+    <span class="leise" style="${ueber ? 'color:var(--rot-t)' : ''}">${esc([a.faelligAm && (a.faelligAm === heute() ? 'heute' : (ueber ? 'überfällig seit ' : 'bis ') + datumText(a.faelligAm)), a.zustaendigId && '👤 ' + maName(a.zustaendigId), bezug && '↪ ' + bezug].filter(Boolean).join(' · '))}</span></button></div>`;
+}
+function zeichneAufgaben() {
+  const f = ANSICHT.aufgabenFilter || 'OFFEN', t = heute(), woche = plusTage(t, 7 - ((alsTag(t).getDay() + 6) % 7));
+  const passt = a => ({ OFFEN: !a.erledigt, MEINE: !a.erledigt && a.zustaendigId && a.zustaendigId === ichId(), UEBERFAELLIG: !a.erledigt && a.faelligAm && a.faelligAm < t,
+    HEUTE: !a.erledigt && a.faelligAm === t, WOCHE: !a.erledigt && a.faelligAm && a.faelligAm <= woche, OHNE: !a.erledigt && !a.zustaendigId, ERLEDIGT: a.erledigt, ALLE: true })[f];
+  const liste = aufgabenListe().filter(passt), n = k => aufgabenListe().filter(a => ({ ...ANSICHT, aufgabenFilter: k }) && ({ OFFEN: !a.erledigt, UEBERFAELLIG: !a.erledigt && a.faelligAm && a.faelligAm < t })[k]).length;
+  const gruppen = f === 'ERLEDIGT' || f === 'ALLE' ? [['', liste]] : Object.entries(liste.reduce((o, a) => { const k = a.zustaendigId ? maName(a.zustaendigId) : 'Ohne Zuständige'; (o[k] = o[k] || []).push(a); return o; }, {}));
+  return seitenkopf('Aufgaben', '<button class="knopf voll" data-neue-aufgabe>＋ Aufgabe</button>', '<button class="knopf" data-aufgaben-csv>CSV</button>')
+    + `<form id="aufgabe-schnell" class="zeile eng" style="margin-bottom:10px"><input class="suche fuell" style="margin:0" name="titel" placeholder="Neue Aufgabe eintippen und Enter …" aria-label="Neue Aufgabe" autocomplete="off"></form>
+    <div class="chips">${Object.entries(AUFGABEN_FILTER).map(([k, l]) => `<button class="chip" data-aufgaben-filter="${k}" aria-pressed="${f === k}">${l}${k === 'OFFEN' || k === 'UEBERFAELLIG' ? ` (${n(k)})` : ''}</button>`).join('')}</div>
+    ${f === 'MEINE' && !ichId() ? '<p class="leise">Unter ⚙ → Bedienung festlegen, wer dieses Gerät nutzt („Ich bin …“).</p>' : ''}
+    <div id="aufgaben">${liste.length ? gruppen.map(([g, l]) => `${g ? `<h3 class="abschnitt">${esc(g)} (${l.length})</h3>` : ''}${l.map(aufgabeZeile).join('')}`).join('') : '<div class="leer">✅<b>Nichts zu tun</b>Aufgaben für dich und das Team – mit Zuständigen, Fälligkeit, Priorität und Bezug zu Fall, Tour, Fahrzeug, Firma oder Mitarbeiter.</div>'}</div>`;
+}
+function aufgabeDialog(a, vorgabe = {}) {
+  const neu = !a, e = a || { prioritaet: 'NORMAL', faelligAm: '', ...vorgabe };
+  const bezugText = e.bezugArt && BEZUG_ARTEN[e.bezugArt] ? BEZUG_ARTEN[e.bezugArt][1](e.bezugId) : '';
+  dialog(`<form method="dialog" id="aufgabe-form"><h2>${neu ? 'Neue Aufgabe' : 'Aufgabe'}</h2>
+    <label class="feld">Was ist zu tun?<input name="titel" value="${esc(e.titel || '')}" required></label>
+    <label class="feld">Details<textarea name="text">${esc(e.text || '')}</textarea></label>
+    <div class="zeile"><label class="feld fuell">Fällig am<input type="date" name="faelligAm" value="${esc(e.faelligAm || '')}"></label>
+      <label class="feld fuell">Priorität<select name="prioritaet">${Object.entries(PRIORITAET).map(([k, [l]]) => `<option value="${k}" ${e.prioritaet === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    <label class="feld">Zuständig<select name="zustaendigId"><option value="">– niemand –</option>${mitarbeiterListe(true).map(m => `<option value="${m.id}" ${e.zustaendigId === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
+    ${bezugText ? `<p class="leise">Bezug: ${esc(BEZUG_ARTEN[e.bezugArt][0])} – ${bezugLink(e.bezugArt, e.bezugId) ? `<a href="${bezugLink(e.bezugArt, e.bezugId)}" data-zu>${esc(bezugText)}</a>` : esc(bezugText)}</p>` : ''}
+    <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="aufgabe-weg">Löschen</button>'}<span class="fuell"></span>
+      <button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
+  if (!neu) $('#aufgabe-weg').onclick = () => { $('#dialog').close(); AufgabeAktionen.loeschen(a); };
+  $('#aufgabe-form').onsubmit = ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries([...new FormData(ev.target)].map(([k, v]) => [k, String(v).trim()]));
+    $('#dialog').close();
+    AufgabeAktionen.speichern({ ...(a || {}), bezugArt: e.bezugArt || '', bezugId: e.bezugId || '', ...w, faelligAm: w.faelligAm || null });
+    toast(neu ? 'Aufgabe angelegt' : 'Gespeichert');
+  };
+}
+$('#liste').addEventListener('submit', e => {
+  if (e.target.id !== 'aufgabe-schnell') return;
+  e.preventDefault(); const t = e.target.titel.value.trim(); if (!t) return;
+  // „morgen“, „heute“, „@Name“ im Text werden erkannt
+  let faellig = null, zustaendig = '', titel = t;
+  if (/\bheute\b/i.test(t)) faellig = heute(); else if (/\bmorgen\b/i.test(t)) faellig = plusTage(heute(), 1); else if (/\bübermorgen\b/i.test(t)) faellig = plusTage(heute(), 2);
+  const at = t.match(/@(\S+)/); if (at) { const m = mitarbeiterListe(true).find(x => normal(x.name).includes(normal(at[1]))); if (m) { zustaendig = m.id; titel = titel.replace(at[0], '').trim(); } }
+  AufgabeAktionen.speichern({ titel, faelligAm: faellig, zustaendigId: zustaendig || (ANSICHT.aufgabenFilter === 'MEINE' ? ichId() : '') });
+  setTimeout(() => { const f = $('#aufgabe-schnell input'); if (f) f.focus(); }, 30);
+});
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-aufgabe]'), erl = e.target.closest('[data-aufgabe-erledigt]'), f = e.target.closest('[data-aufgaben-filter]');
+  if (erl) { const x = S.aufgabenIntern[erl.dataset.aufgabeErledigt]; if (x) AufgabeAktionen.erledigt(x, erl.checked); return; }
+  if (a) { aufgabeDialog(S.aufgabenIntern[a.dataset.aufgabe]); return; }
+  if (f) { ANSICHT.aufgabenFilter = f.dataset.aufgabenFilter; zeichneListe(); return; }
+  const neu = e.target.closest('[data-neue-aufgabe]');
+  if (neu) { aufgabeDialog(null, neu.dataset.bezugArt ? { bezugArt: neu.dataset.bezugArt, bezugId: neu.dataset.bezugId, titel: neu.dataset.titel || '' } : {}); return; }
+  if (e.target.closest('[data-aufgaben-csv]')) ladeHerunter(`Aufgaben_${heute()}.csv`, '﻿' + [['Aufgabe', 'Details', 'Fällig', 'Priorität', 'Zuständig', 'Bezug', 'Erledigt', 'Erledigt am'],
+    ...aufgabenListe().map(a => [a.titel, a.text, datumText(a.faelligAm), PRIORITAET[a.prioritaet || 'NORMAL'][0], maName(a.zustaendigId), a.bezugArt && BEZUG_ARTEN[a.bezugArt] ? BEZUG_ARTEN[a.bezugArt][1](a.bezugId) : '', a.erledigt ? 'ja' : 'nein', datumText(a.erledigtAm)])]
+    .map(z => z.map(csvZelle).join(';')).join('\r\n') + '\r\n');
+});
+
+// ============================== Kalender ==============================
+const KALENDER_EBENEN = { touren: '🚚 Touren', abwesend: '🏖 Abwesend', termine: '⏱ Termine', aufgaben: '✅ Aufgaben', fristen: '📋 Fristen', feiertage: '🎉 Feiertage' };
+/** Alles an einem Tag (für Kalender und Tagesdialog). */
+function tagesEintraege(tag) {
+  const ebenen = ANSICHT.kalenderEbenen || Object.keys(KALENDER_EBENEN), l = [];
+  if (ebenen.includes('feiertage') && feiertagAm(tag)) l.push({ art: 'feiertag', text: feiertagAm(tag), farbe: 'gruen' });
+  if (ebenen.includes('touren')) { const t = tourenAm(tag).filter(x => x.kennzeichen || x.fahrerId); if (t.length) l.push({ art: 'touren', text: `${t.length} Tour${t.length === 1 ? '' : 'en'}`, farbe: 'blau', tag }); }
+  if (ebenen.includes('abwesend')) for (const a of alle('abwesenheiten').filter(a => a.von <= tag && tag <= (a.bis || a.von) && maVon(a.mitarbeiterId)))
+    l.push({ art: 'abwesend', text: `${maName(a.mitarbeiterId).split(' ')[0]}: ${a.grund || 'abwesend'}`, farbe: grundArt(a.grund) === 'Krank' ? 'rot' : 'gelb', link: '#/mitarbeiter/' + a.mitarbeiterId });
+  const w = wiedervorlagen(), alleT = [...w.ueberfaellig, ...w.heute, ...w.demnaechst].filter(x => x.datum === tag);
+  if (ebenen.includes('termine')) for (const x of alleT.filter(x => x.art === 'aufgabe' || x.art === 'fall' || x.art === 'mail'))
+    l.push({ art: 'termin', text: x.titel, farbe: 'violett', link: x.a ? '#/firma/' + x.a.firmaId : x.f ? '#/fall/' + x.f.id : x.mailId ? '#/mail/' + encodeURIComponent(x.mailId) : '' });
+  if (ebenen.includes('fristen')) for (const x of alleT.filter(x => x.art === 'fahrzeug' || x.art === 'mitarbeiter'))
+    l.push({ art: 'frist', text: x.titel, farbe: 'orange', link: x.z ? '#/fahrzeug/' + x.z.id : x.m ? '#/mitarbeiter/' + x.m.id : '' });
+  if (ebenen.includes('aufgaben')) for (const a of aufgabenListe().filter(a => !a.erledigt && a.faelligAm === tag)) l.push({ art: 'aufgabe', text: '✅ ' + a.titel, farbe: 'tuerkis', aufgabe: a.id });
+  return l;
+}
+function zeichneKalender() {
+  const ansicht = ANSICHT.kalenderAnsicht || 'MONAT', bezug = ANSICHT.kalenderTag || heute(), ebenen = ANSICHT.kalenderEbenen || Object.keys(KALENDER_EBENEN);
+  let tage, titel;
+  if (ansicht === 'WOCHE') {
+    const mo = plusTage(bezug, -((alsTag(bezug).getDay() + 6) % 7)); tage = Array.from({ length: 7 }, (_, i) => plusTage(mo, i));
+    titel = `${kw(mo).slice(5)} · ${datumText(tage[0])} – ${datumText(tage[6])}`;
+  } else {
+    const [j, m] = bezug.split('-').map(Number), erster = isoTag(new Date(j, m - 1, 1)), start = plusTage(erster, -((alsTag(erster).getDay() + 6) % 7));
+    tage = Array.from({ length: 42 }, (_, i) => plusTage(start, i)); if (tage[35].slice(5, 7) !== pad(m)) tage = tage.slice(0, 35);
+    titel = new Date(j, m - 1, 15).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  }
+  const zelle = tag => {
+    const l = tagesEintraege(tag), fremd = ansicht === 'MONAT' && tag.slice(0, 7) !== bezug.slice(0, 7), we = [0, 6].includes(alsTag(tag).getDay());
+    const max = ansicht === 'WOCHE' ? 40 : 4;
+    return `<div class="kal-zelle ${fremd ? 'fremd' : ''} ${we || feiertagAm(tag) ? 'we' : ''} ${tag === heute() ? 'heute' : ''}" data-kal-zelle="${tag}">
+      <div class="kal-kopf"><b>${Number(tag.slice(8))}</b>${ansicht === 'WOCHE' ? ` <span class="leise">${['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][alsTag(tag).getDay()]}</span>` : ''}</div>
+      ${l.slice(0, max).map(x => `<div class="kal-eintrag ${x.farbe}" title="${esc(x.text)}">${esc(x.text)}</div>`).join('')}${l.length > max ? `<div class="leise" style="font-size:11px">+${l.length - max} weitere</div>` : ''}</div>`;
+  };
+  return seitenkopf('Kalender', `<button class="knopf" data-kal-schritt="-1" aria-label="Zurück">◀</button><button class="knopf" data-kal-schritt="0">Heute</button><button class="knopf" data-kal-schritt="1" aria-label="Weiter">▶</button>`,
+      `<button class="knopf" data-ics>📅 .ics für Outlook/Google</button><button class="knopf" data-kal-druck>🖨 Drucken</button>`)
+    + `<div class="zeile" style="margin-bottom:8px"><h2 class="fuell" style="font-size:19px">${esc(titel)}</h2>
+      <div class="chips" style="margin:0">${[['MONAT', 'Monat'], ['WOCHE', 'Woche']].map(([k, l]) => `<button class="chip" data-kal-ansicht="${k}" aria-pressed="${ansicht === k}">${l}</button>`).join('')}</div></div>
+    <div class="chips">${Object.entries(KALENDER_EBENEN).map(([k, l]) => `<button class="chip" data-kal-ebene="${k}" aria-pressed="${ebenen.includes(k)}">${l}</button>`).join('')}</div>
+    <div class="kal-gitter ${ansicht === 'WOCHE' ? 'woche' : ''}">${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(w => `<div class="kal-wt">${w}</div>`).join('')}${tage.map(zelle).join('')}</div>`;
+}
+function tagDialog(tag) {
+  const l = tagesEintraege(tag), touren = tourenAm(tag).filter(x => x.kennzeichen || x.fahrerId);
+  dialog(`<h2>${esc(datumMitTag(tag))}${feiertagAm(tag) ? ' · ' + esc(feiertagAm(tag)) : ''}</h2>
+    ${touren.length ? `<h3>Touren (${touren.length})</h3>${touren.map(t => `<div class="leise">🚚 ${esc(t.kennzeichen || '')} · ${esc(tourText(t))} · ${esc(teamVon(t).map(maName).join(', '))}</div>`).join('')}` : ''}
+    <div id="tag-liste">${l.filter(x => x.art !== 'touren').map(x => `<button class="vorlage" ${x.link ? `data-kal-link="${esc(x.link)}"` : ''} ${x.aufgabe ? `data-aufgabe="${x.aufgabe}"` : ''}><span class="marke ${x.farbe}">${esc({ feiertag: 'Feiertag', abwesend: 'Abwesend', termin: 'Termin', frist: 'Frist', aufgabe: 'Aufgabe' }[x.art])}</span> ${esc(x.text)}</button>`).join('') || (touren.length ? '' : '<p class="leise">Nichts eingetragen.</p>')}</div>
+    <div class="dialog-knoepfe"><button class="knopf" data-tour-tag="${tag}">🚚 Tourenplan</button><button class="knopf" id="tag-aufgabe">＋ Aufgabe</button><button class="knopf" id="tag-abw">＋ Abwesenheit</button><button class="knopf voll" data-zu>Schließen</button></div>`);
+  $('#tag-aufgabe').onclick = () => aufgabeDialog(null, { faelligAm: tag });
+  $('#tag-abw').onclick = () => abwesenheitDialog(null, null, tag);
+  $('#tag-liste').onclick = e => { const b = e.target.closest('[data-kal-link]'); if (b) { $('#dialog').close(); gehe(b.dataset.kalLink); } };
+}
+$('#liste').addEventListener('click', e => {
+  const s = e.target.closest('[data-kal-schritt]'), a = e.target.closest('[data-kal-ansicht]'), eb = e.target.closest('[data-kal-ebene]'), z = e.target.closest('[data-kal-zelle]');
+  if (s) {
+    const n = Number(s.dataset.kalSchritt), b = ANSICHT.kalenderTag || heute();
+    ANSICHT.kalenderTag = !n ? heute() : (ANSICHT.kalenderAnsicht || 'MONAT') === 'WOCHE' ? plusTage(b, 7 * n) : isoTag(new Date(Number(b.slice(0, 4)), Number(b.slice(5, 7)) - 1 + n, 1));
+    zeichneListe(); return;
+  }
+  if (a) { ANSICHT.kalenderAnsicht = a.dataset.kalAnsicht; zeichneListe(); return; }
+  if (eb) { const l = new Set(ANSICHT.kalenderEbenen || Object.keys(KALENDER_EBENEN)); l.has(eb.dataset.kalEbene) ? l.delete(eb.dataset.kalEbene) : l.add(eb.dataset.kalEbene); ANSICHT.kalenderEbenen = [...l]; zeichneListe(); return; }
+  if (e.target.closest('[data-kal-druck]')) {
+    const inhalt = $('.kal-gitter').outerHTML;
+    druckeHtml(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Kalender</title><style>@page{size:A4 landscape;margin:8mm}body{font:8pt Arial,sans-serif}.kal-gitter{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+      .kal-zelle{border:1px solid #bbb;min-height:24mm;padding:2px;overflow:hidden}.kal-wt{font-weight:700;text-align:center}.fremd{opacity:.4}.we{background:#f0f0f0}.kal-eintrag{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}</style></head>
+      <body><h1 style="font-size:13pt">${esc($('#liste h2').textContent)}</h1>${inhalt}</body></html>`);
+    return;
+  }
+  if (z) tagDialog(z.dataset.kalZelle);
+});
+
+// ============================== Excel (.xlsx) ohne Bibliothek ==============================
+/** CRC-32 für das ZIP-Format. */
+const CRC_TAB = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CRC_TAB[(c ^ b[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+/** ZIP ohne Kompression (für .xlsx völlig ausreichend). dateien: [[name, Uint8Array]] */
+function zipErstellen(dateien) {
+  const teile = [], zentral = []; let pos = 0;
+  const u16 = v => [v & 0xff, (v >>> 8) & 0xff], u32 = v => [v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff];
+  for (const [name, daten] of dateien) {
+    const n = new TextEncoder().encode(name), crc = crc32(daten);
+    const kopf = new Uint8Array([...u32(0x04034b50), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(daten.length), ...u32(daten.length), ...u16(n.length), ...u16(0), ...n]);
+    zentral.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(daten.length), ...u32(daten.length), ...u16(n.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(pos), ...n]));
+    teile.push(kopf, daten); pos += kopf.length + daten.length;
+  }
+  const groesse = zentral.reduce((s, z) => s + z.length, 0);
+  const ende = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(dateien.length), ...u16(dateien.length), ...u32(groesse), ...u32(pos), ...u16(0)]);
+  return new Blob([...teile, ...zentral, ende], { type: 'application/zip' });
+}
+const xmlEsc = t => String(t ?? '').replace(/[<>&"]/g, z => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[z])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+/**
+ * Excel-Datei mit mehreren Blättern. blaetter: [{ name, zeilen: [[zelle, …], …], breiten?: [Zeichen], fett?: [Zeilennummern] }]
+ * Zellen: Zahl → Zahl, { z: Zahl, f: 'zeit'|'datum'|'geld'|'std' } → formatiert, sonst Text.
+ */
+function xlsxErstellen(blaetter) {
+  const enc = t => new TextEncoder().encode(t), spalte = i => { let s = ''; for (i++; i; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + ((i - 1) % 26)) + s; return s; };
+  const FORMATE = { datum: 1, zeit: 2, geld: 3, std: 4, fett: 5 };
+  const blattXml = b => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+    ${b.breiten ? `<cols>${b.breiten.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>` : ''}<sheetData>${b.zeilen.map((z, r) => `<row r="${r + 1}">${z.map((c, i) => {
+      if (c == null || c === '') return '';
+      const ref = spalte(i) + (r + 1), fett = (b.fett || []).includes(r);
+      if (typeof c === 'number') return `<c r="${ref}"${fett ? ' s="5"' : ''}><v>${c}</v></c>`;
+      if (typeof c === 'object') return `<c r="${ref}" s="${FORMATE[c.f] || 0}"><v>${c.z}</v></c>`;
+      return `<c r="${ref}" t="inlineStr"${fett ? ' s="5"' : ''}><is><t xml:space="preserve">${xmlEsc(c)}</t></is></c>`;
+    }).join('')}</row>`).join('')}</sheetData></worksheet>`;
+  const namen = blaetter.map((b, i) => xmlEsc(String(b.name || 'Blatt ' + (i + 1)).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31)));
+  return zipErstellen([
+    ['[Content_Types].xml', enc(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${blaetter.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`)],
+    ['_rels/.rels', enc(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`)],
+    ['xl/workbook.xml', enc(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${namen.map((n, i) => `<sheet name="${n}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`)],
+    ['xl/_rels/workbook.xml.rels', enc(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${blaetter.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${blaetter.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`)],
+    ['xl/styles.xml', enc(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="3"><numFmt numFmtId="164" formatCode="dd.mm.yyyy"/><numFmt numFmtId="165" formatCode="hh:mm"/><numFmt numFmtId="166" formatCode="#,##0.00 &quot;€&quot;"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="6"><xf/><xf numFmtId="164" applyNumberFormat="1"/><xf numFmtId="165" applyNumberFormat="1"/><xf numFmtId="166" applyNumberFormat="1"/><xf numFmtId="2" applyNumberFormat="1"/><xf fontId="1" applyFont="1"/></cellXfs></styleSheet>`)],
+    ...blaetter.map((b, i) => [`xl/worksheets/sheet${i + 1}.xml`, enc(blattXml(b))]),
+  ]);
+}
+/** Excel-Datum (Tage seit 1899-12-30). */
+const xlDatum = iso => ({ z: Math.round((Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) - Date.UTC(1899, 11, 30)) / 864e5), f: 'datum' });
+const xlZeit = hhmm => (hhmm ? { z: zeitMin(hhmm) / 1440, f: 'zeit' } : '');
+const xlStd = min => ({ z: Math.round(min / 60 * 100) / 100, f: 'std' });
+async function ladeBlobHerunter(name, blob) {
+  if (window.desktop && window.desktop.speichere) { try { const pfad = await window.desktop.speichere(name, await alsBase64(blob)); if (pfad) toast('Gespeichert: ' + pfad); return; } catch (e) { toast('Speichern nicht möglich: ' + e.message); return; } }
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name }); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+// ============================== Zeiterfassung ==============================
+/**
+ * Arbeitszeit je Mitarbeiter und Tag (Beginn, Ende, Pause). Herkunft: ERFASST (Hand), STEMPEL (Fahrer-Modus), TACHO (Fahrerkarte),
+ * PLAN (Entwurf aus dem Tourenplan – zählt nicht als Nachweis, bis die tatsächlichen Zeiten bestätigt sind).
+ * Prüfung nach Arbeitszeitgesetz (§ 3 max. 10 h, § 4 Pausen, § 5 Ruhezeit 11 h, § 9 Sonn- und Feiertage) und Mindestlohn.
+ */
+const ZEIT_QUELLE = { ERFASST: ['erfasst', 'grau'], STEMPEL: ['gestempelt', 'blau'], TACHO: ['Fahrerkarte', 'tuerkis'], PLAN: ['Entwurf aus Plan – nicht bestätigt', 'gelb'] };
+const ZEIT_ART = { ARBEIT: 'Arbeit', SCHULUNG: 'Schulung', BEREITSCHAFT: 'Bereitschaft' };
+const zeitMin = hhmm => { const m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})$/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+const minZeit = min => `${pad(Math.floor(((min % 1440) + 1440) % 1440 / 60))}:${pad(((min % 60) + 60) % 60)}`;
+const stdText = min => (min == null ? '–' : `${Math.floor(Math.abs(min) / 60)}:${pad(Math.abs(min) % 60)} h`.replace(/^/, min < 0 ? '−' : ''));
+const mindestlohnCent = () => Math.round((Number(String(S.einstellungen.mindestlohn || '').replace(',', '.')) || 13.9) * 100);
+const zeitenVon = (id, von = '0000', bis = '9999') => alle('zeiten').filter(z => z.mitarbeiterId === id && z.datum >= von && z.datum <= bis).sort((a, b) => a.datum.localeCompare(b.datum) || String(a.beginn).localeCompare(String(b.beginn)));
+/** Dauer eines Eintrags in Minuten (über Mitternacht möglich), ohne Pause. */
+function zeitDauer(z) {
+  const b = zeitMin(z.beginn), e = zeitMin(z.ende); if (b == null || e == null) return null;
+  return Math.max(0, (e > b ? e - b : e + 1440 - b) - (z.pauseMin || 0));
+}
+const zeitZaehlt = z => z.quelle !== 'PLAN' || z.bestaetigt;
+/** Prüfung eines Tages und der Ruhezeit zum Vortag. */
+function arbzgPruefen(id, datum) {
+  const l = zeitenVon(id, datum, datum).filter(zeitZaehlt), h = [];
+  if (!l.length) return h;
+  const arbeit = l.reduce((n, z) => n + (zeitDauer(z) || 0), 0), pause = l.reduce((n, z) => n + (z.pauseMin || 0), 0);
+  const brutto = l.reduce((n, z) => { const b = zeitMin(z.beginn), e = zeitMin(z.ende); return n + (b != null && e != null ? (e > b ? e - b : e + 1440 - b) : 0); }, 0);
+  const lueckenPause = l.slice(1).reduce((n, z, i) => { const e = zeitMin(l[i].ende), b = zeitMin(z.beginn); return n + (e != null && b != null && b > e ? b - e : 0); }, 0);
+  if (arbeit > 600) h.push(['rot', `mehr als 10 h Arbeit (${stdText(arbeit)}) – § 3 ArbZG`]);
+  else if (arbeit > 480) h.push(['gelb', `über 8 h (${stdText(arbeit)}) – Ausgleich im Schnitt nötig`]);
+  const pausen = pause + lueckenPause;
+  if (arbeit > 540 && pausen < 45) h.push(['rot', `zu wenig Pause (${pausen} min, nötig 45 min bei über 9 h) – § 4 ArbZG`]);
+  else if (arbeit > 360 && pausen < 30) h.push(['rot', `zu wenig Pause (${pausen} min, nötig 30 min bei über 6 h) – § 4 ArbZG`]);
+  if (brutto - pausen > 360 && !l.some(z => (z.pauseMin || 0) >= 15) && lueckenPause < 15) h.push(['gelb', 'länger als 6 h ohne Pause am Stück – § 4 ArbZG']);
+  const vortag = zeitenVon(id, plusTage(datum, -1), plusTage(datum, -1)).filter(zeitZaehlt).pop();
+  if (vortag && zeitMin(vortag.ende) != null && zeitMin(l[0].beginn) != null) {
+    const ruhe = (1440 - zeitMin(vortag.ende)) + zeitMin(l[0].beginn) - (zeitMin(vortag.ende) < zeitMin(vortag.beginn) ? 1440 : 0);
+    if (ruhe < 660) h.push(['rot', `Ruhezeit nur ${stdText(ruhe)} (nötig 11 h) – § 5 ArbZG`]);
+  }
+  if (alsTag(datum).getDay() === 0) h.push(['gelb', 'Sonntagsarbeit – § 9 ArbZG, Ersatzruhetag nötig']);
+  if (feiertagAm(datum)) h.push(['gelb', `Feiertagsarbeit (${feiertagAm(datum)}) – Ersatzruhetag nötig`]);
+  if (abwesendAm(id, datum)) h.push(['gelb', `als abwesend eingetragen (${abwesendAm(id, datum).grund || 'abwesend'})`]);
+  return h;
+}
+/** Monat eines Mitarbeiters: Tage, Summen, Überstunden, Sonn-/Feiertags- und Nachtstunden, Hinweise. */
+function zeitMonat(m, monat) {
+  const von = monat + '-01', bis = isoTag(new Date(Number(monat.slice(0, 4)), Number(monat.slice(5, 7)), 0));
+  const eintraege = zeitenVon(m.id, von, bis), tage = [];
+  for (let d = von; d <= bis; d = plusTage(d, 1)) {
+    const l = eintraege.filter(z => z.datum === d), zaehlt = l.filter(zeitZaehlt);
+    const min = zaehlt.reduce((n, z) => n + (zeitDauer(z) || 0), 0);
+    const nacht = zaehlt.reduce((n, z) => { const b = zeitMin(z.beginn), e = zeitMin(z.ende); if (b == null || e == null) return n; const dauer = e > b ? e - b : e + 1440 - b; let s = 0; for (let i = 0; i < dauer; i++) { const t = (b + i) % 1440; if (t >= 1380 || t < 360) s++; } return n + s; }, 0);
+    tage.push({ datum: d, eintraege: l, min, nacht, entwurf: l.some(z => !zeitZaehlt(z)), hinweise: arbzgPruefen(m.id, d), tour: alle('touren').some(t => t.datum === d && teamVon(t).includes(m.id)), abw: abwesendAm(m.id, d) });
+  }
+  const summe = tage.reduce((n, t) => n + t.min, 0), soll = m.wochenstunden ? Math.round(m.wochenstunden * 60 / (Number(S.einstellungen.arbeitstageWoche) === 6 ? 6 : 5) * arbeitstage(von, bis)) : null;
+  const wochen = {}; for (const t of tage) { const w = kw(t.datum); wochen[w] = (wochen[w] || 0) + t.min; }
+  const lohn = m.stundenlohnCent && summe ? Math.round(m.stundenlohnCent * summe / 60) : null;
+  return { tage, summe, soll, ueber: soll != null ? summe - soll : null, sonntag: tage.filter(t => alsTag(t.datum).getDay() === 0).reduce((n, t) => n + t.min, 0),
+    feiertag: tage.filter(t => feiertagAm(t.datum)).reduce((n, t) => n + t.min, 0), nacht: tage.reduce((n, t) => n + t.nacht, 0),
+    arbeitstage: tage.filter(t => t.min).length, entwuerfe: tage.filter(t => t.entwurf).length, ohneZeit: tage.filter(t => t.tour && !t.eintraege.length).length,
+    wochenUeber48: Object.entries(wochen).filter(([, v]) => v > 48 * 60).map(([w, v]) => [w, v]), verstoesse: tage.reduce((n, t) => n + t.hinweise.filter(([f]) => f === 'rot').length, 0),
+    mindestlohn: m.stundenlohnCent != null && m.stundenlohnCent < mindestlohnCent(), lohn };
+}
+const ZeitAktionen = {
+  speichern(z) { const x = merke('zeiten', { art: 'ARBEIT', quelle: 'ERFASST', pauseMin: 0, ...z, id: z.id || uuid(), firmaId: '', geaendertAm: jetztIso() }); nachAenderung(); return x.id; },
+  loeschen(z) { entferne('zeiten', z, { firmaId: '', geaendertAm: jetztIso() }); nachAenderung(); },
+  bestaetigen(z, werte) { merke('zeiten', { ...z, ...werte, bestaetigt: true, bestaetigtAm: jetztIso(), quelle: z.quelle === 'PLAN' ? 'ERFASST' : z.quelle, geaendertAm: jetztIso() }); nachAenderung(); },
+  /**
+   * Entwürfe aus dem Tourenplan für Tage, an denen der Mitarbeiter eingeteilt war und noch nichts erfasst ist:
+   * Beginn = früheste Ladezeit (sonst Vorgabe), Dauer = Vorgabe, Pause nach ArbZG. Sie sind als „Entwurf“ markiert und
+   * zählen erst, wenn die tatsächlichen Zeiten bestätigt bzw. korrigiert wurden.
+   */
+  entwuerfeAusPlan(m, monat) {
+    const von = monat + '-01', bis = isoTag(new Date(Number(monat.slice(0, 4)), Number(monat.slice(5, 7)), 0)), dauer = Math.round((Number(S.einstellungen.tagesdauer) || 8.5) * 60);
+    let n = 0;
+    for (const t of einsaetzeVon(m.id, von, bis > heute() ? heute() : bis)) {
+      if (zeitenVon(m.id, t.datum, t.datum).length) continue;
+      const beginn = tourenAm(t.datum).filter(x => teamVon(x).includes(m.id)).map(x => zeitMin(x.beginn) ?? zeitMin(x.uhrzeit)).filter(x => x != null).sort((a, b) => a - b)[0] ?? zeitMin(S.einstellungen.tagesbeginn || '07:00');
+      const pause = dauer > 540 ? 45 : dauer > 360 ? 30 : 0;
+      merke('zeiten', { id: uuid(), firmaId: '', mitarbeiterId: m.id, datum: t.datum, beginn: minZeit(beginn), ende: minZeit(beginn + dauer + pause), pauseMin: pause, art: 'ARBEIT', quelle: 'PLAN', bestaetigt: false, notiz: 'Entwurf aus Tourenplan', geaendertAm: jetztIso() });
+      n++;
+    }
+    nachAenderung(); return n;
+  },
+};
+
+function zeichneZeiten() {
+  const monat = ANSICHT.zeitMonat || heute().slice(0, 7), personen = mitarbeiterListe().filter(m => maAktiv(m) || zeitenVon(m.id, monat + '-01', monat + '-31').length);
+  const gewaehlt = maVon(ANSICHT.zeitMa) || personen[0];
+  const zeile = m => { const z = zeitMonat(m, monat); return `<tr class="klickbar ${gewaehlt && m.id === gewaehlt.id ? 'gewaehlt' : ''}" data-zeit-ma="${m.id}"><td>${esc(m.name)}</td><td class="r">${z.arbeitstage}</td><td class="r">${stdText(z.summe)}</td>
+    <td class="r">${z.soll != null ? stdText(z.soll) : '–'}</td><td class="r" style="${z.ueber > 0 ? 'color:var(--rot-t)' : ''}">${z.ueber != null ? stdText(z.ueber) : '–'}</td>
+    <td>${z.verstoesse ? `<span class="marke rot">${z.verstoesse} Verstöße</span>` : ''}${z.entwuerfe ? ` <span class="marke gelb">${z.entwuerfe} Entwürfe</span>` : ''}${z.ohneZeit ? ` <span class="marke grau">${z.ohneZeit} Einsatztage ohne Zeit</span>` : ''}${z.mindestlohn ? ' <span class="marke rot">unter Mindestlohn</span>' : ''}</td></tr>`; };
+  const d = gewaehlt ? zeitMonat(gewaehlt, monat) : null;
+  return seitenkopf('Zeiterfassung', '<button class="knopf voll" data-zeit-neu>＋ Zeit erfassen</button>', `<button class="knopf" data-zeit-xlsx>⤓ Excel (alle)</button><button class="knopf" data-zeit-csv>CSV Lohnbüro</button>
+      <button class="knopf" data-zeit-druck-alle>🖨 Stundenzettel (alle)</button><button class="knopf" data-tacho-import-knopf>💳 Fahrerkarte einlesen</button>`)
+    + `<div class="tp-datum"><button class="knopf" data-zeit-monat="-1" aria-label="Voriger Monat">◀</button><input type="month" id="zeit-monat" value="${monat}" aria-label="Monat"><button class="knopf" data-zeit-monat="1" aria-label="Nächster Monat">▶</button></div>
+    <div class="tabelle-rahmen"><table class="tabelle" id="zeiten-uebersicht"><tr><th>Mitarbeiter</th><th class="r">Tage</th><th class="r">Ist</th><th class="r">Soll</th><th class="r">Über</th><th>Hinweise</th></tr>${personen.map(zeile).join('')}</table></div>
+    ${gewaehlt ? `<div class="karte block"><div class="zeile"><h3 class="fuell" style="margin:0">${esc(gewaehlt.name)} · ${esc(ZEIT_DIMS.monat[2](monat))}</h3>
+        <button class="knopf" data-zeit-plan="${gewaehlt.id}">Entwürfe aus Tourenplan</button><button class="knopf" data-zeit-druck="${gewaehlt.id}">🖨 Stundenzettel</button><button class="knopf" data-zeit-xlsx-ma="${gewaehlt.id}">⤓ Excel</button></div>
+      <p class="leise" style="margin:6px 0">Ist ${stdText(d.summe)}${d.soll != null ? ` · Soll ${stdText(d.soll)} · ${d.ueber >= 0 ? 'Überstunden' : 'Minusstunden'} ${stdText(d.ueber)}` : ''} · Sonntag ${stdText(d.sonntag)} · Feiertag ${stdText(d.feiertag)} · Nacht (23–6 Uhr) ${stdText(d.nacht)}
+        ${d.lohn ? ` · Lohn laut Stundenlohn ${geld(d.lohn)}` : ''}${d.wochenUeber48.length ? ` · <b style="color:var(--rot-t)">über 48 h in ${d.wochenUeber48.map(([w]) => w.slice(5)).join(', ')}</b>` : ''}</p>
+      ${d.entwuerfe ? '<p class="fehlertext">Entwürfe aus dem Plan sind kein Nachweis: bitte die tatsächlichen Zeiten eintragen bzw. bestätigen (Zeile antippen).</p>' : ''}
+      <div class="tabelle-rahmen"><table class="tabelle" id="zeiten-tage"><tr><th>Tag</th><th>Beginn</th><th>Ende</th><th class="r">Pause</th><th class="r">Arbeit</th><th>Herkunft / Hinweise</th></tr>
+      ${d.tage.filter(t => t.eintraege.length || t.tour || t.abw).map(t => t.eintraege.length ? t.eintraege.map((z, i) => `<tr class="klickbar ${z.quelle === 'PLAN' && !z.bestaetigt ? 'entwurf' : ''}" data-zeit="${z.id}">
+          <td>${i ? '' : esc(datumMitTag(t.datum))}${!i && feiertagAm(t.datum) ? ` <span class="leise">${esc(feiertagAm(t.datum))}</span>` : ''}</td><td>${esc(z.beginn || '')}</td><td>${esc(z.ende || '')}</td><td class="r">${z.pauseMin || 0} min</td><td class="r">${stdText(zeitDauer(z))}</td>
+          <td><span class="marke ${(ZEIT_QUELLE[z.quelle] || ZEIT_QUELLE.ERFASST)[1]}">${esc((ZEIT_QUELLE[z.quelle] || ZEIT_QUELLE.ERFASST)[0])}</span>${z.art && z.art !== 'ARBEIT' ? ` <span class="marke grau">${esc(ZEIT_ART[z.art])}</span>` : ''}
+            ${i === t.eintraege.length - 1 ? t.hinweise.map(([f, x]) => ` <span class="marke ${f}">${esc(x)}</span>`).join('') : ''}</td></tr>`).join('')
+        : `<tr class="klickbar" data-zeit-tag="${t.datum}"><td>${esc(datumMitTag(t.datum))}</td><td colspan="4" class="leise">${t.abw ? esc(t.abw.grund || 'abwesend') : 'eingeteilt, keine Zeit erfasst'}</td><td>${t.tour && !t.abw ? '<span class="marke grau">＋ erfassen</span>' : ''}</td></tr>`).join('')}</table></div></div>` : ''}`;
+}
+function zeitDialog(z, vorgabe = {}) {
+  const neu = !z, e = z || { datum: heute(), beginn: S.einstellungen.tagesbeginn || '07:00', ende: '', pauseMin: 30, art: 'ARBEIT', ...vorgabe };
+  const entwurf = z && z.quelle === 'PLAN' && !z.bestaetigt;
+  dialog(`<form method="dialog" id="zeit-form"><h2>${neu ? 'Arbeitszeit erfassen' : entwurf ? 'Entwurf bestätigen' : 'Arbeitszeit'}</h2>
+    ${entwurf ? '<p class="fehlertext">Entwurf aus dem Tourenplan. Bitte die tatsächlichen Zeiten eintragen und dann bestätigen.</p>' : ''}
+    <label class="feld">Mitarbeiter<select name="mitarbeiterId">${mitarbeiterListe().map(m => `<option value="${m.id}" ${(e.mitarbeiterId || ANSICHT.zeitMa) === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
+    <label class="feld">Tag<input type="date" name="datum" value="${esc(e.datum)}" required></label>
+    <div class="zeile"><label class="feld fuell">Beginn<input type="time" name="beginn" value="${esc(e.beginn || '')}" required></label><label class="feld fuell">Ende<input type="time" name="ende" value="${esc(e.ende || '')}" required></label>
+      <label class="feld fuell">Pause (min)<input name="pauseMin" inputmode="numeric" value="${e.pauseMin ?? 0}"></label></div>
+    <label class="feld">Art<select name="art">${Object.entries(ZEIT_ART).map(([k, l]) => `<option value="${k}" ${e.art === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label class="feld">Notiz<input name="notiz" value="${esc(entwurf ? '' : e.notiz || '')}"></label>
+    <p class="leise" id="zeit-vorschau"></p>
+    <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="zeit-weg">Löschen</button>'}<span class="fuell"></span>
+      <button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">${entwurf ? 'Bestätigen' : 'Speichern'}</button></div></form>`);
+  const f = $('#zeit-form');
+  const vorschau = () => { const w = Object.fromEntries(new FormData(f)); const d = zeitDauer({ beginn: w.beginn, ende: w.ende, pauseMin: Number(w.pauseMin) || 0 });
+    $('#zeit-vorschau').textContent = d != null ? `Arbeitszeit ${stdText(d)}${d > 600 ? ' – mehr als 10 h sind nach § 3 ArbZG nicht erlaubt' : d > 540 && Number(w.pauseMin) < 45 ? ' – bei über 9 h mindestens 45 min Pause' : d > 360 && Number(w.pauseMin) < 30 ? ' – bei über 6 h mindestens 30 min Pause' : ''}` : ''; };
+  f.oninput = vorschau; vorschau();
+  if (!neu) $('#zeit-weg').onclick = () => { $('#dialog').close(); ZeitAktionen.loeschen(z); };
+  f.onsubmit = ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries([...new FormData(f)].map(([k, v]) => [k, String(v).trim()]));
+    const werte = { ...w, pauseMin: Math.max(0, Math.round(Number(w.pauseMin) || 0)) };
+    $('#dialog').close();
+    if (entwurf) ZeitAktionen.bestaetigen(z, { ...werte, notiz: w.notiz }); else ZeitAktionen.speichern({ ...(z || {}), ...werte });
+  };
+}
+function stundenzettelHtml(liste, monat) {
+  const firma = esc(S.einstellungen.firma || rechnungsDaten().name || '');
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Stundenzettel ${monat}</title><style>@page{size:A4;margin:12mm}body{font:9.5pt Arial,sans-serif}
+    table{border-collapse:collapse;width:100%;margin-top:6px}td,th{border:1px solid #999;padding:2px 4px;text-align:left}.r{text-align:right}h1{font-size:13pt;margin:0}.blatt+.blatt{break-before:page}
+    .we{background:#eee}.unterschrift{display:flex;gap:30mm;margin-top:16mm}.unterschrift div{border-top:1px solid #000;width:60mm;padding-top:2px;font-size:8pt}.h{color:#a00;font-size:8pt}</style></head><body>
+    ${liste.map(m => { const z = zeitMonat(m, monat); return `<div class="blatt"><h1>Arbeitszeitnachweis ${esc(ZEIT_DIMS.monat[2](monat))}</h1><p>${firma} · Mitarbeiter: <b>${esc(m.name)}</b>${m.personalnummer ? ' · Pers.-Nr. ' + esc(m.personalnummer) : ''}</p>
+      <table><tr><th>Tag</th><th>Beginn</th><th>Ende</th><th class="r">Pause</th><th class="r">Arbeitszeit</th><th>Bemerkung</th></tr>
+      ${z.tage.map(t => { const l = t.eintraege.filter(zeitZaehlt), we = [0, 6].includes(alsTag(t.datum).getDay()) || feiertagAm(t.datum);
+        return `<tr class="${we ? 'we' : ''}"><td>${esc(datumMitTag(t.datum))}</td><td>${esc(l.map(x => x.beginn).join(' / '))}</td><td>${esc(l.map(x => x.ende).join(' / '))}</td><td class="r">${l.length ? l.reduce((n, x) => n + (x.pauseMin || 0), 0) + ' min' : ''}</td>
+          <td class="r">${t.min ? stdText(t.min) : ''}</td><td>${esc([feiertagAm(t.datum), t.abw && (t.abw.grund || 'abwesend'), t.entwurf && 'Entwurf – nicht bestätigt', ...l.map(x => x.quelle === 'TACHO' ? 'Fahrerkarte' : '')].filter(Boolean).join(', '))}
+          ${t.hinweise.filter(([f]) => f === 'rot').map(([, x]) => `<div class="h">${esc(x)}</div>`).join('')}</td></tr>`; }).join('')}
+      <tr><th colspan="4">Summe</th><th class="r">${stdText(z.summe)}</th><th>${z.soll != null ? `Soll ${stdText(z.soll)} · Saldo ${stdText(z.ueber)}` : ''}</th></tr></table>
+      <p>Sonntag ${stdText(z.sonntag)} · Feiertag ${stdText(z.feiertag)} · Nacht ${stdText(z.nacht)}</p>
+      <div class="unterschrift"><div>Datum, Unterschrift Mitarbeiter</div><div>Datum, Unterschrift Arbeitgeber</div></div></div>`; }).join('')}</body></html>`;
+}
+function zeitenXlsx(liste, monat) {
+  const kopf = ['Datum', 'Wochentag', 'Beginn', 'Ende', 'Pause (min)', 'Arbeit (Std.)', 'Art', 'Herkunft', 'Bestätigt', 'Feiertag', 'Abwesend', 'Hinweise', 'Notiz'];
+  const blaetter = liste.map(m => {
+    const z = zeitMonat(m, monat), zeilen = [[`Arbeitszeitnachweis ${ZEIT_DIMS.monat[2](monat)} – ${m.name}${m.personalnummer ? ' (Pers.-Nr. ' + m.personalnummer + ')' : ''}`], [], kopf];
+    for (const t of z.tage) {
+      if (!t.eintraege.length) { if (t.abw || feiertagAm(t.datum)) zeilen.push([xlDatum(t.datum), wochentag(t.datum), '', '', '', '', '', '', '', feiertagAm(t.datum), t.abw ? t.abw.grund || 'abwesend' : '', '', '']); continue; }
+      t.eintraege.forEach((x, i) => zeilen.push([xlDatum(t.datum), wochentag(t.datum), xlZeit(x.beginn), xlZeit(x.ende), x.pauseMin || 0, xlStd(zeitDauer(x) || 0), ZEIT_ART[x.art] || 'Arbeit',
+        (ZEIT_QUELLE[x.quelle] || ZEIT_QUELLE.ERFASST)[0], zeitZaehlt(x) ? 'ja' : 'nein (Entwurf)', feiertagAm(t.datum), t.abw ? t.abw.grund || 'abwesend' : '', i === t.eintraege.length - 1 ? t.hinweise.map(h => h[1]).join('; ') : '', x.notiz || '']));
+    }
+    zeilen.push([], ['Summe Arbeit (Std.)', '', '', '', '', xlStd(z.summe)], ['Soll (Std.)', '', '', '', '', z.soll != null ? xlStd(z.soll) : ''], ['Saldo (Std.)', '', '', '', '', z.ueber != null ? xlStd(z.ueber) : ''],
+      ['Sonntag (Std.)', '', '', '', '', xlStd(z.sonntag)], ['Feiertag (Std.)', '', '', '', '', xlStd(z.feiertag)], ['Nacht 23–6 (Std.)', '', '', '', '', xlStd(z.nacht)]);
+    return { name: m.name, zeilen, breiten: [12, 12, 8, 8, 10, 12, 12, 22, 14, 18, 14, 50, 30], fett: [0, 2] };
+  });
+  const uebersicht = { name: 'Übersicht', zeilen: [['Mitarbeiter', 'Pers.-Nr.', 'Arbeitstage', 'Ist (Std.)', 'Soll (Std.)', 'Saldo (Std.)', 'Sonntag', 'Feiertag', 'Nacht', 'Verstöße ArbZG', 'Entwürfe offen'],
+    ...liste.map(m => { const z = zeitMonat(m, monat); return [m.name, m.personalnummer || '', z.arbeitstage, xlStd(z.summe), z.soll != null ? xlStd(z.soll) : '', z.ueber != null ? xlStd(z.ueber) : '', xlStd(z.sonntag), xlStd(z.feiertag), xlStd(z.nacht), z.verstoesse, z.entwuerfe]; })],
+    breiten: [24, 10, 12, 10, 10, 10, 10, 10, 10, 14, 14], fett: [0] };
+  return xlsxErstellen([uebersicht, ...blaetter]);
+}
+function zeitenLohnCsv(liste, monat) {
+  return '﻿' + [['Personalnummer', 'Name', 'Monat', 'Arbeitstage', 'Stunden', 'Sollstunden', 'Saldo', 'Sonntagsstunden', 'Feiertagsstunden', 'Nachtstunden', 'Urlaubstage', 'Krankheitstage', 'offene Entwürfe'],
+    ...liste.map(m => { const z = zeitMonat(m, monat), a = maAuswertung(m, monat + '-01', isoTag(new Date(Number(monat.slice(0, 4)), Number(monat.slice(5, 7)), 0))), s = n => (n == null ? '' : (n / 60).toFixed(2).replace('.', ','));
+      return [m.personalnummer || '', m.name, monat, z.arbeitstage, s(z.summe), s(z.soll), s(z.ueber), s(z.sonntag), s(z.feiertag), s(z.nacht), a.urlaub, a.krank, z.entwuerfe]; })]
+    .map(z => z.map(csvZelle).join(';')).join('\r\n') + '\r\n';
+}
+$('#liste').addEventListener('change', e => { if (e.target.id === 'zeit-monat' && e.target.value) { ANSICHT.zeitMonat = e.target.value; zeichneListe(); } });
+$('#liste').addEventListener('click', e => {
+  const monat = ANSICHT.zeitMonat || heute().slice(0, 7), personen = () => mitarbeiterListe().filter(m => maAktiv(m) || zeitenVon(m.id, monat + '-01', monat + '-31').length);
+  const ma = e.target.closest('[data-zeit-ma]'), z = e.target.closest('[data-zeit]'), tag = e.target.closest('[data-zeit-tag]'), mon = e.target.closest('[data-zeit-monat]');
+  if (mon) { const [j, m] = monat.split('-').map(Number), d = new Date(j, m - 1 + Number(mon.dataset.zeitMonat), 1); ANSICHT.zeitMonat = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; zeichneListe(); return; }
+  if (ma) { ANSICHT.zeitMa = ma.dataset.zeitMa; zeichneListe(); return; }
+  if (z) { zeitDialog(S.zeiten[z.dataset.zeit]); return; }
+  if (tag) { zeitDialog(null, { datum: tag.dataset.zeitTag, mitarbeiterId: ANSICHT.zeitMa || (personen()[0] || {}).id }); return; }
+  if (e.target.closest('[data-zeit-neu]')) { zeitDialog(null, { mitarbeiterId: ANSICHT.zeitMa }); return; }
+  const plan = e.target.closest('[data-zeit-plan]');
+  if (plan) { const n = ZeitAktionen.entwuerfeAusPlan(maVon(plan.dataset.zeitPlan), monat); toast(n ? `${n} Entwürfe angelegt – bitte die tatsächlichen Zeiten prüfen und bestätigen` : 'Keine Einsatztage ohne Zeit'); return; }
+  const dr = e.target.closest('[data-zeit-druck]');
+  if (dr) { druckeHtml(stundenzettelHtml([maVon(dr.dataset.zeitDruck)], monat)); return; }
+  if (e.target.closest('[data-zeit-druck-alle]')) { druckeHtml(stundenzettelHtml(personen(), monat)); return; }
+  const xm = e.target.closest('[data-zeit-xlsx-ma]');
+  if (xm) { const m = maVon(xm.dataset.zeitXlsxMa); ladeBlobHerunter(`Stundenzettel_${m.name.replace(/\s+/g, '_')}_${monat}.xlsx`, zeitenXlsx([m], monat)); return; }
+  if (e.target.closest('[data-zeit-xlsx]')) { ladeBlobHerunter(`Zeiterfassung_${monat}.xlsx`, zeitenXlsx(personen(), monat)); return; }
+  if (e.target.closest('[data-zeit-csv]')) { ladeHerunter(`Lohnbuero_${monat}.csv`, zeitenLohnCsv(personen(), monat)); return; }
+  if (e.target.closest('[data-tacho-import-knopf]')) tachoImportDialog();
+});
+
+// ============================== Fahrerkarte (Tachograph, .DDD) ==============================
+/**
+ * Liest heruntergeladene Fahrerkarten (EU-Format, 1. und 2. Generation; Dateiendungen .ddd, .c1b, .tgd, .esm):
+ * Karteninhaber, Kartennummer, Gültigkeit, Tätigkeiten je Tag (Lenken, Arbeit, Bereitschaft, Ruhe) und benutzte Fahrzeuge
+ * mit Kilometerständen. Die Zeiten sind echte Aufzeichnungen und können in die Zeiterfassung übernommen werden.
+ * Prüfung der Lenk- und Ruhezeiten nach VO (EG) 561/2006. Fahrerkarten müssen spätestens alle 28 Tage ausgelesen werden.
+ */
+const TACHO_ART = ['RUHE', 'BEREIT', 'ARBEIT', 'LENKEN'], TACHO_TEXT = { RUHE: 'Pause/Ruhe', BEREIT: 'Bereitschaft', ARBEIT: 'Arbeit', LENKEN: 'Lenken' };
+const tachoText = (b, von, len) => { let s = ''; for (let i = von + 1; i < von + len; i++) { const c = b[i]; if (c >= 32 && c !== 255) s += String.fromCharCode(c); } return s.trim(); };
+const tachoZeit = (b, i) => ((b[i] << 24) >>> 0) + (b[i + 1] << 16) + (b[i + 2] << 8) + b[i + 3];
+const bcd = x => ((x >> 4) * 10) + (x & 15);
+/** Zerlegt eine Kartendatei in ihre Blöcke: { 'FID|typ': Uint8Array }. */
+function tachoBloecke(b) {
+  const bl = {}; let i = 0;
+  while (i + 5 <= b.length) {
+    const fid = (b[i] << 8) | b[i + 1], typ = b[i + 2], len = (b[i + 3] << 8) | b[i + 4];
+    if (i + 5 + len > b.length) break;
+    bl[fid.toString(16).padStart(4, '0') + '|' + typ] = b.subarray(i + 5, i + 5 + len); i += 5 + len;
+  }
+  return bl;
+}
+/** Wertet eine Fahrerkarten-Datei aus. */
+function tachoLesen(puffer) {
+  const b = new Uint8Array(puffer), bl = tachoBloecke(b);
+  const nimm = fid => bl[fid + '|2'] || bl[fid + '|0'], gen2 = !!bl['0505|2'];
+  const id = nimm('0520');
+  if (!id || id.length < 143) throw new Error('Das ist keine lesbare Fahrerkarten-Datei (Identifikation fehlt).');
+  const datumAus = s => (s ? new Date(s * 1000).toISOString().slice(0, 10) : '');
+  const karte = { nation: id[0], kartenNr: tachoText([0, ...id.subarray(1, 17)], 0, 17), ausgestellt: datumAus(tachoZeit(id, 53)), gueltigAb: datumAus(tachoZeit(id, 57)), gueltigBis: datumAus(tachoZeit(id, 61)),
+    nachname: tachoText(id, 65, 36), vorname: tachoText(id, 101, 36),
+    geburtstag: id[137] ? `${bcd(id[137])}${pad(bcd(id[138]))}-${pad(bcd(id[139]))}-${pad(bcd(id[140]))}` : '', generation: gen2 ? 2 : 1 };
+  // Tätigkeiten: Ringpuffer mit Tagesdatensätzen
+  const tage = [], akt = nimm('0504');
+  if (akt && akt.length > 4) {
+    const aelteste = (akt[0] << 8) | akt[1], neueste = (akt[2] << 8) | akt[3], ring = akt.subarray(4), n = ring.length, r = i => ring[((i % n) + n) % n];
+    let pos = aelteste;
+    for (let schutz = 0; schutz < 3000 && n; schutz++) {
+      const laenge = (r(pos + 2) << 8) | r(pos + 3); if (laenge < 12 || laenge > n) break;
+      const zeit = ((r(pos + 4) << 24) >>> 0) + (r(pos + 5) << 16) + (r(pos + 6) << 8) + r(pos + 7), km = (r(pos + 10) << 8) | r(pos + 11);
+      const wechsel = [];
+      for (let k = 12; k + 1 < laenge; k += 2) {
+        const v = (r(pos + k) << 8) | r(pos + k + 1);
+        wechsel.push({ min: v & 0x7ff, art: TACHO_ART[(v >> 11) & 3], beifahrer: !!(v >> 15 & 1), team: !!(v >> 14 & 1), ohneKarte: !!(v >> 13 & 1) });
+      }
+      if (zeit) tage.push({ datum: datumAus(zeit), km, wechsel: wechsel.filter(w => w.min < 1440).sort((x, y) => x.min - y.min) });
+      if (pos === neueste) break;
+      pos = (pos + laenge) % n;
+    }
+  }
+  // Benutzte Fahrzeuge
+  const fahrzeuge = [], vu = nimm('0505');
+  if (vu && vu.length > 2) {
+    const groesse = gen2 && bl['0505|2'] === vu ? 48 : 31;
+    for (let i = 2; i + groesse <= vu.length; i += groesse) {
+      const kmVon = (vu[i] << 16) | (vu[i + 1] << 8) | vu[i + 2], kmBis = (vu[i + 3] << 16) | (vu[i + 4] << 8) | vu[i + 5];
+      const ab = tachoZeit(vu, i + 6), bis = tachoZeit(vu, i + 10), kz = tachoText(vu, i + 15, 14);
+      if (!ab || !kz) continue;
+      fahrzeuge.push({ kennzeichen: kz, nation: vu[i + 14], kmVon, kmBis, ab: new Date(ab * 1000).toISOString(), bis: bis ? new Date(bis * 1000).toISOString() : '', vin: groesse === 48 ? tachoText([0, ...vu.subarray(i + 31, i + 48)], 0, 18) : '' });
+    }
+  }
+  return { karte, tage: tage.sort((x, y) => x.datum.localeCompare(y.datum)), fahrzeuge: fahrzeuge.sort((x, y) => x.ab.localeCompare(y.ab)) };
+}
+/** Abschnitte eines Tages (UTC-Minuten) → Minuten je Tätigkeit, Beginn/Ende (Ortszeit). */
+function tachoTag(t) {
+  const sum = { RUHE: 0, BEREIT: 0, ARBEIT: 0, LENKEN: 0 }, abschnitte = [];
+  t.wechsel.forEach((w, i) => { const ende = i + 1 < t.wechsel.length ? t.wechsel[i + 1].min : 1440; if (ende > w.min) { sum[w.art] += ende - w.min; abschnitte.push([w.min, ende, w.art]); } });
+  const aktiv = abschnitte.filter(a => a[2] !== 'RUHE'), basis = Date.UTC(+t.datum.slice(0, 4), +t.datum.slice(5, 7) - 1, +t.datum.slice(8, 10));
+  const ort = min => { const d = new Date(basis + min * 60000); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const beginn = aktiv.length ? ort(aktiv[0][0]) : '', ende = aktiv.length ? ort(aktiv[aktiv.length - 1][1]) : '';
+  const pausen = aktiv.length ? abschnitte.filter(a => a[2] === 'RUHE' && a[0] >= aktiv[0][0] && a[1] <= aktiv[aktiv.length - 1][1]).reduce((n, a) => n + a[1] - a[0], 0) : 0;
+  return { ...sum, beginn, ende, pausen, abschnitte };
+}
+/** Lenk- und Ruhezeiten nach VO (EG) 561/2006 für eine Folge von Tagen (Datensätze aus „tachotage“). */
+function lenkzeitPruefung(tage) {
+  const h = {}, dazu = (d, f, x) => (h[d] = h[d] || []).push([f, x]);
+  const zeitstrahl = [];
+  for (const t of tage) {
+    const basis = Date.UTC(+t.datum.slice(0, 4), +t.datum.slice(5, 7) - 1, +t.datum.slice(8, 10)) / 60000;
+    let a = []; try { a = JSON.parse(t.aktivitaeten || '[]'); } catch {}
+    a.forEach(([min, art], i) => zeitstrahl.push([basis + min, basis + (i + 1 < a.length ? a[i + 1][0] : 1440), art, t.datum]));
+    if (t.fahrMin > 600) dazu(t.datum, 'rot', `Tageslenkzeit ${stdText(t.fahrMin)} (max. 10 h)`);
+    else if (t.fahrMin > 540) dazu(t.datum, 'gelb', `Tageslenkzeit ${stdText(t.fahrMin)} (über 9 h, max. 2× pro Woche)`);
+  }
+  // Mehr als zwei Tage mit über 9 h Lenkzeit in einer Woche
+  const wochen = {};
+  for (const t of tage) { const w = kw(t.datum); wochen[w] = wochen[w] || { lenken: 0, lang: 0, tage: [] }; wochen[w].lenken += t.fahrMin || 0; if (t.fahrMin > 540) wochen[w].lang++; wochen[w].tage.push(t.datum); }
+  const wl = Object.keys(wochen).sort();
+  wl.forEach((w, i) => {
+    const x = wochen[w], letzter = x.tage[x.tage.length - 1];
+    if (x.lang > 2) dazu(letzter, 'rot', `${x.lang} Tage über 9 h Lenkzeit in ${w.slice(5)} (max. 2)`);
+    if (x.lenken > 56 * 60) dazu(letzter, 'rot', `Wochenlenkzeit ${stdText(x.lenken)} in ${w.slice(5)} (max. 56 h)`);
+    if (i && x.lenken + wochen[wl[i - 1]].lenken > 90 * 60) dazu(letzter, 'rot', `Lenkzeit in zwei Wochen ${stdText(x.lenken + wochen[wl[i - 1]].lenken)} (max. 90 h)`);
+  });
+  // Fahrtunterbrechung: nach 4,5 h Lenken 45 min Pause (oder 15 + 30)
+  zeitstrahl.sort((a, b) => a[0] - b[0]);
+  let lenken = 0, teil15 = false;
+  for (const [von, bis, art, d] of zeitstrahl) {
+    const dauer = bis - von;
+    if (art === 'LENKEN') { lenken += dauer; if (lenken > 270) { dazu(d, 'rot', `über 4,5 h gelenkt ohne 45 min Pause (${stdText(lenken)})`); lenken = 0; teil15 = false; } }
+    else if (art === 'RUHE') { if (dauer >= 45 || (teil15 && dauer >= 30)) { lenken = 0; teil15 = false; } else if (dauer >= 15) teil15 = true; }
+  }
+  // Tägliche Ruhezeit: in jedem Arbeitstag (24 h ab Arbeitsbeginn) mindestens 11 h am Stück (9 h verkürzt)
+  for (const t of tage) {
+    const basis = Date.UTC(+t.datum.slice(0, 4), +t.datum.slice(5, 7) - 1, +t.datum.slice(8, 10)) / 60000;
+    const start = zeitstrahl.find(([von, , art]) => von >= basis && von < basis + 1440 && art !== 'RUHE'); if (!start) continue;
+    const ende = start[0] + 1440;
+    let laengste = 0, lauf = 0, letztesEnde = start[0];
+    for (const [von, bis, art] of zeitstrahl.filter(([von, bis]) => bis > start[0] && von < ende)) {
+      const a = Math.max(von, start[0]), e = Math.min(bis, ende);
+      if (a > letztesEnde) lauf += a - letztesEnde; // Lücke ohne Aufzeichnung zählt als Ruhe
+      if (art === 'RUHE') lauf += e - a; else { laengste = Math.max(laengste, lauf); lauf = 0; }
+      letztesEnde = e;
+    }
+    lauf += Math.max(0, ende - letztesEnde); laengste = Math.max(laengste, lauf);
+    if (laengste < 540) dazu(t.datum, 'rot', `tägliche Ruhezeit nur ${stdText(laengste)} (mind. 9 h, regulär 11 h)`);
+    else if (laengste < 660) dazu(t.datum, 'gelb', `verkürzte Ruhezeit ${stdText(laengste)} (max. 3× zwischen zwei Wochenruhezeiten)`);
+  }
+  return h;
+}
+const tachotageVon = (id, von = '0000', bis = '9999') => alle('tachotage').filter(t => t.mitarbeiterId === id && t.datum >= von && t.datum <= bis).sort((a, b) => a.datum.localeCompare(b.datum));
+/** Wann wurde die Karte zuletzt ausgelesen (letzter Tag mit Daten)? */
+const letzteAuslesung = m => (personalakteVon(m.id).filter(x => x.art === 'FAHRERKARTE').map(x => x.datum).sort().pop() || '');
+
+/** Mitarbeiter zur Karte: Kartennummer, dann Name (auch „Nachname, Vorname“) und Aliase. */
+const maZurKarte = k => alle('mitarbeiter').find(m => m.fahrerkarteNr && m.fahrerkarteNr.replace(/\s/g, '') === k.kartenNr.replace(/\s/g, '')) || maZumNamen(`${k.vorname} ${k.nachname}`);
+function tachoImportDialog() {
+  dialog(`<form method="dialog" id="tacho-form"><h2>💳 Fahrerkarte einlesen</h2>
+    <p class="leise">Dateien aus dem Kartenleser bzw. der Download-Software (.ddd, .c1b, .tgd, .esm). Es können mehrere Dateien gleichzeitig gewählt werden.</p>
+    <label class="knopf voll">Dateien wählen<input type="file" id="tacho-datei" multiple accept=".ddd,.DDD,.c1b,.C1B,.tgd,.esm,.v1b,application/octet-stream" hidden></label>
+    <div id="tacho-vorschau"></div>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Schließen</button><button class="knopf voll" id="tacho-los" disabled>Übernehmen</button></div></form>`);
+  let gelesen = [];
+  $('#tacho-datei').onchange = async ev => {
+    gelesen = [];
+    for (const datei of ev.target.files) {
+      try { const daten = await datei.arrayBuffer(); gelesen.push({ datei, daten, ...tachoLesen(daten) }); }
+      catch (x) { gelesen.push({ datei, fehler: x.message }); }
+    }
+    $('#tacho-vorschau').innerHTML = gelesen.map((g, i) => g.fehler ? `<p class="fehlertext">${esc(g.datei.name)}: ${esc(g.fehler)}</p>` : (() => {
+      const m = maZurKarte(g.karte), unbekannt = [...new Set(g.fahrzeuge.map(f => f.kennzeichen))].filter(kz => !fahrzeugZumKz(kz));
+      return `<div class="karte block" style="margin:8px 0"><b>${esc(g.karte.vorname)} ${esc(g.karte.nachname)}</b> <span class="leise">Karte ${esc(g.karte.kartenNr)} · gültig bis ${esc(datumText(g.karte.gueltigBis))} · Generation ${g.karte.generation}</span>
+        <p class="leise">${g.tage.length} Tage (${esc(datumText((g.tage[0] || {}).datum || ''))} – ${esc(datumText((g.tage[g.tage.length - 1] || {}).datum || ''))}) · ${g.fahrzeuge.length} Fahrzeugnutzungen</p>
+        <label class="feld">Mitarbeiter<select data-tacho-ma="${i}"><option value="">＋ neu anlegen: ${esc(g.karte.vorname)} ${esc(g.karte.nachname)}</option>${mitarbeiterListe().map(x => `<option value="${x.id}" ${m && m.id === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+        ${unbekannt.length ? `<p class="leise">Unbekannte Kennzeichen – Fahrzeug zuordnen (wird als Alias gespeichert):</p>${unbekannt.map(kz => `<label class="feld">${esc(kz)}<select data-tacho-alias="${esc(kz)}"><option value="">– nicht zuordnen –</option>${fahrzeugListe().map(z => `<option value="${z.id}">${esc(z.kennzeichen)}</option>`).join('')}</select></label>`).join('')}` : ''}</div>`; })()).join('')
+      + (gelesen.some(g => !g.fehler) ? `<label class="auswahl"><input type="checkbox" id="tacho-zeiten" checked> Arbeitszeiten in die Zeiterfassung übernehmen (Quelle „Fahrerkarte“; Tage mit eigenen Einträgen bleiben unverändert)</label>` : '');
+    $('#tacho-los').disabled = !gelesen.some(g => !g.fehler);
+  };
+  $('#tacho-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const zeitenUebernehmen = $('#tacho-zeiten') && $('#tacho-zeiten').checked;
+    for (const sel of document.querySelectorAll('[data-tacho-alias]')) if (sel.value) {
+      const z = S.fahrzeuge[sel.value]; merke('fahrzeuge', { ...z, aliase: [...new Set([...String(z.aliase || '').split(',').map(x => x.trim()).filter(Boolean), sel.dataset.tachoAlias])].join(', '), geaendertAm: jetztIso() });
+    }
+    let tage = 0, zeiten = 0, uebersprungen = 0;
+    for (const [i, g] of gelesen.entries()) {
+      if (g.fehler) continue;
+      const wahl = document.querySelector(`[data-tacho-ma="${i}"]`).value;
+      const mId = wahl || PersonalAktionen.schnellAnlegen(`${g.karte.vorname} ${g.karte.nachname}`, 'FAHRER');
+      const m = maVon(mId), jetzt = jetztIso();
+      merke('mitarbeiter', { ...m, fahrerkarteNr: g.karte.kartenNr, fahrerkarteBis: !m.fahrerkarteBis || m.fahrerkarteBis < g.karte.gueltigBis ? g.karte.gueltigBis : m.fahrerkarteBis,
+        geburtstag: m.geburtstag || g.karte.geburtstag || null, aliase: [...new Set([...String(m.aliase || '').split(';').map(x => x.trim()).filter(Boolean), `${g.karte.nachname}, ${g.karte.vorname}`])].join('; '), geaendertAm: jetzt });
+      for (const t of g.tage) {
+        const s = tachoTag(t); if (!s.LENKEN && !s.ARBEIT && !s.BEREIT) continue;
+        const tagesFz = g.fahrzeuge.filter(f => f.ab.slice(0, 10) <= t.datum && (f.bis || f.ab).slice(0, 10) >= t.datum).map(f => (fahrzeugZumKz(f.kennzeichen) || {}).kennzeichen || f.kennzeichen);
+        merke('tachotage', { id: kennungAus(`tacho|${g.karte.kartenNr}|${t.datum}`), firmaId: '', mitarbeiterId: mId, kartenNr: g.karte.kartenNr, fahrerName: `${g.karte.vorname} ${g.karte.nachname}`, datum: t.datum,
+          fahrMin: s.LENKEN, arbeitMin: s.ARBEIT, bereitMin: s.BEREIT, ruheMin: s.RUHE, beginn: s.beginn, ende: s.ende, km: t.km, fahrzeuge: [...new Set(tagesFz)].join(', '),
+          aktivitaeten: JSON.stringify(t.wechsel.map(w => [w.min, w.art, w.beifahrer ? 1 : 0])), geaendertAm: jetzt });
+        tage++;
+        if (zeitenUebernehmen && s.beginn) {
+          const eigene = zeitenVon(mId, t.datum, t.datum).filter(z => z.quelle !== 'TACHO' && z.quelle !== 'PLAN');
+          if (eigene.length) { uebersprungen++; continue; }
+          for (const z of zeitenVon(mId, t.datum, t.datum).filter(z => z.quelle === 'PLAN')) entferne('zeiten', z, { firmaId: '', geaendertAm: jetzt });
+          merke('zeiten', { id: kennungAus(`tachozeit|${mId}|${t.datum}`), firmaId: '', mitarbeiterId: mId, datum: t.datum, beginn: s.beginn, ende: s.ende, pauseMin: s.pausen, art: 'ARBEIT', quelle: 'TACHO', bestaetigt: true,
+            notiz: `Fahrerkarte: Lenken ${stdText(s.LENKEN)}, Arbeit ${stdText(s.ARBEIT)}, Bereitschaft ${stdText(s.BEREIT)}`, geaendertAm: jetzt });
+          zeiten++;
+        }
+      }
+      // Kilometerstände in den Fuhrpark
+      for (const f of g.fahrzeuge) { const z = fahrzeugZumKz(f.kennzeichen); if (z && f.kmBis && (!z.kmStand || f.kmBis > z.kmStand)) merke('fahrzeuge', { ...S.fahrzeuge[z.id], kmStand: f.kmBis, geaendertAm: jetzt }); }
+      merke('personaleintraege', { id: uuid(), firmaId: '', mitarbeiterId: mId, art: 'FAHRERKARTE', datum: heute(), bis: plusTage(heute(), 28), text: `Fahrerkarte ausgelesen: ${g.tage.length} Tage, Datei ${g.datei.name}`, geaendertAm: jetzt });
+      if (!anlagenVon(mId).some(a => a.anzeigename === 'Fahrerkarte – ' + g.datei.name)) await legeAnlage(mId, new File([g.daten], g.datei.name, { type: 'application/octet-stream' }), 'Fahrerkarte – ');
+    }
+    $('#dialog').close(); nachAenderung();
+    toast(`Fahrerkarte: ${tage} Tage übernommen${zeitenUebernehmen ? `, ${zeiten} Arbeitszeiten${uebersprungen ? ` (${uebersprungen} Tage mit eigenen Einträgen unverändert)` : ''}` : ''}`, 8000);
+  };
+}
+function tachoBerichtHtml(m, von, bis) {
+  const tage = tachotageVon(m.id, von, bis), h = lenkzeitPruefung(tachotageVon(m.id, plusTage(von, -14), bis));
+  if (!tage.length) return '<p class="leise">Keine Fahrerkarten-Daten im Zeitraum.</p>';
+  const s = k => tage.reduce((n, t) => n + (t[k] || 0), 0), verstoesse = Object.entries(h).filter(([d]) => d >= von && d <= bis).flatMap(([, l]) => l).filter(([f]) => f === 'rot').length;
+  return `<div class="kennzahlen vier" style="margin:0 0 8px">${[[stdText(s('fahrMin')), 'Lenkzeit'], [stdText(s('arbeitMin')), 'Arbeit'], [stdText(s('bereitMin')), 'Bereitschaft'], [verstoesse, 'Verstöße 561/2006', verstoesse ? 'rot' : '']]
+    .map(([w, l, f]) => `<div class="kennzahl ${f || ''}"><b>${esc(w)}</b><span>${esc(l)}</span></div>`).join('')}</div>
+    <div class="tabelle-rahmen"><table class="tabelle"><tr><th>Tag</th><th>Beginn</th><th>Ende</th><th class="r">Lenken</th><th class="r">Arbeit</th><th class="r">Bereit</th><th class="r">km</th><th>Fahrzeuge</th><th>Hinweise</th></tr>
+    ${tage.map(t => `<tr><td>${esc(datumMitTag(t.datum))}</td><td>${esc(t.beginn)}</td><td>${esc(t.ende)}</td><td class="r">${stdText(t.fahrMin)}</td><td class="r">${stdText(t.arbeitMin)}</td><td class="r">${stdText(t.bereitMin)}</td>
+      <td class="r">${t.km || ''}</td><td>${esc(t.fahrzeuge || '')}</td><td>${(h[t.datum] || []).map(([f, x]) => `<span class="marke ${f}">${esc(x)}</span>`).join(' ')}</td></tr>`).join('')}</table></div>`;
+}
+/** Excel: Fahrerkarten-Stundenzettel je Fahrer und Monat (mit Tätigkeiten, km, Fahrzeugen und Verstößen). */
+function tachoXlsx(personen, monat) {
+  const von = monat + '-01', bis = isoTag(new Date(Number(monat.slice(0, 4)), Number(monat.slice(5, 7)), 0));
+  const blaetter = personen.filter(m => tachotageVon(m.id, von, bis).length).map(m => {
+    const tage = tachotageVon(m.id, von, bis), h = lenkzeitPruefung(tachotageVon(m.id, plusTage(von, -14), bis));
+    const zeilen = [[`Fahrerkarte ${ZEIT_DIMS.monat[2](monat)} – ${m.name}${m.fahrerkarteNr ? ' (Karte ' + m.fahrerkarteNr + ')' : ''}`], [],
+      ['Datum', 'Wochentag', 'Beginn', 'Ende', 'Lenken (Std.)', 'Arbeit (Std.)', 'Bereitschaft (Std.)', 'Pausen im Tag (Std.)', 'Arbeitszeit gesamt (Std.)', 'km', 'Fahrzeuge', 'Hinweise VO 561/2006']];
+    for (const t of tage) {
+      let p = 0; try { const a = JSON.parse(t.aktivitaeten || '[]'); p = tachoTag({ datum: t.datum, wechsel: a.map(([min, art]) => ({ min, art })) }).pausen; } catch {}
+      zeilen.push([xlDatum(t.datum), wochentag(t.datum), xlZeit(t.beginn), xlZeit(t.ende), xlStd(t.fahrMin), xlStd(t.arbeitMin), xlStd(t.bereitMin), xlStd(p), xlStd(t.fahrMin + t.arbeitMin), t.km || 0, t.fahrzeuge || '', (h[t.datum] || []).map(x => x[1]).join('; ')]);
+    }
+    const s = k => tage.reduce((n, t) => n + (t[k] || 0), 0);
+    zeilen.push([], ['Summe', '', '', '', xlStd(s('fahrMin')), xlStd(s('arbeitMin')), xlStd(s('bereitMin')), '', xlStd(s('fahrMin') + s('arbeitMin')), s('km')]);
+    return { name: m.name, zeilen, breiten: [12, 12, 8, 8, 12, 12, 16, 16, 18, 8, 24, 60], fett: [0, 2, zeilen.length - 1] };
+  });
+  if (!blaetter.length) return null;
+  return xlsxErstellen([{ name: 'Übersicht', zeilen: [['Fahrer', 'Karte', 'Tage', 'Lenken (Std.)', 'Arbeit (Std.)', 'Bereitschaft (Std.)', 'km', 'Verstöße'],
+    ...personen.filter(m => tachotageVon(m.id, von, bis).length).map(m => { const t = tachotageVon(m.id, von, bis), s = k => t.reduce((n, x) => n + (x[k] || 0), 0), h = lenkzeitPruefung(tachotageVon(m.id, plusTage(von, -14), bis));
+      return [m.name, m.fahrerkarteNr || '', t.length, xlStd(s('fahrMin')), xlStd(s('arbeitMin')), xlStd(s('bereitMin')), s('km'), Object.entries(h).filter(([d]) => d >= von).flatMap(([, l]) => l).filter(([f]) => f === 'rot').length]; })],
+    breiten: [24, 20, 8, 12, 12, 16, 10, 10], fett: [0] }, ...blaetter]);
+}
+
+// ============================== Tour: Status, Fahrtenbuch, Begleitschein, Navigation ==============================
+const TOUR_STATUS = { GEPLANT: ['geplant', 'grau'], UNTERWEGS: ['unterwegs', 'blau'], ERLEDIGT: ['erledigt', 'gruen'], PROBLEM: ['Problem', 'rot'], STORNIERT: ['storniert', 'grau'] };
+const tourStatus = t => TOUR_STATUS[t.status] || TOUR_STATUS.GEPLANT;
+const tourKm = t => (t.kmStart != null && t.kmEnde != null && t.kmEnde >= t.kmStart ? t.kmEnde - t.kmStart : null);
+const jetztZeit = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+/** Zieladresse der Tour (Adresse der Firma) für die Navigation. */
+const tourAdresse = t => { const a = t.auftraggeberId ? (vonFirma('adressen', t.auftraggeberId).find(x => x.art === 'LIEFER') || rechnungsAdresse(t.auftraggeberId)) : null; return a ? adresseText(a) : ''; };
+const navigation = adresse => oeffneLink('https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(adresse));
+function tourStatusSetzen(t, status, extra = {}) {
+  const neu = { ...t, status, ...extra };
+  if (status === 'UNTERWEGS' && !t.beginn) neu.beginn = jetztZeit();
+  if (status === 'ERLEDIGT' && !t.ende) neu.ende = jetztZeit();
+  TourAktionen.speichern(neu);
+  // Kilometerstand ins Fahrzeug
+  const z = fahrzeugZumKz(t.kennzeichen), km = neu.kmEnde ?? neu.kmStart;
+  if (z && km && (!z.kmStand || km > z.kmStand)) merke('fahrzeuge', { ...S.fahrzeuge[z.id], kmStand: km, geaendertAm: jetztIso() });
+}
+function begleitscheinHtml(touren) {
+  const rd = rechnungsDaten(), firma = esc(rd.name || S.einstellungen.firma || '');
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Begleitschein</title><style>@page{size:A4;margin:14mm}body{font:10.5pt Arial,sans-serif}.blatt+.blatt{break-before:page}
+    h1{font-size:16pt;margin:0 0 4px}table{border-collapse:collapse;width:100%;margin:8px 0}td,th{border:1px solid #999;padding:5px 6px;text-align:left;vertical-align:top}th{width:38mm;background:#f2f2f2}
+    .feld{height:16mm}.unterschrift{display:flex;gap:16mm;margin-top:10mm}.unterschrift div{flex:1;border-top:1px solid #000;padding-top:3px;font-size:8.5pt}img.sig{max-height:28mm;max-width:80mm}</style></head><body>
+    ${touren.map(t => { const sig = anlagenVon(t.id).find(a => /^Unterschrift/.test(a.anzeigename)); return `<div class="blatt"><h1>Tourenbegleitschein / Liefernachweis</h1><p>${firma}${rd.telefon ? ' · Tel. ' + esc(rd.telefon) : ''}</p>
+      <table><tr><th>Datum</th><td>${esc(datumMitTag(t.datum))}${t.uhrzeit ? ' · Ladezeit ' + esc(t.uhrzeit) : ''}</td></tr><tr><th>Tour</th><td>${esc([t.tourNr && 'Tour ' + t.tourNr, t.name].filter(Boolean).join(' – '))}</td></tr>
+      <tr><th>Auftraggeber</th><td>${esc(tourAuftraggeberName(t))}${tourAdresse(t) ? '<br>' + esc(tourAdresse(t)) : ''}</td></tr><tr><th>Einsatzart</th><td>${esc(t.einsatzart || '')}</td></tr>
+      <tr><th>Fahrzeug</th><td>${esc(t.kennzeichen || '')}</td></tr><tr><th>Team</th><td>${esc(teamVon(t).map(id => maName(id) + (id === t.fahrerId ? ' (Fahrer)' : '')).join(', '))}</td></tr>
+      ${t.notiz ? `<tr><th>Hinweis</th><td>${esc(t.notiz)}</td></tr>` : ''}
+      <tr><th>km Beginn / Ende</th><td class="feld">${t.kmStart ?? ''} / ${t.kmEnde ?? ''}</td></tr><tr><th>Beginn / Ende</th><td class="feld">${esc(t.beginn || '')} / ${esc(t.ende || '')}</td></tr>
+      <tr><th>Bemerkungen / Schäden</th><td class="feld" style="height:30mm"></td></tr></table>
+      <p>Die Ware wurde vollständig und unbeschädigt übernommen, sofern oben nicht anders vermerkt.</p>
+      <div class="unterschrift"><div>${t.empfaenger ? esc(t.empfaenger) + ', ' + esc(t.abgeliefertAm || '') : 'Name, Datum, Uhrzeit'}${sig ? `<br><img class="sig" data-sig="${sig.id}" alt="">` : ''}<br>Unterschrift Empfänger</div><div>Unterschrift Fahrer</div></div></div>`; }).join('')}</body></html>`;
+}
+async function begleitscheinDrucken(touren) {
+  let html = begleitscheinHtml(touren);
+  for (const t of touren) for (const a of anlagenVon(t.id).filter(a => /^Unterschrift/.test(a.anzeigename))) {
+    try { const b = await Dateien.hole(a.id); if (b) html = html.replace(`data-sig="${a.id}"`, `src="data:${b.type};base64,${await alsBase64(b)}"`); } catch {}
+  }
+  druckeHtml(html);
+}
+/** Status, Zeiten und Kilometer einer Tour bearbeiten. */
+function tourDetailsDialog(t) {
+  dialog(`<form method="dialog" id="tour-details"><h2>${esc(t.kennzeichen || 'Tour')} · ${esc(datumText(t.datum))}</h2>
+    <label class="feld">Status<select name="status">${Object.entries(TOUR_STATUS).map(([k, [l]]) => `<option value="${k}" ${(t.status || 'GEPLANT') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <div class="zeile"><label class="feld fuell">Beginn<input type="time" name="beginn" value="${esc(t.beginn || '')}"></label><label class="feld fuell">Ende<input type="time" name="ende" value="${esc(t.ende || '')}"></label></div>
+    <div class="zeile"><label class="feld fuell">km Beginn<input name="kmStart" inputmode="numeric" value="${t.kmStart ?? ''}"></label><label class="feld fuell">km Ende<input name="kmEnde" inputmode="numeric" value="${t.kmEnde ?? ''}"></label></div>
+    <label class="feld">Empfänger (Name)<input name="empfaenger" value="${esc(t.empfaenger || '')}"></label>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
+  $('#tour-details').onsubmit = ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries([...new FormData(ev.target)].map(([k, v]) => [k, String(v).trim()])), zahl = v => (v ? Math.round(Number(v.replace(/\D/g, ''))) : null);
+    $('#dialog').close();
+    tourStatusSetzen(t, w.status, { beginn: w.beginn, ende: w.ende, kmStart: zahl(w.kmStart), kmEnde: zahl(w.kmEnde), empfaenger: w.empfaenger });
+  };
+}
+
+// ---------- Wochenplan (Fahrzeuge × Tage) ----------
+function wochenplanHtml(tag) {
+  const mo = plusTage(tag, -((alsTag(tag).getDay() + 6) % 7)), tage = Array.from({ length: 7 }, (_, i) => plusTage(mo, i));
+  const touren = alle('touren').filter(t => t.datum >= tage[0] && t.datum <= tage[6] && t.status !== 'STORNIERT');
+  const kz = [...new Set([...fahrzeugListe().filter(z => z.status !== 'STILLGELEGT').map(z => z.kennzeichen), ...touren.map(t => t.kennzeichen || '(ohne Fahrzeug)')])];
+  return `<div class="tabelle-rahmen"><table class="tabelle wochenplan"><tr><th>Fahrzeug</th>${tage.map(d => `<th class="${d === heute() ? 'heute' : ''}"><button class="knopf text" style="padding:0" data-tp-gehe="${d}">${esc(['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][alsTag(d).getDay()])} ${esc(d.slice(8))}.${esc(d.slice(5, 7))}.</button>${feiertagAm(d) ? `<br><span class="leise">${esc(feiertagAm(d))}</span>` : ''}</th>`).join('')}</tr>
+    ${kz.map(k => `<tr><td><b>${esc(k)}</b></td>${tage.map(d => { const l = touren.filter(t => t.datum === d && (t.kennzeichen || '(ohne Fahrzeug)') === k);
+      return `<td class="${[0, 6].includes(alsTag(d).getDay()) || feiertagAm(d) ? 'we' : ''}" data-tp-gehe="${d}">${l.map(t => `<div class="wp-tour"><b>${esc(tourAuftraggeberName(t) || t.name || 'Tour')}</b><br><span class="leise">${esc(maName(t.fahrerId) || '–')}${beifahrerVon(t).length ? ' +' + beifahrerVon(t).length : ''}</span></div>`).join('')}</td>`; }).join('')}</tr>`).join('')}
+    <tr class="summe"><td>Touren</td>${tage.map(d => `<td>${touren.filter(t => t.datum === d).length || ''}</td>`).join('')}</tr>
+    <tr><td class="leise">Abwesend</td>${tage.map(d => `<td class="leise">${esc(mitarbeiterListe(true).filter(m => abwesendAm(m.id, d)).map(m => m.name.split(' ')[0]).join(', '))}</td>`).join('')}</tr></table></div>`;
+}
+
+// ============================== Fahrer-Modus („Meine Touren“) ==============================
+/** Für das Handy des Fahrers: eigene Touren, Stempeluhr, Losfahren, Abliefern mit Unterschrift und Foto, Schaden melden. */
+const stempel = () => { try { return JSON.parse(localStorage.getItem('stempel') || 'null'); } catch { return null; } };
+const setzeStempel = v => { try { if (v) localStorage.setItem('stempel', JSON.stringify(v)); else localStorage.removeItem('stempel'); } catch {} };
+function zeichneFahrer() {
+  const ich = maVon(ichId());
+  if (!ich) return seitenkopf('Meine Touren') + `<div class="karte block"><h3>Wer nutzt dieses Gerät?</h3><p class="leise">Einmal auswählen – danach zeigt die App hier die eigenen Touren, die Stempeluhr und das Abliefern mit Unterschrift.</p>
+    <div id="ich-wahl">${mitarbeiterListe(true).map(m => `<button class="vorlage" data-ich="${m.id}"><b>${esc(m.name)}</b> <span class="leise">${esc(ROLLE[m.rolle] || '')}</span></button>`).join('') || '<p class="leise">Noch kein Personal angelegt.</p>'}</div></div>`;
+  const t = heute(), st = stempel(), heuteZeiten = zeitenVon(ich.id, t, t).filter(zeitZaehlt), gearbeitet = heuteZeiten.reduce((n, z) => n + (zeitDauer(z) || 0), 0);
+  const laufend = st && st.id === ich.id && st.datum === t;
+  const meine = alle('touren').filter(x => x.datum >= t && x.datum <= plusTage(t, 6) && teamVon(x).includes(ich.id) && x.status !== 'STORNIERT').sort((a, b) => a.datum.localeCompare(b.datum) || (a.reihenfolge ?? 0) - (b.reihenfolge ?? 0));
+  const karte = x => {
+    const fertig = x.status === 'ERLEDIGT', adr = tourAdresse(x), sig = anlagenVon(x.id).some(a => /^Unterschrift/.test(a.anzeigename));
+    return `<div class="karte fahrer-tour ${fertig ? 'fertig' : ''}" data-fahrer-tour="${x.id}">
+      <div class="zeile eng"><b class="titel fuell">${esc(x.datum === t ? 'Heute' : datumMitTag(x.datum))}${x.uhrzeit ? ' · ab ' + esc(x.uhrzeit) : ''}</b><span class="marke ${tourStatus(x)[1]}">${esc(tourStatus(x)[0])}</span></div>
+      <p style="font-size:17px;margin:6px 0"><b>${esc(x.kennzeichen || '–')}</b> · ${esc([x.tourNr && 'Tour ' + x.tourNr, tourAuftraggeberName(x), x.name].filter(Boolean).join(' · '))}</p>
+      <p class="leise">${esc(x.einsatzart || '')}${adr ? ' · ' + esc(adr) : ''}</p>
+      <p class="leise">Team: ${esc(teamVon(x).map(id => maName(id) + (id === x.fahrerId ? ' (Fahrer)' : '')).join(', '))}</p>
+      ${x.notiz ? `<p class="hinweis-box">ℹ ${esc(x.notiz)}</p>` : ''}${sig ? '<p class="leise">✍ Unterschrift liegt vor</p>' : ''}
+      ${x.datum === t ? `<div class="fahrer-knoepfe">
+        ${!fertig && x.status !== 'UNTERWEGS' ? '<button class="knopf voll" data-fahrer="los">▶ Losfahren</button>' : ''}
+        ${!fertig ? '<button class="knopf voll" data-fahrer="abliefern">✓ Abliefern</button>' : ''}
+        ${adr ? '<button class="knopf tonal" data-fahrer="navi">🧭 Navigation</button>' : ''}
+        <button class="knopf tonal" data-fahrer="foto">📷 Foto</button><button class="knopf tonal" data-fahrer="schaden">⚠ Schaden</button>
+        <button class="knopf" data-fahrer="problem">❗ Problem melden</button></div>` : ''}</div>`;
+  };
+  const dispo = rechnungsDaten().telefon;
+  return seitenkopf(`Hallo ${ich.name.split(' ')[0]}`, '', `<button class="knopf" data-ich="">Person wechseln</button>${dispo ? `<button class="knopf" data-fahrer-dispo>☎ Disposition</button>` : ''}`)
+    + `<div class="karte stempeluhr"><div class="zeile eng"><div class="fuell"><b>Arbeitszeit heute</b><br><span class="leise">${heuteZeiten.length ? heuteZeiten.map(z => `${z.beginn}–${z.ende}`).join(', ') + ' · ' + stdText(gearbeitet) : 'noch nichts erfasst'}
+      ${laufend ? ` · läuft seit ${esc(st.beginn)}${st.pauseAb ? ` · Pause seit ${esc(st.pauseAb)}` : ''}` : ''}</span></div></div>
+      <div class="fahrer-knoepfe">${!laufend ? '<button class="knopf voll" data-stempel="start">⏵ Arbeitsbeginn</button>'
+        : `${st.pauseAb ? '<button class="knopf voll" data-stempel="weiter">⏵ Pause beenden</button>' : '<button class="knopf tonal" data-stempel="pause">⏸ Pause</button>'}<button class="knopf voll" data-stempel="ende">⏹ Feierabend</button>`}</div></div>
+    <h3 class="abschnitt">Meine Touren (7 Tage)</h3>${meine.map(karte).join('') || '<div class="leer"><b>Keine Touren eingeplant</b>Sobald die Disposition dich einteilt, erscheint die Tour hier.</div>'}
+    ${abwesenheitenVon(ich.id).filter(a => (a.bis || a.von) >= t).slice(-3).reverse().map(a => `<p class="leise">🏖 ${esc(a.grund || 'Abwesend')}: ${esc(datumText(a.von))} – ${esc(datumText(a.bis || a.von))}</p>`).join('')}
+    <div class="zeile" style="margin-top:12px"><button class="knopf" data-fahrer-urlaub>🏖 Urlaub beantragen</button><button class="knopf" data-fahrer-krank>🤒 Krank melden</button></div>`;
+}
+/** Unterschrift auf dem Bildschirm (Finger oder Maus). */
+function unterschriftFeld(canvas) {
+  const ctx = canvas.getContext('2d'); let malt = false, leer = true;
+  const pos = e => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) * canvas.width / r.width, (e.clientY - r.top) * canvas.height / r.height]; };
+  ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  canvas.addEventListener('pointerdown', e => { malt = true; leer = false; canvas.setPointerCapture(e.pointerId); ctx.beginPath(); ctx.moveTo(...pos(e)); e.preventDefault(); });
+  canvas.addEventListener('pointermove', e => { if (!malt) return; ctx.lineTo(...pos(e)); ctx.stroke(); e.preventDefault(); });
+  canvas.addEventListener('pointerup', () => { malt = false; });
+  return { leer: () => leer, loeschen: () => { ctx.fillRect(0, 0, canvas.width, canvas.height); leer = true; }, blob: () => new Promise(ok => canvas.toBlob(ok, 'image/png')) };
+}
+function abliefernDialog(t) {
+  dialog(`<form method="dialog" id="abliefern-form"><h2>Abliefern</h2><p class="leise">${esc(tourText(t))}</p>
+    <label class="feld">Name des Empfängers<input name="empfaenger" value="${esc(t.empfaenger || '')}" autocomplete="off"></label>
+    <p class="leise" style="margin:6px 0 2px">Unterschrift des Empfängers</p><canvas id="sig" width="600" height="220" class="unterschrift-feld"></canvas>
+    <button type="button" class="knopf text" id="sig-weg">Unterschrift löschen</button>
+    <label class="feld">km-Stand am Ende (optional)<input name="kmEnde" inputmode="numeric" value="${t.kmEnde ?? ''}"></label>
+    <label class="feld">Bemerkung (z. B. Schaden, Fehlmenge)<textarea name="bemerkung"></textarea></label>
+    <label class="knopf">📷 Fotos hinzufügen<input type="file" id="ablief-foto" accept="image/*" capture="environment" multiple hidden></label><span class="leise" id="ablief-fotos"></span>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">✓ Abgeliefert</button></div></form>`);
+  const sig = unterschriftFeld($('#sig')); let fotos = [];
+  $('#sig-weg').onclick = () => sig.loeschen();
+  $('#ablief-foto').onchange = e => { fotos = fotos.concat([...e.target.files]); $('#ablief-fotos').textContent = fotos.length + ' Foto(s)'; };
+  $('#abliefern-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries([...new FormData(ev.target)].map(([k, v]) => [k, String(v).trim()])), zeit = `${datumText(heute())} ${jetztZeit()}`;
+    if (!sig.leer()) await legeAnlage(t.id, new File([await sig.blob()], `${w.empfaenger || 'Empfänger'} ${heute()}.png`, { type: 'image/png' }), 'Unterschrift – ');
+    for (const f of fotos) await legeAnlage(t.id, f, 'Foto Ablieferung – ');
+    $('#dialog').close();
+    tourStatusSetzen(S.touren[t.id], w.bemerkung ? 'PROBLEM' : 'ERLEDIGT', { empfaenger: w.empfaenger, abgeliefertAm: zeit, kmEnde: w.kmEnde ? Number(w.kmEnde.replace(/\D/g, '')) : t.kmEnde ?? null,
+      notiz: w.bemerkung ? [t.notiz, `Bei Ablieferung (${zeit}): ${w.bemerkung}`].filter(Boolean).join('\n') : t.notiz });
+    if (w.bemerkung) AufgabeAktionen.speichern({ titel: `Bemerkung bei Ablieferung prüfen: ${tourText(t)}`, text: w.bemerkung, faelligAm: heute(), prioritaet: 'HOCH', bezugArt: 'tour', bezugId: t.id });
+    toast(w.bemerkung ? 'Abgeliefert mit Bemerkung – die Disposition wurde informiert' : 'Abgeliefert ✓');
+  };
+}
+$('#liste').addEventListener('click', async e => {
+  if (ANSICHT.bereich !== 'fahrer') return;
+  const ich = e.target.closest('[data-ich]'), f = e.target.closest('[data-fahrer]'), s = e.target.closest('[data-stempel]');
+  if (ich) { S.einstellungen.ichId = ich.dataset.ich; speichere(); zeichneListe(); return; }
+  if (e.target.closest('[data-fahrer-dispo]')) { oeffne('tel:' + rechnungsDaten().telefon.replace(/[^\d+]/g, '')); return; }
+  if (e.target.closest('[data-fahrer-urlaub]')) { abwesenheitDialog(maVon(ichId()), null, plusTage(heute(), 14)); setTimeout(() => { const g = $('#abwesenheit-form [name=grund]'); if (g) g.value = 'Urlaub (beantragt)'; }, 0); return; }
+  if (e.target.closest('[data-fahrer-krank]')) { PersonalAktionen.abwesenheit({ mitarbeiterId: ichId(), von: heute(), bis: heute(), grund: 'Krank', notiz: 'Im Fahrer-Modus gemeldet' }); AufgabeAktionen.speichern({ titel: `${maName(ichId())} hat sich krank gemeldet – Touren prüfen`, faelligAm: heute(), prioritaet: 'HOCH', bezugArt: 'mitarbeiter', bezugId: ichId() }); toast('Krankmeldung eingetragen – gute Besserung!'); return; }
+  if (s) {
+    const st = stempel(), id = ichId(), jetzt = jetztZeit();
+    if (s.dataset.stempel === 'start') setzeStempel({ id, datum: heute(), beginn: jetzt, pause: 0 });
+    else if (s.dataset.stempel === 'pause') setzeStempel({ ...st, pauseAb: jetzt });
+    else if (s.dataset.stempel === 'weiter') setzeStempel({ ...st, pause: (st.pause || 0) + Math.max(0, zeitMin(jetzt) - zeitMin(st.pauseAb)), pauseAb: null });
+    else if (s.dataset.stempel === 'ende') {
+      const pause = (st.pause || 0) + (st.pauseAb ? Math.max(0, zeitMin(jetzt) - zeitMin(st.pauseAb)) : 0);
+      ZeitAktionen.speichern({ mitarbeiterId: id, datum: st.datum, beginn: st.beginn, ende: jetzt, pauseMin: pause, quelle: 'STEMPEL', bestaetigt: true });
+      setzeStempel(null);
+      const h = arbzgPruefen(id, st.datum).filter(([fa]) => fa === 'rot'); toast(h.length ? 'Gespeichert – Hinweis: ' + h[0][1] : 'Feierabend gespeichert ✓', 6000);
+    }
+    zeichneListe(); return;
+  }
+  if (!f) return;
+  const t = S.touren[f.closest('[data-fahrer-tour]').dataset.fahrerTour]; if (!t) return;
+  ({ los: () => { const km = prompt('km-Stand bei Abfahrt (optional):', t.kmStart ?? (fahrzeugZumKz(t.kennzeichen) || {}).kmStand ?? ''); tourStatusSetzen(t, 'UNTERWEGS', km ? { kmStart: Number(String(km).replace(/\D/g, '')) } : {}); },
+    abliefern: () => abliefernDialog(t), navi: () => navigation(tourAdresse(t)), schaden: () => schadenAusTour(t),
+    foto: () => { const i = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', multiple: true }); i.setAttribute('capture', 'environment');
+      i.onchange = async () => { for (const d of i.files) await legeAnlage(t.id, d, 'Foto – '); nachAenderung(); toast('Foto gespeichert'); }; i.click(); },
+    problem: () => { const text = prompt('Was ist los?'); if (!text) return; tourStatusSetzen(t, 'PROBLEM', { notiz: [t.notiz, `Problem (${jetztZeit()}): ${text}`].filter(Boolean).join('\n') });
+      AufgabeAktionen.speichern({ titel: `Problem bei Tour: ${text}`, faelligAm: heute(), prioritaet: 'HOCH', bezugArt: 'tour', bezugId: t.id }); toast('Problem gemeldet'); } })[f.dataset.fahrer]();
+});
+
+// ============================== Preiskalkulator ==============================
+/** Kalkuliert einen Preis aus Stunden, Personen, km und Fahrzeug mit den Kosten-Annahmen und gewünschter Marge – auf Wunsch als Angebot. */
+function kalkulatorDialog(firmaId = '') {
+  const a = kostenAnnahmen(), vorgaben = S.einstellungen.kalkulator || {};
+  dialog(`<form method="dialog" id="kalk-form"><h2>🧮 Preiskalkulator</h2>
+    <label class="feld">Firma (für ein Angebot)<select name="firma"><option value="">– nur rechnen –</option>${auftraggeberListe().map(f => `<option value="${f.id}" ${f.id === firmaId ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select></label>
+    <label class="feld">Leistung<input name="bez" value="${esc(vorgaben.bez || 'Montage-Tour')}"></label>
+    <div class="zeile"><label class="feld fuell">Stunden je Einsatz<input name="std" inputmode="decimal" value="${vorgaben.std || 8}"></label><label class="feld fuell">Personen<input name="pers" inputmode="numeric" value="${vorgaben.pers || 2}"></label></div>
+    <div class="zeile"><label class="feld fuell">km je Einsatz<input name="km" inputmode="decimal" value="${vorgaben.km || 120}"></label><label class="feld fuell">€ je km (Kraftstoff, Verschleiß)<input name="kmSatz" inputmode="decimal" value="${vorgaben.kmSatz || '0,45'}"></label></div>
+    <div class="zeile"><label class="feld fuell">Lohnkosten je Stunde (€)<input name="lohn" inputmode="decimal" value="${vorgaben.lohn || (a.personalTag / 800).toFixed(2).replace('.', ',')}"></label><label class="feld fuell">Fahrzeug je Einsatz (€)<input name="fz" inputmode="decimal" value="${vorgaben.fz || (a.fahrzeugTag / 100).toFixed(2).replace('.', ',')}"></label></div>
+    <div class="zeile"><label class="feld fuell">Maut / Sonstiges (€)<input name="maut" inputmode="decimal" value="${vorgaben.maut || '0'}"></label><label class="feld fuell">Gewinnaufschlag (%)<input name="marge" inputmode="decimal" value="${vorgaben.marge || 20}"></label></div>
+    <label class="feld">Anzahl Einsätze (für das Angebot)<input name="anzahl" inputmode="numeric" value="${vorgaben.anzahl || 1}"></label>
+    <div class="karte block" id="kalk-ergebnis" style="margin:8px 0"></div>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Schließen</button><button class="knopf voll" id="kalk-angebot">Als Angebot anlegen</button></div></form>`);
+  const f = $('#kalk-form'), z = v => Number(String(v || '0').replace(',', '.')) || 0;
+  const rechne = () => {
+    const w = Object.fromEntries(new FormData(f)), lohn = z(w.std) * z(w.pers) * z(w.lohn) * 100, km = z(w.km) * z(w.kmSatz) * 100, fz = z(w.fz) * 100, maut = z(w.maut) * 100;
+    const kosten = Math.round(lohn + km + fz + maut), gemein = Math.round(kosten * a.gemein / 100), preis = Math.round((kosten + gemein) * (1 + z(w.marge) / 100));
+    $('#kalk-ergebnis').innerHTML = `<dl><dt>Personal</dt><dd>${geld(Math.round(lohn))}</dd><dt>Fahrzeug + km</dt><dd>${geld(Math.round(fz + km))}</dd>${maut ? `<dt>Maut/Sonstiges</dt><dd>${geld(Math.round(maut))}</dd>` : ''}
+      ${gemein ? `<dt>Gemeinkosten</dt><dd>${geld(gemein)}</dd>` : ''}<dt>Selbstkosten</dt><dd><b>${geld(kosten + gemein)}</b></dd><dt>Preis je Einsatz</dt><dd><b style="font-size:18px">${geld(preis)}</b> netto</dd>
+      <dt>Gewinn je Einsatz</dt><dd>${geld(preis - kosten - gemein)}</dd>${z(w.std) ? `<dt>Stundensatz je Person</dt><dd>${geld(Math.round(preis / z(w.std) / Math.max(1, z(w.pers))))}</dd>` : ''}</dl>`;
+    return { w, preis };
+  };
+  f.oninput = rechne; rechne();
+  f.onsubmit = ev => {
+    ev.preventDefault();
+    const { w, preis } = rechne(); S.einstellungen.kalkulator = w; speichere();
+    if (!w.firma) { toast('Bitte eine Firma wählen'); return; }
+    const id = BelegAktionen.neu('ANGEBOT', w.firma, { positionen: JSON.stringify([{ bez: w.bez, einheit: `je Einsatz (${w.std} Std., ${w.pers} Personen, ${w.km} km)`, menge: Math.max(1, z(w.anzahl)), einzelCent: preis }]) });
+    $('#dialog').close(); bereichWechseln('finanzen'); gehe('#/beleg/' + id);
+  };
+}
+
+// ============================== Datensicherung ==============================
+/** Alles in einer Datei sichern (ohne Mail-Passwörter) bzw. eine Sicherung zurückspielen. */
+function sicherungErstellen() {
+  const daten = { art: 'ayse-crm-sicherung', version: 1, erstellt: jetztIso(), einstellungen: S.einstellungen, mails: S.mails || {}, ...Object.fromEntries(TABELLEN.map(t => [t, alle(t)])) };
+  ladeBlobHerunter(`Ayse-CRM-Sicherung_${heute()}.json`, new Blob([JSON.stringify(daten)], { type: 'application/json' }));
+  S.einstellungen.letzteSicherung = heute(); speichere();
+}
+async function sicherungEinspielen(text) {
+  const d = JSON.parse(text);
+  if (!d || d.art !== 'ayse-crm-sicherung') throw new Error('Das ist keine Sicherung dieser App.');
+  let n = 0;
+  for (const t of TABELLEN) for (const x of d[t] || []) { const alt = S[t][x.id]; if (!alt || String(x.geaendertAm || '') > String(alt.geaendertAm || '')) { merke(t, { ...x, geaendertAm: x.geaendertAm || jetztIso() }); n++; } }
+  S.mails = { ...(d.mails || {}), ...(S.mails || {}) };
+  nachAenderung(); return n;
+}
+
+// ============================== Firmen aus CSV/Excel-Liste ==============================
+/** Liest eine CSV-Liste (z. B. aus Excel „Speichern unter → CSV“): Spalten werden am Namen erkannt (Firma, Telefon, E-Mail, Straße, PLZ, Ort, Ansprechpartner, Website, Notiz, Status). */
+function firmenCsvImportieren(text) {
+  const zeilen = text.replace(/^﻿/, '').split(/\r?\n/).filter(z => z.trim());
+  if (zeilen.length < 2) throw new Error('Die Datei enthält keine Zeilen.');
+  const trenner = (zeilen[0].match(/;/g) || []).length >= (zeilen[0].match(/,/g) || []).length ? ';' : ',';
+  const teile = z => { const r = []; let f = '', q = false; for (const c of z) { if (c === '"') q = !q; else if (c === trenner && !q) { r.push(f); f = ''; } else f += c; } r.push(f); return r.map(x => x.trim()); };
+  const kopf = teile(zeilen[0]).map(normal), finde = (...n) => kopf.findIndex(k => n.some(x => k.includes(x)));
+  const sp = { name: finde('firma', 'name', 'unternehmen'), tel: finde('telefon', 'tel'), mail: finde('mail'), str: finde('straße', 'strasse', 'adresse'), plz: finde('plz', 'postleitzahl'), ort: finde('ort', 'stadt'),
+    kontakt: finde('ansprech', 'kontakt'), web: finde('web', 'internet', 'homepage'), notiz: finde('notiz', 'bemerkung', 'info'), status: finde('status') };
+  if (sp.name < 0) throw new Error('Keine Spalte „Firma“ oder „Name“ gefunden.');
+  let neu = 0, vorhanden = 0;
+  for (const z of zeilen.slice(1)) {
+    const w = teile(z), g = i => (i >= 0 ? w[i] || '' : ''), name = g(sp.name); if (!name) continue;
+    if (firmaZumNamen(name)) { vorhanden++; continue; }
+    const st = normal(g(sp.status)), status = /aktiv|kunde/.test(st) ? 'AKTIV' : /ehemal/.test(st) ? 'EHEMALIG' : /paus/.test(st) ? 'PAUSIERT' : 'INTERESSENT';
+    const id = uuid();
+    merke('auftraggeber', { id, name, status, telefon: g(sp.tel), email: g(sp.mail), website: g(sp.web), notizen: [g(sp.notiz), 'Aus Liste importiert'].filter(Boolean).join('\n'), geaendertAm: jetztIso() });
+    if (g(sp.ort) || g(sp.str)) merke('adressen', { id: uuid(), firmaId: id, art: 'HAUPTSITZ', strasse: g(sp.str), plz: g(sp.plz), ort: g(sp.ort), notiz: '', geaendertAm: jetztIso() });
+    if (g(sp.kontakt)) merke('ansprechpartner', { id: uuid(), firmaId: id, name: g(sp.kontakt), thema: '', telefon: g(sp.tel), email: g(sp.mail), notiz: '', geaendertAm: jetztIso() });
+    neu++;
+  }
+  nachAenderung(); return { neu, vorhanden };
+}
+
+// ============================== Buchhaltung ==============================
+/** Rechnungsausgangsbuch (CSV, für Steuerberater/DATEV-Import vorbereitet): je Rechnung Datum, Nummer, Kunde, Netto, USt, Brutto, Konten. */
+function buchhaltungCsv(von, bis) {
+  const e = S.einstellungen.buchhaltung || {}, erloes = e.erloeskonto || '8400', zahl = c => (c / 100).toFixed(2).replace('.', ',');
+  return '﻿' + [['Belegdatum', 'Belegnummer', 'Kunde', 'Kundennummer', 'Buchungstext', 'Netto', 'USt-Satz', 'USt', 'Brutto', 'Soll/Haben', 'Erlöskonto', 'Debitor', 'Status', 'Bezahlt am', 'Bezahlt'],
+    ...alle('belege').filter(b => b.art === 'RECHNUNG' && b.datum >= von && b.datum <= bis && b.status !== 'ENTWURF').sort((a, b) => a.datum.localeCompare(b.datum) || a.nummer.localeCompare(b.nummer)).map(b => {
+      const s = belegSummen(b), f = S.auftraggeber[b.firmaId] || {}, storno = b.status === 'STORNIERT';
+      return [datumText(b.datum), b.nummer, f.name || '', f.kundennummer || '', `Rechnung ${b.nummer} ${f.name || ''}`.trim(), zahl(storno ? -s.netto : s.netto), String(b.mwstProzent ?? 19), zahl(storno ? -s.mwst : s.mwst),
+        zahl(storno ? -s.brutto : s.brutto), 'S', erloes, f.kundennummer || e.debitor || '10000', belegMarke(b)[0], datumText(b.bezahltAm), zahl(b.bezahltCent || 0)];
+    })].map(z => z.map(csvZelle).join(';')).join('\r\n') + '\r\n';
+}
+
+// ============================== Hinweise beim Start ==============================
+/** Einmal am Tag (und in den Apps als Benachrichtigung): was heute ansteht. */
+function tagesHinweise() {
+  const w = wiedervorlagen(), t = heute(), morgen = plusTage(t, 1);
+  const l = [];
+  if (w.ueberfaellig.length) l.push(`${w.ueberfaellig.length} überfällige Termine`);
+  if (w.heute.length) l.push(`${w.heute.length} Termine heute`);
+  const af = alle('aufgabenIntern').filter(a => !a.erledigt && a.faelligAm && a.faelligAm <= t).length; if (af) l.push(`${af} fällige Aufgaben`);
+  if ([1, 2, 3, 4, 5].includes(alsTag(morgen).getDay()) && !feiertagAm(morgen) && alle('touren').length && !tourenAm(morgen).length) l.push('für morgen sind noch keine Touren geplant');
+  const krank = mitarbeiterListe(true).filter(m => abwesendAm(m.id, t) && grundArt(abwesendAm(m.id, t).grund) === 'Krank'); if (krank.length) l.push(`krank: ${krank.map(m => m.name.split(' ')[0]).join(', ')}`);
+  const probleme = tourenAm(t).filter(x => x.status === 'PROBLEM').length; if (probleme) l.push(`${probleme} Touren mit Problem`);
+  if (!S.einstellungen.letzteSicherung || S.einstellungen.letzteSicherung < plusTage(t, -30)) l.push('letzte Datensicherung über 30 Tage her');
+  return l;
+}
+function tagesHinweiseZeigen() {
+  const t = heute(); if (S.einstellungen.hinweisTag === t) return;
+  const l = tagesHinweise(); if (!l.length) return;
+  S.einstellungen.hinweisTag = t; speichere();
+  toast('Heute: ' + l.join(' · '), 9000);
+  if (window.desktop && window.desktop.benachrichtige) window.desktop.benachrichtige('Ayse CRM – heute', l.join('\n'), '#/').catch(() => {});
+}
+
 // ============================== Fuhrpark ==============================
 const FAHRZEUG_ART = { TRANSPORTER: 'Transporter', LKW: 'LKW', PKW: 'PKW', ANHAENGER: 'Anhänger', SONSTIGES: 'Sonstiges' };
 const FAHRZEUG_STATUS = { AKTIV: ['Im Einsatz', 'gruen'], WERKSTATT: ['In der Werkstatt', 'gelb'], RESERVE: ['Reserve', 'grau'], STILLGELEGT: ['Abgemeldet / verkauft', 'grau'] };
@@ -4071,7 +5175,7 @@ const FAHRZEUG_DOKUMENTE = ['Fahrzeugschein (Teil I)', 'Fahrzeugbrief (Teil II)'
 const FRIST_VORLAUF = 30;
 const FAHRZEUG_FELDER = [
   ['Fahrzeug', [['kennzeichen', 'Kennzeichen', 'pflicht'], ['bezeichnung', 'Interne Bezeichnung (z. B. Sprinter 3)'], ['art', 'Art', FAHRZEUG_ART],
-    ['status', 'Status', Object.fromEntries(Object.entries(FAHRZEUG_STATUS).map(([k, [l]]) => [k, l]))], ['leihfahrzeug', 'Leihfahrzeug (zählt nicht als frei)', { nein: 'Nein', ja: 'Ja' }], ['fahrer', 'Fester Fahrer'], ['kmStand', 'Kilometerstand', 'zahl'], ['wartungKm', 'Nächste Wartung bei km', 'zahl']]],
+    ['status', 'Status', Object.fromEntries(Object.entries(FAHRZEUG_STATUS).map(([k, [l]]) => [k, l]))], ['leihfahrzeug', 'Leihfahrzeug (zählt nicht als frei)', { nein: 'Nein', ja: 'Ja' }], ['aliase', 'Aliase / weitere Kennzeichen (durch Komma getrennt, z. B. aus Fahrerkarte oder alte Kennzeichen)'], ['fahrer', 'Fester Fahrer'], ['kmStand', 'Kilometerstand', 'zahl'], ['wartungKm', 'Nächste Wartung bei km', 'zahl']]],
   ['Fristen', FRISTEN.map(([k, l]) => [k, l, 'date'])],
   ['Fahrzeugschein (Zulassungsbescheinigung Teil I)', [['halter', 'Halter (C.1)'], ['marke', 'Marke (D.1)'], ['modell', 'Typ / Handelsbezeichnung (D.2/D.3)'], ['fin', 'Fahrzeug-Ident.-Nr. FIN (E)'],
     ['erstzulassung', 'Erstzulassung (B)', 'date'], ['zgg', 'Zul. Gesamtmasse in kg (F.2)', 'zahl'], ['leergewicht', 'Leergewicht in kg (G)', 'zahl'], ['hsn', 'Herstellerschlüssel HSN (2.1)'], ['tsn', 'Typschlüssel TSN (2.2)'],
@@ -4185,9 +5289,12 @@ function zeichneFahrzeug(id) {
       <div class="zeile" style="margin-top:10px"><span class="marke ${fahrzeugStatus(z)[1]}">${esc(fahrzeugStatus(z)[0])}</span>
         ${z.fahrer ? (maZumNamen(z.fahrer) ? `<button class="knopf text" data-mitarbeiter="${maZumNamen(z.fahrer).id}">👤 ${esc(z.fahrer)}</button>` : `<span class="leise">Fahrer: ${esc(z.fahrer)}</span>`) : ''}${z.leihfahrzeug ? '<span class="marke grau">Leihfahrzeug</span>' : ''}<span class="fuell"></span>${z.kmStand != null ? `<b>${esc(zahlText(z.kmStand, 'km'))}</b>` : ''}</div>
       <div class="zeile" style="margin-top:10px"><button class="knopf voll" data-fz="eintrag">＋ Eintrag (Werkstatt, Tanken, km …)</button>
-        <button class="knopf" data-fz="tanken">⛽ Tanken</button><button class="knopf" data-fz="km">📍 km-Stand</button></div>
+        <button class="knopf" data-fz="tanken">⛽ Tanken</button><button class="knopf" data-fz="km">📍 km-Stand</button><button class="knopf" data-neue-aufgabe data-bezug-art="fahrzeug" data-bezug-id="${z.id}">＋ Aufgabe</button></div>
     </div>
-    <div class="karte block"><h3>Einsätze (Tourenplanung)</h3><div id="fz-touren">${fahrzeugTourenHtml(z)}</div></div>
+    <div class="karte block"><h3>Einsätze (Tourenplanung)</h3><div id="fz-touren">${fahrzeugTourenHtml(z)}</div>
+      ${(() => { const fb = tourenVonFahrzeug(z).filter(t => tourKm(t) != null).sort((a, b) => b.datum.localeCompare(a.datum)); return fb.length ? `<details><summary class="leise" style="cursor:pointer;margin:6px 0">Fahrtenbuch (${fb.length} Fahrten, ${fb.reduce((n, t) => n + tourKm(t), 0)} km)</summary>
+        <div class="tabelle-rahmen"><table class="tabelle"><tr><th>Tag</th><th>Fahrer</th><th>Ziel</th><th class="r">km von</th><th class="r">km bis</th><th class="r">km</th></tr>${fb.slice(0, 60).map(t => `<tr><td>${esc(datumText(t.datum))}</td><td>${esc(maName(t.fahrerId))}</td><td>${esc(tourAuftraggeberName(t) || t.name || '')}</td><td class="r">${t.kmStart}</td><td class="r">${t.kmEnde}</td><td class="r">${tourKm(t)}</td></tr>`).join('')}</table></div></details>` : ''; })()}
+      ${z.aliase ? `<p class="leise">Aliase: ${esc(z.aliase)}</p>` : ''}</div>
     <div class="karte block"><h3>Fristen</h3>
       ${fr.length || wartungKmFaellig(z) ? `<div id="fristen">${fr.map(f => `<div class="zeile eng" style="margin:4px 0"><span class="fuell">${esc(f.label)}</span><span class="marke ${fristFarbe(f)}">${esc(fristText(f))}</span></div>`).join('')}
         ${z.wartungKm != null ? `<div class="zeile eng" style="margin:4px 0"><span class="fuell">Wartung nach km</span><span class="marke ${wartungKmFaellig(z) ? 'gelb' : 'grau'}">bei ${esc(zahlText(z.wartungKm, 'km'))}</span></div>` : ''}</div>`
@@ -5208,6 +6315,18 @@ document.addEventListener('click', e => {
 });
 
 // ============================== Start ==============================
+setTimeout(() => { try { tagesHinweiseZeigen(); } catch {} }, 2500);
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-kalkulator]')) { kalkulatorDialog(route().art === 'firma' ? route().id : ''); return; }
+  if (e.target.closest('[data-buchhaltung]')) { const zr = zeitraum('LETZTER_MONAT'); dialog(`<form method="dialog" id="bh-form"><h2>📒 Buchhaltungs-Export</h2><p class="leise">Rechnungsausgangsbuch als CSV für Steuerberater / DATEV-Import. Konten unter ⚙ → Buchhaltung.</p>
+    <div class="zeile"><label class="feld fuell">Von<input type="date" name="von" value="${zr.von}"></label><label class="feld fuell">Bis<input type="date" name="bis" value="${zr.bis}"></label></div>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Exportieren</button></div></form>`);
+    $('#bh-form').onsubmit = ev => { ev.preventDefault(); const w = Object.fromEntries(new FormData(ev.target)); $('#dialog').close(); ladeHerunter(`Rechnungsausgangsbuch_${w.von}_${w.bis}.csv`, buchhaltungCsv(w.von, w.bis)); }; }
+});
+document.addEventListener('change', async e => {
+  if (e.target.id === 'firmen-csv-import' && e.target.files[0]) { try { const r = firmenCsvImportieren(await e.target.files[0].text()); toast(`Import: ${r.neu} neue Firmen, ${r.vorhanden} schon vorhanden`, 6000); } catch (x) { toast(x.message, 6000); } e.target.value = ''; }
+  if (e.target.id === 'sicherung-import' && e.target.files[0]) { try { const n = await sicherungEinspielen(await e.target.files[0].text()); toast(`Sicherung eingespielt: ${n} Datensätze übernommen`, 6000); } catch (x) { toast(x.message, 6000); } e.target.value = ''; }
+});
 window.addEventListener('hashchange', zeichne);
 window.addEventListener('beforeunload', e => { if ($('#fall-form') && formularWerte() !== formularStand) e.preventDefault(); });
 window.addEventListener('online', () => abgleich());
