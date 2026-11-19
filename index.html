@@ -293,10 +293,15 @@ label.feld textarea{min-height:84px;resize:vertical}
 .fehlertext{color:var(--fehler);font-size:13px}
 dialog{border:0;border-radius:24px;padding:24px;background:var(--flaeche);color:var(--text);width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto}
 dialog::backdrop{background:rgba(0,0,0,.45)}
+@media (min-width:700px){dialog:has(.breit-dialog){width:min(1100px,calc(100vw - 32px))}}
 dialog h2{font-size:22px;font-weight:500;margin-bottom:12px}
 dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
 .dialog-knoepfe{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
 .auswahl{display:flex;align-items:center;gap:12px;padding:8px 4px;cursor:pointer;border-radius:8px}
+.matrix-rahmen{overflow:auto;max-height:62vh;-webkit-overflow-scrolling:touch;border:1px solid var(--linie);border-radius:8px}
+.matrix{border-collapse:separate;border-spacing:0;font-size:13px;min-width:100%}.matrix th,.matrix td{padding:6px 8px;border-bottom:1px solid var(--linie);text-align:center;white-space:nowrap}
+.matrix thead th{position:sticky;top:0;background:var(--flaeche2);z-index:2;white-space:normal;font-size:12px;min-width:64px}.matrix tbody th{position:sticky;left:0;background:var(--bg);text-align:left;z-index:1;max-width:140px;overflow:hidden;text-overflow:ellipsis}
+.matrix thead th:first-child{left:0;z-index:3}.matrix td.rot{background:var(--rot-f,#f6c6c6);font-weight:600}.matrix td.gelb{background:var(--gelb-f,#fbe9a6)}.matrix td.leer{color:var(--leise)}.matrix td.grau{background:transparent}
 .imp-liste{max-height:55vh;overflow:auto}.imp-zeile{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 4px;border-bottom:1px solid var(--linie)}.imp-zeile select{flex:1 1 200px;max-width:100%}.imp-zeile.pruefen{background:color-mix(in srgb,#f5c400 18%,transparent)}
 .auswahl:hover{background:var(--flaeche2)}
 .vorlage{display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px 8px;border-radius:8px;cursor:pointer}
@@ -2689,7 +2694,7 @@ function zeichnePersonal(r) {
       ${fr && fr.tage <= FRIST_VORLAUF ? `<div style="margin-top:6px"><span class="marke ${fristFarbe(fr)}">⏱ ${esc(fr.label)}: ${esc(fristText(fr))}</span></div>` : ''}</button>`;
   }).join('');
   return seitenkopf('Personal', `<button class="knopf voll" data-neuer-mitarbeiter>＋ Mitarbeiter</button>`, `<button class="knopf" data-abwesenheiten>Abwesenheiten</button>
-      <button class="knopf" data-gehe-bereich="auswertung">📊 Auswertung</button><button class="knopf" data-anwesenheit>Anwesenheitsliste</button>
+      <button class="knopf" data-gehe-bereich="auswertung">📊 Auswertung</button><button class="knopf" data-anwesenheit>Anwesenheitsliste</button><button class="knopf" data-fristen-matrix>🎓 Fristen-Matrix</button>${rolle() === 'ADMIN' ? `<button class="knopf" data-ausruestung>🔑 Ausrüstung${ausruestungOffen().length ? ' (' + ausruestungOffen().length + ')' : ''}</button>` : ''}
       <label class="knopf">⤓ Import (Lohnabrechnungen)<input type="file" id="personal-import" accept=".json,application/json" hidden></label><button class="knopf" data-personal-csv>CSV</button>${rolle() === 'ADMIN' && maDoppelte().length ? `<button class="knopf" data-doppelte>🔁 Doppelte (${maDoppelte().length})</button>` : ''}`)
     + `<div class="kennzahlen vier">
       <button class="kennzahl" data-personal-filter="AKTIV"><b>${aktive.length}</b><span>Aktiv</span></button>
@@ -2863,7 +2868,7 @@ function personalEintragDialog(m, x, vorgabeArt = 'GESPRAECH') {
   dialog(`<form method="dialog" id="pa-form"><h2>${neu ? 'Neuer Eintrag' : 'Eintrag'} · ${esc(m.name)}</h2>
     <label class="feld">Art<select name="art">${Object.entries(PERSONAL_EINTRAG).map(([k, [l]]) => `<option value="${k}" ${e.art === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
     <label class="feld">Datum<input name="datum" type="date" value="${esc(e.datum || '')}" required></label>
-    <label class="feld">Gültig bis / Wiedervorlage (optional)<input name="bis" type="date" value="${esc(e.bis || '')}"></label>
+    <label class="feld"><span id="pa-bis-text">${e.art === 'AUSRUESTUNG' ? 'Zurückgegeben am (leer = noch ausgegeben)' : 'Gültig bis / Wiedervorlage (optional)'}</span><input name="bis" type="date" value="${esc(e.bis || '')}"></label>
     <div id="pa-lohn" ${e.art === 'LOHN' ? '' : 'hidden'}><div class="zeile"><label class="feld fuell">Brutto €<input name="brutto" inputmode="decimal" value="${g(e.bruttoCent)}"></label>
       <label class="feld fuell">Netto €<input name="netto" inputmode="decimal" value="${g(e.nettoCent)}"></label></div>
       <div class="zeile"><label class="feld fuell">Gesamtkosten Arbeitgeber €<input name="kosten" inputmode="decimal" value="${g(e.kostenCent)}"></label>
@@ -2872,7 +2877,7 @@ function personalEintragDialog(m, x, vorgabeArt = 'GESPRAECH') {
     <div class="dialog-knoepfe">${neu ? '' : '<button type="button" class="knopf text gefahr" id="pa-weg">Löschen</button>'}<span class="fuell"></span>
       <button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
   const f = $('#pa-form');
-  f.art.onchange = () => { $('#pa-lohn').hidden = f.art.value !== 'LOHN'; };
+  f.art.onchange = () => { $('#pa-lohn').hidden = f.art.value !== 'LOHN'; $('#pa-bis-text').textContent = f.art.value === 'AUSRUESTUNG' ? 'Zurückgegeben am (leer = noch ausgegeben)' : 'Gültig bis / Wiedervorlage (optional)'; };
   if (!neu) $('#pa-weg').onclick = () => { $('#dialog').close(); PersonalAktionen.eintragLoeschen(x); };
   f.onsubmit = ev => {
     ev.preventDefault();
@@ -3009,6 +3014,69 @@ async function personalImportieren(text, zuordnung = null) {
   nachAenderung();
   return { neu, ergaenzt, lohn, abw, doks };
 }
+
+// ---------- Fristen-Matrix und Ausrüstung ----------
+const MATRIX_SPALTEN = () => [...PERSONAL_FRISTEN.map(([k, l]) => [k, l]), ['auslesen', 'Fahrerkarte auslesen']];
+const MATRIX_KURZ = { fuehrerscheinBis: 'Führer&shy;schein', fahrerkarteBis: 'Fahrer&shy;karte', modul95Bis: 'Modul 95', fuehrerscheinKontrolle: 'FS-Kontrolle', unterweisungBis: 'Unter&shy;weisung', arbeitsmedizinBis: 'Arbeits&shy;medizin', auslesen: 'Karte aus&shy;lesen' };
+/** Matrix: alle aktiven Mitarbeiter × Fristen (Führerschein, Fahrerkarte, Modul 95, Kontrolle, Unterweisung, Arbeitsmedizin, Auslesen). */
+function fristenMatrix() {
+  return mitarbeiterListe(true).map(m => { const f = Object.fromEntries(personalFristen(m).map(x => [x.feld, x])); return { m, f, schlimm: Math.min(...Object.values(f).map(x => x.tage), 9999) }; });
+}
+function fristenMatrixHtml(zeilen, druck = false) {
+  const sp = MATRIX_SPALTEN();
+  return `<table class="matrix"><thead><tr><th>Mitarbeiter</th>${sp.map(([k, l]) => `<th title="${esc(l)}">${MATRIX_KURZ[k] || esc(l)}</th>`).join('')}</tr></thead><tbody>
+    ${zeilen.map(z => `<tr><th>${druck ? esc(z.m.name) : `<a href="#/mitarbeiter/${z.m.id}" data-matrix-ma>${esc(z.m.name)}</a>`}</th>${sp.map(([k]) => { const x = z.f[k];
+      return x ? `<td class="${fristFarbe(x)}" title="${esc(x.label + ': ' + fristText(x))}">${x.tage < 0 ? '⚠ ' : ''}${esc(datumText(x.datum).slice(0, 6) + datumText(x.datum).slice(8))}</td>` : '<td class="leer">–</td>'; }).join('')}</tr>`).join('')}</tbody></table>`;
+}
+function fristenMatrixDialog(nurFaellig = false) {
+  const alleZ = fristenMatrix().sort((a, b) => a.schlimm - b.schlimm || a.m.name.localeCompare(b.m.name, 'de'));
+  const z = nurFaellig ? alleZ.filter(x => x.schlimm <= FRIST_VORLAUF) : alleZ, rot = alleZ.filter(x => x.schlimm < 0).length, gelb = alleZ.filter(x => x.schlimm >= 0 && x.schlimm <= FRIST_VORLAUF).length;
+  dialog(`<div class="breit-dialog"><h2>🎓 Fristen- und Schulungsmatrix</h2>
+    <p class="leise">${alleZ.length} aktive Mitarbeiter · <span class="marke rot">${rot} überfällig</span> <span class="marke gelb">${gelb} in ${FRIST_VORLAUF} Tagen</span> · Datum antippen = zum Mitarbeiter, leer = nicht eingetragen.</p>
+    <label class="auswahl"><input type="checkbox" id="matrix-faellig" ${nurFaellig ? 'checked' : ''}> nur Mitarbeiter mit fälligen Fristen</label>
+    <div class="matrix-rahmen">${z.length ? fristenMatrixHtml(z) : '<p class="leise">Nichts fällig.</p>'}</div>
+    <div class="dialog-knoepfe"><button type="button" class="knopf" id="matrix-druck">🖨 Drucken</button><button type="button" class="knopf voll" data-zu>Schließen</button></div></div>`);
+  $('#matrix-faellig').onchange = e => fristenMatrixDialog(e.target.checked);
+  $('#matrix-druck').onclick = () => druckeHtml(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Fristenmatrix</title><style>@page{size:A4 landscape;margin:10mm}body{font:9pt Arial,sans-serif}
+    table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:3px 4px;text-align:center}tbody th{text-align:left}.rot{background:#f6c6c6}.gelb{background:#fbe9a6}.leer{color:#999}</style></head><body>
+    <h1 style="font-size:13pt">Fristen- und Schulungsmatrix – ${esc(S.einstellungen.firma || '')} – Stand ${esc(datumText(heute()))}</h1>${fristenMatrixHtml(z, true)}
+    <p>rot = überfällig · gelb = in den nächsten ${FRIST_VORLAUF} Tagen fällig · – = nicht eingetragen</p></body></html>`);
+  $('#dialog').querySelector('.matrix-rahmen').onclick = e => { if (e.target.closest('[data-matrix-ma]')) $('#dialog').close(); };
+}
+
+/** Ausgegebene Ausrüstung = Personalakten-Einträge „Ausrüstung“ ohne Rückgabedatum (Feld „bis“). */
+const ausruestungOffen = (id = null) => alle('personaleintraege').filter(e => e.art === 'AUSRUESTUNG' && !e.bis && maVon(e.mitarbeiterId) && (!id || e.mitarbeiterId === id))
+  .sort((a, b) => String(a.datum).localeCompare(String(b.datum)));
+function ausruestungDialog() {
+  const offen = ausruestungOffen(), gruppen = {};
+  for (const e of offen) (gruppen[e.mitarbeiterId] = gruppen[e.mitarbeiterId] || []).push(e);
+  const reihen = Object.entries(gruppen).map(([id, l]) => ({ m: maVon(id), l })).sort((a, b) => Number(maAktiv(a.m)) - Number(maAktiv(b.m)) || a.m.name.localeCompare(b.m.name, 'de'));
+  dialog(`<div><h2>🔑 Ausgegebene Ausrüstung</h2><p class="leise">Schlüssel, Tankkarten, Kleidung, Geräte … – eintragen beim Mitarbeiter unter Personalakte → „Ausrüstung“. ${offen.length} Teile noch nicht zurück.</p>
+    <div id="aus-liste">${reihen.map(({ m, l }) => `<div class="karte block" style="margin:8px 0"><div class="zeile eng"><b class="fuell">${esc(m.name)}</b>${maAktiv(m) ? '' : '<span class="marke rot">ausgeschieden – Rückgabe offen</span>'}
+      <button type="button" class="knopf text" data-aus-druck="${m.id}">🖨 Protokoll</button></div>
+      ${l.map(e => `<div class="zeile eng" style="margin-top:4px"><span class="fuell">${esc(e.text || 'Ausrüstung')} <span class="leise">· seit ${esc(datumText(e.datum))}</span></span><button type="button" class="knopf tonal" data-aus-zurueck="${e.id}">✓ zurück</button></div>`).join('')}</div>`).join('') || '<p class="leise">Keine offene Ausrüstung.</p>'}</div>
+    <div class="dialog-knoepfe"><button type="button" class="knopf voll" data-zu>Schließen</button></div></div>`);
+  $('#aus-liste').onclick = e => {
+    const z = e.target.closest('[data-aus-zurueck]'), d = e.target.closest('[data-aus-druck]');
+    if (z) { const x = S.personaleintraege[z.dataset.ausZurueck]; PersonalAktionen.eintrag({ ...x, bis: heute() }); toast('Als zurückgegeben vermerkt'); ausruestungDialog(); }
+    if (d) ausruestungProtokoll(maVon(d.dataset.ausDruck));
+  };
+}
+/** Übergabe-/Rückgabeprotokoll zum Unterschreiben. */
+function ausruestungProtokoll(m) {
+  const l = alle('personaleintraege').filter(e => e.art === 'AUSRUESTUNG' && e.mitarbeiterId === m.id).sort((a, b) => String(a.datum).localeCompare(String(b.datum)));
+  druckeHtml(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Ausrüstung ${esc(m.name)}</title><style>@page{size:A4;margin:18mm}body{font:10.5pt Arial,sans-serif}
+    table{border-collapse:collapse;width:100%;margin:12px 0}th,td{border:1px solid #999;padding:6px;text-align:left}td.u{width:30mm}.sig{display:flex;gap:20mm;margin-top:25mm}.sig div{flex:1;border-top:1px solid #000;padding-top:3px;font-size:9pt}</style></head><body>
+    <h1 style="font-size:14pt">Übergabe- und Rückgabeprotokoll Ausrüstung</h1><p>${esc(S.einstellungen.firma || '')} · Mitarbeiter: <b>${esc(m.name)}</b>${m.personalnummer ? ' · Personal-Nr. ' + esc(m.personalnummer) : ''} · Stand ${esc(datumText(heute()))}</p>
+    <table><tr><th>Gegenstand</th><th>Ausgegeben am</th><th>Zurück am</th><th>Zustand / Bemerkung</th></tr>
+    ${l.map(e => `<tr><td>${esc(e.text || '')}</td><td>${esc(datumText(e.datum))}</td><td class="u">${esc(e.bis ? datumText(e.bis) : '')}</td><td></td></tr>`).join('')}${'<tr><td>&nbsp;</td><td></td><td></td><td></td></tr>'.repeat(3)}</table>
+    <p>Der Mitarbeiter bestätigt den Erhalt bzw. die Rückgabe der oben aufgeführten Gegenstände.</p>
+    <div class="sig"><div>Ort, Datum, Unterschrift Mitarbeiter</div><div>Ort, Datum, Unterschrift Arbeitgeber</div></div></body></html>`);
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-fristen-matrix]')) fristenMatrixDialog();
+  if (e.target.closest('[data-ausruestung]')) ausruestungDialog();
+});
 
 // ---------- Mitarbeiter zusammenführen ----------
 /** Mögliche Doppelte: alle Namensteile des einen stecken im anderen („Fatih“ ↔ „Fatih Akyüz“, „Mike Engelhardt“ ↔ „Mike Davis Engelhardt“). */
@@ -3361,7 +3429,7 @@ function zeichneTouren() {
         ${beleg ? `<button class="marke gruen" data-beleg-oeffnen="${beleg.id}">€ ${esc(beleg.nummer)}</button>` : ''}</div>
       <div class="tour-knoepfe">
         <button class="symbol" data-tour-akt="hoch" aria-label="Nach oben" ${i ? '' : 'disabled'}>▲</button><button class="symbol" data-tour-akt="runter" aria-label="Nach unten" ${i < touren.length - 1 ? '' : 'disabled'}>▼</button>
-        <button class="symbol" data-tour-akt="senden" aria-label="Tour an das Team senden" ${teamVon(t).length ? '' : 'disabled'}>💬</button>
+        <button class="symbol" data-tour-akt="senden" aria-label="Tour per WhatsApp an das Team senden" ${teamVon(t).length ? '' : 'disabled'}>💬</button>
         <button class="symbol" data-tour-akt="mehr" aria-label="Weitere Aktionen">⋮</button></div></div>`;
   };
   const gruppe = (titel, namen) => (namen.length ? `<p><b>${esc(titel)} (${namen.length}):</b> ${namen.map(n => esc(n)).join(', ')}</p>` : '');
@@ -3438,6 +3506,8 @@ function tourNachricht(t) {
     adr && 'Adresse: ' + adresseText(adr), t.name && 'Tour: ' + t.name, t.kennzeichen && 'Fahrzeug: ' + t.kennzeichen, t.uhrzeit && 'Ladezeit: ' + t.uhrzeit,
     t.einsatzart && 'Einsatz: ' + t.einsatzart, t.fahrerId && 'Fahrer: ' + mitNr(t.fahrerId), ...beifahrerVon(t).map(id => 'Beifahrer: ' + mitNr(id)), t.notiz && 'Hinweis: ' + t.notiz].filter(Boolean).join('\n');
 }
+/** 💬 an der Tour: WhatsApp direkt mit dem Tourtext öffnen – dort Fahrer und Beifahrer gleichzeitig auswählen (wie in der alten Tourenplanung). */
+const tourWhatsapp = t => oeffneLink(`https://wa.me/?text=${encodeURIComponent(tourNachricht(t))}`);
 function tourSenden(t) {
   const text = tourNachricht(t), team = teamVon(t).map(maVon).filter(Boolean);
   const mitNr = team.filter(m => m.telefon);
@@ -3582,6 +3652,7 @@ function tourMehr(t) {
     <label class="feld">Hinweis für das Team<textarea id="tour-notiz">${esc(t.notiz || '')}</textarea></label>
     <div class="liste-knoepfe">
       <button class="vorlage" data-tm="details"><b>⏱ Status, Zeiten und Kilometer</b><br><span class="leise">${esc(tourStatus(t)[0])}${t.beginn ? ' · ' + esc(t.beginn) : ''}${t.ende ? '–' + esc(t.ende) : ''}${tourKm(t) != null ? ' · ' + tourKm(t) + ' km' : ''}</span></button>
+      ${teamVon(t).length ? '<button class="vorlage" data-tm="senden"><b>📨 Einzeln senden (WhatsApp/SMS je Person)</b></button>' : ''}
       <button class="vorlage" data-tm="begleitschein"><b>📄 Begleitschein / Liefernachweis drucken</b></button>
       ${tourAdresse(t) ? `<button class="vorlage" data-tm="navi"><b>🧭 Navigation</b><br><span class="leise">${esc(tourAdresse(t))}</span></button>` : ''}
       <button class="vorlage" data-tm="abliefern"><b>✍ Abliefern mit Unterschrift</b></button>
@@ -3603,7 +3674,7 @@ function tourMehr(t) {
     if (notiz !== (t.notiz || '')) TourAktionen.speichern({ ...t, notiz });
     if (fall) { gehe('#/fall/' + fall.dataset.tmFall); return; }
     const tn = S.touren[t.id] || t;
-    ({ ok: () => {}, schaden: () => schadenAusTour(t), details: () => tourDetailsDialog(tn), begleitschein: () => begleitscheinDrucken([tn]), navi: () => navigation(tourAdresse(t)), abliefern: () => abliefernDialog(tn),
+    ({ ok: () => {}, schaden: () => schadenAusTour(t), details: () => tourDetailsDialog(tn), begleitschein: () => begleitscheinDrucken([tn]), senden: () => tourSenden(tn), navi: () => navigation(tourAdresse(t)), abliefern: () => abliefernDialog(tn),
       aufgabe: () => aufgabeDialog(null, { bezugArt: 'tour', bezugId: t.id, titel: '', faelligAm: t.datum }), storno: () => tourStatusSetzen(tn, tn.status === 'STORNIERT' ? 'GEPLANT' : 'STORNIERT'), firma: () => gehe('#/firma/' + t.auftraggeberId), fahrzeug: () => gehe('#/fahrzeug/' + fahrzeugZumKz(t.kennzeichen).id),
       kopie: () => TourAktionen.neu(t.datum, { kennzeichen: '', tourNr: t.tourNr, auftraggeberId: t.auftraggeberId, auftraggeber: t.auftraggeber, name: t.name, uhrzeit: t.uhrzeit, einsatzart: t.einsatzart }),
       morgen: () => tagWaehlen('Tour kopieren auf', plusTage(t.datum, 1), tag => { TourAktionen.neu(tag, { kennzeichen: t.kennzeichen, tourNr: t.tourNr, auftraggeberId: t.auftraggeberId, auftraggeber: t.auftraggeber, name: t.name, uhrzeit: t.uhrzeit, einsatzart: t.einsatzart }); toast('Kopiert auf ' + datumText(tag)); }),
@@ -3664,7 +3735,7 @@ $('#liste').addEventListener('click', e => {
   }
   if (tz) {
     const t = S.touren[tz.closest('[data-tour-zeile]').dataset.tourZeile]; if (!t) return;
-    ({ hoch: () => TourAktionen.verschieben(t, -1), runter: () => TourAktionen.verschieben(t, 1), senden: () => tourSenden(t), mehr: () => tourMehr(t), details: () => tourDetailsDialog(t) })[tz.dataset.tourAkt]();
+    ({ hoch: () => TourAktionen.verschieben(t, -1), runter: () => TourAktionen.verschieben(t, 1), senden: () => tourWhatsapp(t), mehr: () => tourMehr(t), details: () => tourDetailsDialog(t) })[tz.dataset.tourAkt]();
   }
 });
 document.addEventListener('keydown', e => {
