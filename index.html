@@ -2230,7 +2230,8 @@ function zeichneFirma(id) {
 const CRM_FELDER = {
   auftraggeber: ['Firma', [['name', 'Firma', 'pflicht'], ['rechtsform', 'Rechtsform (z. B. GmbH)'], ['status', 'Status', Object.fromEntries(Object.entries(FIRMEN_STATUS).map(([k, [l]]) => [k, l]))],
     ['telefon', 'Telefon', 'tel'], ['email', 'E-Mail', 'email'], ['website', 'Website'], ['schlagworte', 'Schlagworte, durch Komma getrennt (z. B. Möbel, Elektro, Küchen)'],
-    ['kundennummer', 'Kundennummer'], ['ustId', 'USt-IdNr. der Firma'], ['zahlungszielTage', 'Zahlungsziel in Tagen (leer = Standard)'], ['notizen', 'Notizen', 'lang']]],
+    ['kundennummer', 'Kundennummer'], ['ustId', 'USt-IdNr. der Firma'], ['zahlungszielTage', 'Zahlungsziel in Tagen (leer = Standard)'],
+    ['rechnungBank', 'Abweichende Bankverbindung auf Rechnungen an diese Firma: Bank (leer = Standard aus den Firmendaten)'], ['rechnungIban', 'Abweichende IBAN'], ['rechnungBic', 'Abweichende BIC'], ['notizen', 'Notizen', 'lang']]],
   ansprechpartner: ['Ansprechpartner', [['name', 'Name', 'pflicht'], ['thema', 'Zuständig für (Disposition, Abrechnung, Schäden, Geschäftsführung …)'], ['telefon', 'Telefon', 'tel'], ['email', 'E-Mail', 'email'], ['notiz', 'Notiz', 'lang']]],
   adressen: ['Adresse', [['art', 'Art', ADRESS_ART], ['strasse', 'Straße und Hausnummer'], ['plz', 'PLZ'], ['ort', 'Ort', 'pflicht'], ['notiz', 'Notiz (z. B. Rampe, Öffnungszeiten)', 'lang']]],
   preise: ['Preis', [['bezeichnung', 'Bezeichnung (Tourpauschale, Montage, Extra-km, Etage, Maut …)', 'pflicht'], ['betrag', 'Betrag in Euro', 'geld'], ['einheit', 'Einheit (pro Tour, pro km …)'], ['gueltigAb', 'Gültig ab', 'date'], ['notiz', 'Notiz', 'lang']]],
@@ -2484,6 +2485,11 @@ const BelegAktionen = {
   },
 };
 
+/** Bankverbindung für Rechnungen an eine Firma: abweichende IBAN der Firma, sonst die aus den eigenen Firmendaten. */
+function bankverbindung(firmaId) {
+  const rd = rechnungsDaten(), f = S.auftraggeber[firmaId] || {};
+  return String(f.rechnungIban || '').trim() ? { bank: f.rechnungBank || '', iban: f.rechnungIban.trim(), bic: f.rechnungBic || '', abweichend: true } : { bank: rd.bank, iban: rd.iban, bic: rd.bic, abweichend: false };
+}
 /** Wer unterschreibt: Geschäftsführer (wenn am Beleg gewählt und in den Firmendaten eingetragen) oder Bearbeiter/in. */
 function belegUnterschrift(b, rd = rechnungsDaten()) {
   if (b.unterzeichner === 'GF' && rd.geschaeftsfuehrer) return `${esc(rd.geschaeftsfuehrer)}<br>Geschäftsführer<br>`;
@@ -2492,7 +2498,7 @@ function belegUnterschrift(b, rd = rechnungsDaten()) {
 }
 /** A4-Seite für Druck und PDF (DIN-5008-ähnlich). */
 function belegHtml(b) {
-  const rd = rechnungsDaten(), firma = S.auftraggeber[b.firmaId] || { name: '' }, adr = rechnungsAdresse(b.firmaId), s = belegSummen(b);
+  const rd = rechnungsDaten(), firma = S.auftraggeber[b.firmaId] || { name: '' }, adr = rechnungsAdresse(b.firmaId), s = belegSummen(b), kto = bankverbindung(b.firmaId);
   const k = kontakteVon(b.firmaId).find(x => /abrechn|buchhalt|rechnung/i.test(x.thema || ''));
   const ersetze = t => esc(String(t || '').replace('{FAELLIG}', datumText(b.faelligAm))).replace(/\n/g, '<br>');
   const zeilen = positionen(b).map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.bez)}${p.einheit ? `<br><small>${esc(p.einheit)}</small>` : ''}</td>
@@ -2519,7 +2525,7 @@ function belegHtml(b) {
     <p>${ersetze(b.schluss)}</p><p>Mit freundlichen Grüßen<br>${belegUnterschrift(b, rd)}${esc(rd.name || S.einstellungen.firma || '')}</p>
     ${rd.hinweisElektronisch ? `<p style="font-size:8.5pt;color:#555;margin-top:6mm">${esc(rd.hinweisElektronisch)}</p>` : ''}
     <div class="fuss"><div>${esc(rd.name || '')}<br>${esc(rd.strasse)}<br>${esc(rd.plzOrt)}</div><div>${rd.telefon ? 'Tel. ' + esc(rd.telefon) + '<br>' : ''}${esc(rd.email)}</div>
-      <div>${rd.geschaeftsfuehrer ? 'Geschäftsführer: ' + esc(rd.geschaeftsfuehrer) + '<br>' : ''}${rd.steuer ? 'St.-Nr. ' + esc(rd.steuer) + '<br>' : ''}${rd.ustId ? 'USt-IdNr. ' + esc(rd.ustId) : ''}</div><div>${esc(rd.bank)}<br>${rd.iban ? 'IBAN ' + esc(rd.iban) : ''}<br>${rd.bic ? 'BIC ' + esc(rd.bic) : ''}</div>
+      <div>${rd.geschaeftsfuehrer ? 'Geschäftsführer: ' + esc(rd.geschaeftsfuehrer) + '<br>' : ''}${rd.steuer ? 'St.-Nr. ' + esc(rd.steuer) + '<br>' : ''}${rd.ustId ? 'USt-IdNr. ' + esc(rd.ustId) : ''}</div><div>${esc(kto.bank)}<br>${kto.iban ? 'IBAN ' + esc(kto.iban) : ''}<br>${kto.bic ? 'BIC ' + esc(kto.bic) : ''}</div>
       ${rd.fuss ? `<div>${esc(rd.fuss)}</div>` : ''}</div></div></body></html>`;
 }
 const belegDateiname = b => `${BELEG_ART[b.art][0]}_${b.nummer}_${(S.auftraggeber[b.firmaId] || {}).name || ''}.pdf`.replace(/\s+/g, '_');
@@ -2627,6 +2633,7 @@ function zeichneBeleg(id) {
       <label class="feld">Unterschrift<select name="unterzeichner" ${gesperrt ? 'disabled' : ''}>
         <option value="" ${b.unterzeichner === 'GF' ? '' : 'selected'}>Bearbeiter/in</option><option value="GF" ${b.unterzeichner === 'GF' ? 'selected' : ''}>Geschäftsführer/in</option></select>
         <span class="leise" translate="no">${esc(b.unterzeichner === 'GF' ? (rechnungsDaten().geschaeftsfuehrer || '') : (S.einstellungen.bearbeiter || ''))}</span></label>
+      ${bankverbindung(b.firmaId).abweichend ? `<p class="leise">Abweichende Bankverbindung dieser Firma: <span translate="no">${esc(bankverbindung(b.firmaId).iban)}</span></p>` : ''}
       ${b.unterzeichner === 'GF' && !rechnungsDaten().geschaeftsfuehrer ? '<p class="leise">Name des Geschäftsführers fehlt – unter ⚙ → Eigene Firmendaten eintragen.</p>' : ''}
       <label class="feld">Interne Notiz<input name="notiz" value="${esc(b.notiz || '')}"></label>
       ${gesperrt ? '' : '<div class="zeile"><button class="knopf voll" id="beleg-speichern">Speichern</button></div>'}</form>`;
