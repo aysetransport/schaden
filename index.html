@@ -6178,7 +6178,7 @@ const FAHRZEUG_FELDER = [
     ['erstzulassung', 'Erstzulassung (B)', 'date'], ['zgg', 'Zul. Gesamtmasse in kg (F.2)', 'zahl'], ['leergewicht', 'Leergewicht in kg (G)', 'zahl'], ['hsn', 'Herstellerschlüssel HSN (2.1)'], ['tsn', 'Typschlüssel TSN (2.2)'],
     ['leistungKw', 'Leistung in kW (P.2)', 'zahl'], ['kraftstoff', 'Kraftstoff (P.3)'], ['schadstoffklasse', 'Schadstoff-/Emissionsklasse (14 / V.9)'], ['achsen', 'Achsen (L)', 'zahl'],
     ['farbe', 'Farbe (R)'], ['teil2Nr', 'Nummer Zulassungsbescheinigung Teil II']]],
-  ['Versicherung, Steuer und Finanzierung', [['versicherung', 'Versicherung'], ['versicherungsNr', 'Versicherungsschein-Nr.'], ['kfzSteuer', 'Kfz-Steuer pro Jahr in Euro', 'geld'], ['kfzSteuerNr', 'Kfz-Steuernummer'],
+  ['Versicherung, Steuer und Finanzierung', [['versicherung', 'Versicherung'], ['versicherungsNr', 'Versicherungsschein-Nr.'], ['versicherungBeitrag', 'Versicherungsbeitrag pro Jahr in Euro', 'geld'], ['kfzSteuer', 'Kfz-Steuer pro Jahr in Euro', 'geld'], ['kfzSteuerNr', 'Kfz-Steuernummer'],
     ['kfzSteuerAb', 'Kfz-Steuer jährlich fällig ab (Datum aus dem Bescheid)', 'date'], ['leasinggeber', 'Leasinggeber / Bank'], ['leasingRate', 'Monatliche Rate in Euro', 'geld'], ['notiz', 'Notizen', 'lang']]],
 ];
 const ZAHL_FELDER = ['kmStand', 'wartungKm', 'zgg', 'leergewicht', 'leistungKw', 'achsen'];
@@ -6385,7 +6385,7 @@ function zeichneFahrzeug(id) {
         <div class="kennzahl"><b>${geld(k.werkstattJahr)}</b><span>Werkstatt (Jahr)</span></div></div>
       ${dl([['Kosten gesamt', geld(k.gesamt)], ['Kosten pro km', k.proKm != null ? geld(Math.round(k.proKm)) : ''], ['Ø Verbrauch', k.verbrauch != null ? k.verbrauch.toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' l / 100 km' : ''],
         ['Leasing-/Kreditrate', z.leasingRateCent != null ? geld(z.leasingRateCent) + ' im Monat' : ''],
-        ['Kfz-Steuer', z.kfzSteuerCent != null ? geld(z.kfzSteuerCent) + ' im Jahr' : ''], ['Kfz-Steuernummer', z.kfzSteuerNr]])}</div>
+        ['Versicherungsbeitrag', z.versicherungCent != null ? geld(z.versicherungCent) + ' im Jahr' : ''], ['Kfz-Steuer', z.kfzSteuerCent != null ? geld(z.kfzSteuerCent) + ' im Jahr' : ''], ['Kfz-Steuernummer', z.kfzSteuerNr]])}</div>
     <div class="karte block"><h3>Fahrzeugschein</h3>
       ${dl([['Halter', z.halter], ['Marke / Typ', markeTyp(z)], ['FIN', z.fin], ['Erstzulassung', datumText(z.erstzulassung)], ['HSN / TSN', [z.hsn, z.tsn].filter(Boolean).join(' / ')],
         ['Zul. Gesamtmasse', zahlText(z.zgg, 'kg')], ['Leergewicht', zahlText(z.leergewicht, 'kg')], ['Leistung', z.leistungKw ? `${zahlText(z.leistungKw, 'kW')} (${Math.round(z.leistungKw * 1.35962)} PS)` : ''],
@@ -6414,7 +6414,7 @@ function zeichneFahrzeug(id) {
 
 /** Formular für ein Fahrzeug (Stammdaten, Fristen, Fahrzeugschein, Versicherung). */
 function fahrzeugDialog(z) {
-  const neu = !z, e = z ? { ...z, leihfahrzeug: z.leihfahrzeug ? 'ja' : 'nein', leasingRate: z.leasingRateCent != null ? geldOhneSymbol(z.leasingRateCent) : '', kfzSteuer: z.kfzSteuerCent != null ? geldOhneSymbol(z.kfzSteuerCent) : '' } : { art: 'TRANSPORTER', status: 'AKTIV', leihfahrzeug: 'nein' };
+  const neu = !z, e = z ? { ...z, leihfahrzeug: z.leihfahrzeug ? 'ja' : 'nein', leasingRate: z.leasingRateCent != null ? geldOhneSymbol(z.leasingRateCent) : '', kfzSteuer: z.kfzSteuerCent != null ? geldOhneSymbol(z.kfzSteuerCent) : '', versicherungBeitrag: z.versicherungCent != null ? geldOhneSymbol(z.versicherungCent) : '' } : { art: 'TRANSPORTER', status: 'AKTIV', leihfahrzeug: 'nein' };
   const feld = f => formularFeld(e, f, f[0] === 'fahrer' ? 'fz-fahrer-liste' : '');
   dialog(`<form method="dialog" id="fahrzeug-form"><datalist id="fz-fahrer-liste">${mitarbeiterNamen().map(n => `<option value="${esc(n)}">`).join('')}</datalist><h2>${neu ? 'Neues Fahrzeug' : 'Fahrzeug bearbeiten'}</h2>
     ${FAHRZEUG_FELDER.map(([titel, felder], i) => `<h3>${titel}</h3>${i === 2 ? '<p class="leise">Die Angaben stehen im Fahrzeugschein – die Buchstaben in Klammern zeigen das Feld.</p>' : ''}${felder.map(feld).join('')}`).join('')}
@@ -6433,6 +6433,8 @@ function fahrzeugDialog(z) {
     if (!zeige('kfzSteuer', w.kfzSteuer && geldLesen(w.kfzSteuer) == null ? 'Bitte einen Betrag wie 285,00 eingeben.' : '')) return;
     w.kfzSteuerCent = w.kfzSteuer ? geldLesen(w.kfzSteuer) : null; delete w.kfzSteuer;
     w.kfzSteuerAb = w.kfzSteuerAb || null;
+    if (!zeige('versicherungBeitrag', w.versicherungBeitrag && geldLesen(w.versicherungBeitrag) == null ? 'Bitte einen Betrag wie 3827,64 eingeben.' : '')) return;
+    w.versicherungCent = w.versicherungBeitrag ? geldLesen(w.versicherungBeitrag) : null; delete w.versicherungBeitrag;
     for (const [k] of FRISTEN) w[k] = w[k] || null;
     w.erstzulassung = w.erstzulassung || null;
     w.leihfahrzeug = w.leihfahrzeug === 'ja';
@@ -6478,7 +6480,7 @@ function fahrzeugEintragDialog(z, x, vorgabeArt = 'WARTUNG') {
 async function fuhrparkImportieren(text) {
   const d = JSON.parse(text);
   if (!d || !Array.isArray(d.fahrzeuge)) throw new Error('Das ist keine Fuhrpark-Datei.');
-  const felder = new Set(FAHRZEUG_FELDER.flatMap(([, f]) => f.map(([k]) => k)).concat(['leasingRateCent', 'kfzSteuerCent']));
+  const felder = new Set(FAHRZEUG_FELDER.flatMap(([, f]) => f.map(([k]) => k)).concat(['leasingRateCent', 'kfzSteuerCent', 'versicherungCent']));
   felder.delete('leihfahrzeug');
   const nachKz = new Map(alle('fahrzeuge').map(z => [kzNormal(z.kennzeichen), z]));
   let neu = 0, ergaenzt = 0, doks = 0;
@@ -6506,9 +6508,9 @@ function fuhrparkCsv() {
   const tab = (kopf, zeilen) => '﻿' + [kopf, ...zeilen].map(z => z.map(csvZelle).join(';')).join('\r\n') + '\r\n';
   const kz = id => S.fahrzeuge[id]?.kennzeichen || '';
   return {
-    Fahrzeuge: tab(['Kennzeichen', 'Bezeichnung', 'Art', 'Status', 'Fahrer', 'km-Stand', 'Marke', 'Typ', 'FIN', 'Erstzulassung', 'Halter', ...FRISTEN.map(([, l]) => l), 'Versicherung', 'Vers.-Nr.', 'Rate (EUR)', 'Kfz-Steuer (EUR/Jahr)', 'Kfz-Steuernummer', 'Kosten dieses Jahr (EUR)'],
+    Fahrzeuge: tab(['Kennzeichen', 'Bezeichnung', 'Art', 'Status', 'Fahrer', 'km-Stand', 'Marke', 'Typ', 'FIN', 'Erstzulassung', 'Halter', ...FRISTEN.map(([, l]) => l), 'Versicherung', 'Vers.-Nr.', 'Versicherungsbeitrag (EUR/Jahr)', 'Rate (EUR)', 'Kfz-Steuer (EUR/Jahr)', 'Kfz-Steuernummer', 'Kosten dieses Jahr (EUR)'],
       fahrzeugListe().map(z => [z.kennzeichen, z.bezeichnung, FAHRZEUG_ART[z.art] || '', fahrzeugStatus(z)[0], z.fahrer, z.kmStand ?? '', z.marke, z.modell, z.fin, datumText(z.erstzulassung), z.halter,
-        ...FRISTEN.map(([k]) => datumText(k === 'steuerBis' ? steuerNaechste(z) : z[k])), z.versicherung, z.versicherungsNr, z.leasingRateCent != null ? geldOhneSymbol(z.leasingRateCent) : '',
+        ...FRISTEN.map(([k]) => datumText(k === 'steuerBis' ? steuerNaechste(z) : z[k])), z.versicherung, z.versicherungsNr, z.versicherungCent != null ? geldOhneSymbol(z.versicherungCent) : '', z.leasingRateCent != null ? geldOhneSymbol(z.leasingRateCent) : '',
           z.kfzSteuerCent != null ? geldOhneSymbol(z.kfzSteuerCent) : '', z.kfzSteuerNr, geldOhneSymbol(fahrzeugKosten(z).jahr)])),
     Fahrzeugakte: tab(['Datum', 'Kennzeichen', 'Art', 'km-Stand', 'Betrag (EUR)', 'Liter', 'Werkstatt / Tankstelle', 'Text'],
       alle('fahrzeugeintraege').sort((a, b) => String(b.datum).localeCompare(String(a.datum))).map(x => [datumText(x.datum), kz(x.fahrzeugId), (FAHRZEUG_EINTRAG[x.art] || FAHRZEUG_EINTRAG.KOSTEN)[0],
