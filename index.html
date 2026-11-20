@@ -4596,9 +4596,18 @@ function fahrzeugTagKosten(kz, datum) {
 function belegZeilen() {
   const c = wkCache();
   if (!c.belegZeilen) {
-    const mitTour = new Set(alle('touren').map(t => t.belegId).filter(Boolean));
-    c.belegZeilen = alle('belege').filter(b => zaehltUmsatz(b) && (b.art === 'GUTSCHRIFT' || !mitTour.has(b.id)))
-      .map(b => ({ id: 'beleg:' + b.id, virtuell: true, beleg: b, datum: b.datum, auftraggeberId: b.firmaId, belegId: b.id, name: `${BELEG_ART[b.art][0]} ${b.nummer}`, kennzeichen: '', fahrerId: '' }));
+    // Touren je Rechnung: Was über gefahrene Touren schon als Erlös zählt, wird abgezogen – der Rest (Rechnung ohne Touren,
+    // Touren ohne Fahrer/Fahrzeug, Zuschläge, abweichende Beträge) kommt als eigene Zeile dazu. So zählt jede verbuchte Rechnung genau einmal.
+    const jeBeleg = new Map();
+    for (const t of alle('touren')) if (t.belegId) (jeBeleg.get(t.belegId) || jeBeleg.set(t.belegId, []).get(t.belegId)).push(t);
+    c.belegZeilen = [];
+    for (const b of alle('belege').filter(zaehltUmsatz)) {
+      const touren = b.art === 'GUTSCHRIFT' ? [] : (jeBeleg.get(b.id) || []).filter(tourGefahren);
+      const betrag = umsatzNetto(b) - touren.reduce((n, t) => n + tourRechnung(t).erloes, 0);
+      if (Math.abs(betrag) < 1) continue;
+      c.belegZeilen.push({ id: 'beleg:' + b.id, virtuell: true, beleg: b, betrag, datum: b.datum, auftraggeberId: b.firmaId, belegId: b.id, kennzeichen: '', fahrerId: '',
+        name: `${BELEG_ART[b.art][0]} ${b.nummer}` + (touren.length ? ' (Rest ohne gefahrene Tour)' : '') });
+    }
   }
   return c.belegZeilen;
 }
@@ -4607,7 +4616,7 @@ function tourRechnung(t) {
   const c = wkCache(); if (c.tour.has(t.id)) return c.tour.get(t.id);
   const a = kostenAnnahmen(), pt = tourenProTag();
   if (t.virtuell) {
-    const erloes = umsatzNetto(t.beleg), gemein = Math.round(erloes * a.gemein / 100);
+    const erloes = t.betrag ?? umsatzNetto(t.beleg), gemein = Math.round(erloes * a.gemein / 100);
     const r = { erloes, erloesQuelle: t.name + ' (ohne Tourbezug)', personal: 0, fahrzeug: 0, schaeden: 0, gemein, kosten: gemein, db: erloes - gemein, gefahren: false };
     c.tour.set(t.id, r); return r;
   }
