@@ -9,7 +9,7 @@
 window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwhDnWP7p9XeoIz8NisZR7NApIj-Xfgd_lP5j8KjPE11OFbQuA/exec";
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795205361; window.WEB_VERSION = '4.13.0';
+window.WEB_STAND = 1795209282; window.WEB_VERSION = '4.14.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -1916,6 +1916,7 @@ function zeichneEinstellungenVoll() {
         <label class="feld">Cloud-Adresse (…/exec)<input id="cloud-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(apiUrl())}"></label>
         <button class="knopf voll" id="verbinden">Verbinden</button>`}</div>
     ${updateKarte()}
+    ${cloudUpdateKarte()}
     ${window.desktop ? mailEinstellungen() : ''}
     <div class="karte block"><h3>Eigene Firmendaten für Angebote und Rechnungen</h3>
       ${[['name', 'Firmenname'], ['strasse', 'Straße und Hausnummer'], ['plzOrt', 'PLZ und Ort'], ['telefon', 'Telefon'], ['email', 'E-Mail'], ['steuer', 'Steuernummer'], ['ustId', 'USt-IdNr.'], ['geschaeftsfuehrer', 'Geschäftsführer/in (Name, erscheint in der Fußzeile und wahlweise als Unterschrift)'],
@@ -2234,6 +2235,7 @@ const CRM_FELDER = {
   auftraggeber: ['Firma', [['name', 'Firma', 'pflicht'], ['rechtsform', 'Rechtsform (z. B. GmbH)'], ['status', 'Status', Object.fromEntries(Object.entries(FIRMEN_STATUS).map(([k, [l]]) => [k, l]))],
     ['telefon', 'Telefon', 'tel'], ['email', 'E-Mail', 'email'], ['website', 'Website'], ['schlagworte', 'Schlagworte, durch Komma getrennt (z. B. Möbel, Elektro, Küchen)'],
     ['kundennummer', 'Kundennummer'], ['ustId', 'USt-IdNr. der Firma'], ['zahlungszielTage', 'Zahlungsziel in Tagen (leer = Standard)'],
+    ['leitwegId', 'Leitweg-ID / Käuferreferenz für E-Rechnungen (bei Behörden Pflicht)'], ['eRechnungEmail', 'E-Mail für E-Rechnungen (leer = Ansprechpartner Abrechnung bzw. Firmen-E-Mail)', 'email'],
     ['rechnungBank', 'Abweichende Bankverbindung auf Rechnungen an diese Firma: Bank (leer = Standard aus den Firmendaten)'], ['rechnungIban', 'Abweichende IBAN'], ['rechnungBic', 'Abweichende BIC'], ['notizen', 'Notizen', 'lang']]],
   ansprechpartner: ['Ansprechpartner', [['name', 'Name', 'pflicht'], ['thema', 'Zuständig für (Disposition, Abrechnung, Schäden, Geschäftsführung …)'], ['telefon', 'Telefon', 'tel'], ['email', 'E-Mail', 'email'], ['notiz', 'Notiz', 'lang']]],
   adressen: ['Adresse', [['art', 'Art', ADRESS_ART], ['strasse', 'Straße und Hausnummer'], ['plz', 'PLZ'], ['ort', 'Ort', 'pflicht'], ['notiz', 'Notiz (z. B. Rampe, Öffnungszeiten)', 'lang']]],
@@ -2626,7 +2628,7 @@ function zeichneFinanzen(r) {
       : f === 'BEZAHLT' ? b.status === 'BEZAHLT' : f === 'UEBERFAELLIG' ? istUeberfaellig(b) : istRechnungOffen(b);
   }).sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || String(b.nummer).localeCompare(String(a.nummer)));
   return seitenkopf('Finanzen', '<button class="knopf voll" data-neuer-beleg="RECHNUNG">＋ Rechnung</button>', `<button class="knopf" data-neuer-beleg="ANGEBOT">＋ Angebot</button>
-      <button class="knopf" data-monatsabrechnung>🧾 Monatsabrechnung</button><button class="knopf" data-rechnung-touren="">Rechnung aus Touren</button><button class="knopf" data-externe-rechnung>＋ Externe Rechnung</button><button class="knopf" data-kalkulator>🧮 Kalkulator</button><button class="knopf" data-belege-csv>CSV</button>
+      <button class="knopf" data-monatsabrechnung>🧾 Monatsabrechnung</button><button class="knopf" data-rechnung-touren="">Rechnung aus Touren</button><button class="knopf" data-externe-rechnung>＋ Externe Rechnung</button><button class="knopf" data-erechnung-oeffnen>📥 E-Rechnung öffnen</button><input type="file" id="er-datei" accept=".xml,.pdf,application/xml,text/xml,application/pdf" hidden><button class="knopf" data-kalkulator>🧮 Kalkulator</button><button class="knopf" data-belege-csv>CSV</button>
       <button class="knopf" data-buchhaltung>📒 Buchhaltung (CSV)</button>`) + `<div class="kennzahlen" style="grid-template-columns:1fr 1fr">
       <button class="kennzahl" data-beleg-filter="OFFEN"><b>${geld(k.offen)}</b><span>Offen (${k.offenAnzahl} Rechnungen)</span></button>
       <button class="kennzahl ${k.ueberfaelligAnzahl ? 'rot' : ''}" data-beleg-filter="UEBERFAELLIG"><b>${geld(k.ueberfaellig)}</b><span>Überfällig (${k.ueberfaelligAnzahl})</span></button>
@@ -2648,7 +2650,7 @@ function zeichneBeleg(id) {
   el.innerHTML = `<div class="karte"><div class="zeile eng"><h2 class="gross fuell">${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</h2><span class="marke ${m[1]}">${esc(m[0])}</span></div>
       <p class="leise"><a href="#/firma/${b.firmaId}">${esc(firmaName(firma))}</a>${b.bezug && S.belege[b.bezug] ? ` · ${b.art === 'GUTSCHRIFT' ? 'zu' : 'aus'} <a href="#/beleg/${b.bezug}">${esc(S.belege[b.bezug].nummer)}</a>` : ''}${rechnung && gutschriftenZu(b).length ? ` · Gutschriften: ${gutschriftenZu(b).map(g => `<a href="#/beleg/${g.id}">${esc(g.nummer)}</a>`).join(', ')}` : ''}</p>
       <div class="zeile" style="margin-top:8px">
-        ${b.extern ? '<span class="marke grau">Externe Rechnung – nicht im System erstellt</span>' : `<button class="knopf voll" data-beleg-akt="pdf">PDF speichern</button><button class="knopf" data-beleg-akt="drucken">Drucken</button>
+        ${b.extern ? '<span class="marke grau">Externe Rechnung – nicht im System erstellt</span>' : `<button class="knopf voll" data-beleg-akt="pdf">PDF speichern</button><button class="knopf" data-beleg-akt="drucken">Drucken</button>${['RECHNUNG', 'GUTSCHRIFT'].includes(b.art) ? '<button class="knopf" data-beleg-akt="erechnung">E-Rechnung (XRechnung)</button>' : ''}
         ${MAIL.konto ? '<button class="knopf" data-beleg-akt="mail">Per E-Mail senden</button>' : ''}`}
         ${rechnung && istRechnungOffen(b) ? '<button class="knopf" data-beleg-akt="zahlung">Zahlung erfassen</button>' : ''}
         ${rechnung && istUeberfaellig(b) && MAIL.konto ? `<button class="knopf" data-beleg-akt="mahnung">${esc(MAHNSTUFEN[Math.min(b.mahnstufe || 0, 3)])} senden</button>` : ''}
@@ -2683,6 +2685,7 @@ function zeichneBeleg(id) {
         <span class="leise" translate="no">${esc(b.unterzeichner === 'GF' ? (rechnungsDaten().geschaeftsfuehrer || '') : (S.einstellungen.bearbeiter || ''))}</span></label>
       ${bankverbindung(b.firmaId).abweichend ? `<p class="leise">Abweichende Bankverbindung dieser Firma: <span translate="no">${esc(bankverbindung(b.firmaId).iban)}</span></p>` : ''}
       ${b.unterzeichner === 'GF' && !rechnungsDaten().geschaeftsfuehrer ? '<p class="leise">Name des Geschäftsführers fehlt – unter ⚙ → Eigene Firmendaten eintragen.</p>' : ''}
+      ${['RECHNUNG', 'GUTSCHRIFT'].includes(b.art) ? `<label class="feld">Bestellnummer / Referenz des Kunden<input name="bestellnummer" value="${esc(b.bestellnummer || '')}" ${gesperrt ? 'disabled' : ''}></label>` : ''}
       <label class="feld">Interne Notiz<input name="notiz" value="${esc(b.notiz || '')}"></label>
       ${gesperrt ? '' : '<div class="zeile"><button class="knopf voll" id="beleg-speichern">Speichern</button></div>'}</form>`;
 }
@@ -2695,7 +2698,7 @@ function belegAusFormular(b) {
     return { bez: v('bez').trim(), einheit: v('einheit').trim(), menge: Number(String(v('menge')).replace(',', '.')) || 0, einzelCent: geldLesen(v('einzel')) ?? 0 };
   });
   return { ...b, datum: w.datum || b.datum, faelligAm: w.faelligAm || b.faelligAm, mwstProzent: Number(w.mwstProzent) || 0, einleitung: w.einleitung ?? b.einleitung,
-    schluss: w.schluss ?? b.schluss, notiz: w.notiz ?? b.notiz, unterzeichner: 'unterzeichner' in w ? (w.unterzeichner === 'GF' ? 'GF' : '') : (b.unterzeichner || ''), positionen: JSON.stringify(pos) };
+    schluss: w.schluss ?? b.schluss, notiz: w.notiz ?? b.notiz, bestellnummer: w.bestellnummer ?? b.bestellnummer ?? '', unterzeichner: 'unterzeichner' in w ? (w.unterzeichner === 'GF' ? 'GF' : '') : (b.unterzeichner || ''), positionen: JSON.stringify(pos) };
 }
 
 async function belegMail(b, art = 'beleg') {
@@ -2708,7 +2711,8 @@ async function belegMail(b, art = 'beleg') {
       ? [`${MAHNSTUFEN[Math.min(b.mahnstufe || 0, 3)]}: ${BELEG_ART[b.art][0]} ${b.nummer}`, `unsere Rechnung ${b.nummer} vom ${datumText(b.datum)} über ${geld(s.brutto)} war am ${datumText(b.faelligAm)} fällig. Offen sind noch ${geld(offenCent(b))}.\n\nSicher ist die Zahlung nur übersehen worden. Bitte überweisen Sie den offenen Betrag innerhalb von 7 Tagen. Sollte sich die Zahlung mit diesem Schreiben überschnitten haben, betrachten Sie es bitte als gegenstandslos.\n\nDie Rechnung finden Sie noch einmal im Anhang.`]
       : [`${BELEG_ART[b.art][0]} ${b.nummer}`, `anbei erhalten Sie unser${{ RECHNUNG: 'e Rechnung', GUTSCHRIFT: 'e Gutschrift' }[b.art] || ' Angebot'} ${b.nummer} über ${geld(s.brutto)}${b.art === 'RECHNUNG' ? `, zahlbar bis ${datumText(b.faelligAm)}` : ''}.`];
     mailAnFirma({ firmaId: b.firmaId, an: (k && k.email) || firma.email || '', betreff: texte[0], inhalt: texte[1],
-      anhaenge: [{ name: belegDateiname(b), mimeType: 'application/pdf', base64: pdf }],
+      anhaenge: [{ name: belegDateiname(b), mimeType: 'application/pdf', base64: pdf }].concat(['RECHNUNG', 'GUTSCHRIFT'].includes(b.art) && !eRechnungLuecken(b).length
+        ? [{ name: eRechnungDateiname(b), mimeType: 'application/xml', base64: btoa(unescape(encodeURIComponent(eRechnungXml(b)))) }] : []),
       nachSenden: () => {
         const neu = { ...S.belege[b.id] };
         if (art === 'mahnung') neu.mahnstufe = (neu.mahnstufe || 0) + 1; else if (neu.status === 'ENTWURF') neu.status = 'OFFEN';
@@ -2751,6 +2755,7 @@ $('#detail').addEventListener('click', async e => {
     case 'pdf': try { const pfad = await window.desktop.speichere(belegDateiname(aktuell), await belegPdf(aktuell)); if (pfad) { const v = alsVersendet(aktuell, true); toast('Gespeichert: ' + pfad + (v ? ' – als versendet markiert' : ''), v ? 6000 : 3500); } }
       catch (fehler) { if (!window.desktop) { belegDrucken(aktuell); alsVersendet(aktuell); } else toast(fehler.message); } break;
     case 'drucken': belegDrucken(aktuell); alsVersendet(aktuell); break;
+    case 'erechnung': { const l = eRechnungLuecken(aktuell); if (l.length) { eRechnungLueckenDialog(aktuell, l); break; } ladeHerunter(eRechnungDateiname(aktuell), eRechnungXml(aktuell), 'application/xml;charset=utf-8'); alsVersendet(aktuell); break; }
     case 'mail': belegMail(aktuell); break;
     case 'mahnung': belegMail(aktuell, 'mahnung'); break;
     case 'zahlung': zahlungDialog(aktuell); break;
@@ -7568,6 +7573,187 @@ document.addEventListener('change', async e => {
 });
 window.addEventListener('hashchange', zeichne);
 window.addEventListener('beforeunload', e => { if ($('#fall-form') && formularWerte() !== formularStand) e.preventDefault(); });
+// ============================== E-Rechnung (XRechnung 3.0, CII nach EN 16931) ==============================
+/**
+ * Erzeugt zu Rechnung/Gutschrift die strukturierte E-Rechnung (XRechnung, Syntax UN/CEFACT CII). Seit 2025 müssen
+ * Firmen E-Rechnungen empfangen, ab 2027/2028 auch ausstellen – das PDF ist dann nur noch eine Lesekopie.
+ * eRechnungLuecken(b) nennt fehlende Pflichtangaben; eRechnungLesen(xml) zeigt empfangene E-Rechnungen (CII und UBL) lesbar an.
+ */
+const ER_EINHEIT = [[/std|stunde|^h$/i, 'HUR'], [/km|kilometer/i, 'KMT'], [/tag/i, 'DAY'], [/monat/i, 'MON'], [/kg|kilo/i, 'KGM'], [/liter|^l$/i, 'LTR']];
+const erEinheit = t => (ER_EINHEIT.find(([r]) => r.test(String(t || ''))) || [0, 'C62'])[1];
+const erBetrag = c => (Math.round(Number(c) || 0) / 100).toFixed(2);
+const erDatum = iso => String(iso || '').slice(0, 10).replace(/-/g, '');
+const erPlzOrt = t => { const m = String(t || '').trim().match(/^(\d{4,5})\s+(.+)$/); return m ? { plz: m[1], ort: m[2] } : { plz: '', ort: String(t || '').trim() }; };
+const erKaeuferMail = f => (f && (f.eRechnungEmail || (kontakteVon(f.id).find(x => /abrechn|buchhalt|rechnung/i.test(x.thema || '') && x.email) || {}).email || f.email)) || '';
+const erReferenz = (b, f) => (f && f.leitwegId) || b.bestellnummer || (f && f.kundennummer) || b.nummer;
+
+/** Fehlende Pflichtangaben für eine gültige XRechnung (leer = alles da). */
+function eRechnungLuecken(b) {
+  const rd = rechnungsDaten(), f = S.auftraggeber[b.firmaId] || {}, adr = rechnungsAdresse(b.firmaId), kto = bankverbindung(b.firmaId), l = [];
+  if (!['RECHNUNG', 'GUTSCHRIFT'].includes(b.art)) l.push('Nur Rechnungen und Gutschriften');
+  if (!rd.name) l.push('Eigene Firmendaten: Firmenname');
+  if (!rd.strasse || !erPlzOrt(rd.plzOrt).plz) l.push('Eigene Firmendaten: Straße, PLZ und Ort');
+  if (!rd.ustId && !rd.steuer) l.push('Eigene Firmendaten: USt-IdNr. oder Steuernummer');
+  if (!rd.email) l.push('Eigene Firmendaten: E-Mail');
+  if (!rd.telefon) l.push('Eigene Firmendaten: Telefon');
+  if (!kto.iban) l.push('Bankverbindung (IBAN)');
+  if (!f.name) l.push('Firma des Kunden');
+  if (!adr || !adr.strasse || !adr.plz || !adr.ort) l.push('Rechnungsadresse des Kunden (Straße, PLZ, Ort)');
+  if (!erKaeuferMail(f)) l.push('E-Mail des Kunden für E-Rechnungen');
+  if (!positionen(b).length) l.push('Mindestens eine Position');
+  return l;
+}
+
+/** XRechnung (CII) als Text. */
+function eRechnungXml(b) {
+  const rd = rechnungsDaten(), f = S.auftraggeber[b.firmaId] || {}, adr = rechnungsAdresse(b.firmaId) || {}, kto = bankverbindung(b.firmaId);
+  const s = belegSummen(b), satz = Number(b.mwstProzent ?? 19) || 0, kat = satz > 0 ? 'S' : 'E', eigen = erPlzOrt(rd.plzOrt);
+  const x = t => esc(String(t ?? '')), d = iso => `<udt:DateTimeString format="102">${erDatum(iso)}</udt:DateTimeString>`;
+  const steuer = (betrag, basis) => `<ram:ApplicableTradeTax>${betrag != null ? `<ram:CalculatedAmount>${erBetrag(betrag)}</ram:CalculatedAmount>` : ''}<ram:TypeCode>VAT</ram:TypeCode>${kat === 'E' && betrag != null ? '<ram:ExemptionReason>Steuerfrei</ram:ExemptionReason>' : ''}${basis != null ? `<ram:BasisAmount>${erBetrag(basis)}</ram:BasisAmount>` : ''}<ram:CategoryCode>${kat}</ram:CategoryCode><ram:RateApplicablePercent>${satz}</ram:RateApplicablePercent></ram:ApplicableTradeTax>`;
+  const zeilen = positionen(b).map((p, i) => {
+    const summe = Math.round((Number(p.menge) || 0) * (Number(p.einzelCent) || 0));
+    return `<ram:IncludedSupplyChainTradeLineItem><ram:AssociatedDocumentLineDocument><ram:LineID>${i + 1}</ram:LineID></ram:AssociatedDocumentLineDocument>
+<ram:SpecifiedTradeProduct><ram:Name>${x(p.bez || 'Leistung')}</ram:Name>${p.einheit ? `<ram:Description>${x(p.einheit)}</ram:Description>` : ''}</ram:SpecifiedTradeProduct>
+<ram:SpecifiedLineTradeAgreement><ram:NetPriceProductTradePrice><ram:ChargeAmount>${erBetrag(p.einzelCent)}</ram:ChargeAmount></ram:NetPriceProductTradePrice></ram:SpecifiedLineTradeAgreement>
+<ram:SpecifiedLineTradeDelivery><ram:BilledQuantity unitCode="${erEinheit(p.einheit)}">${Number(p.menge) || 0}</ram:BilledQuantity></ram:SpecifiedLineTradeDelivery>
+<ram:SpecifiedLineTradeSettlement>${steuer(null, null)}<ram:SpecifiedTradeSettlementLineMonetarySummation><ram:LineTotalAmount>${erBetrag(summe)}</ram:LineTotalAmount></ram:SpecifiedTradeSettlementLineMonetarySummation></ram:SpecifiedLineTradeSettlement></ram:IncludedSupplyChainTradeLineItem>`;
+  }).join('\n');
+  const zr = leistungszeitraum(b), bezug = b.art === 'GUTSCHRIFT' && b.bezug && S.belege[b.bezug];
+  const bezahlt = Math.min(b.bezahltCent || 0, s.brutto);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100" xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100" xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100" xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">
+<rsm:ExchangedDocumentContext><ram:BusinessProcessSpecifiedDocumentContextParameter><ram:ID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</ram:ID></ram:BusinessProcessSpecifiedDocumentContextParameter>
+<ram:GuidelineSpecifiedDocumentContextParameter><ram:ID>urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0</ram:ID></ram:GuidelineSpecifiedDocumentContextParameter></rsm:ExchangedDocumentContext>
+<rsm:ExchangedDocument><ram:ID>${x(b.nummer)}</ram:ID><ram:TypeCode>${b.art === 'GUTSCHRIFT' ? 381 : 380}</ram:TypeCode><ram:IssueDateTime>${d(b.datum)}</ram:IssueDateTime>${b.einleitung ? `<ram:IncludedNote><ram:Content>${x(String(b.einleitung).replace('{FAELLIG}', datumText(b.faelligAm)))}</ram:Content></ram:IncludedNote>` : ''}</rsm:ExchangedDocument>
+<rsm:SupplyChainTradeTransaction>
+${zeilen}
+<ram:ApplicableHeaderTradeAgreement><ram:BuyerReference>${x(erReferenz(b, f))}</ram:BuyerReference>
+<ram:SellerTradeParty><ram:Name>${x(rd.name)}</ram:Name><ram:DefinedTradeContact><ram:PersonName>${x(S.einstellungen.bearbeiter || rd.name)}</ram:PersonName><ram:TelephoneUniversalCommunication><ram:CompleteNumber>${x(rd.telefon)}</ram:CompleteNumber></ram:TelephoneUniversalCommunication><ram:EmailURIUniversalCommunication><ram:URIID>${x(rd.email)}</ram:URIID></ram:EmailURIUniversalCommunication></ram:DefinedTradeContact>
+<ram:PostalTradeAddress><ram:PostcodeCode>${x(eigen.plz)}</ram:PostcodeCode><ram:LineOne>${x(rd.strasse)}</ram:LineOne><ram:CityName>${x(eigen.ort)}</ram:CityName><ram:CountryID>DE</ram:CountryID></ram:PostalTradeAddress>
+<ram:URIUniversalCommunication><ram:URIID schemeID="EM">${x(rd.email)}</ram:URIID></ram:URIUniversalCommunication>
+${rd.ustId ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">${x(String(rd.ustId).replace(/\s/g, ''))}</ram:ID></ram:SpecifiedTaxRegistration>` : ''}${rd.steuer ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="FC">${x(rd.steuer)}</ram:ID></ram:SpecifiedTaxRegistration>` : ''}</ram:SellerTradeParty>
+<ram:BuyerTradeParty><ram:Name>${x(firmaName(f))}</ram:Name><ram:PostalTradeAddress><ram:PostcodeCode>${x(adr.plz)}</ram:PostcodeCode><ram:LineOne>${x(adr.strasse)}</ram:LineOne><ram:CityName>${x(adr.ort)}</ram:CityName><ram:CountryID>DE</ram:CountryID></ram:PostalTradeAddress>
+<ram:URIUniversalCommunication><ram:URIID schemeID="EM">${x(erKaeuferMail(f))}</ram:URIID></ram:URIUniversalCommunication>${f.ustId ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">${x(String(f.ustId).replace(/\s/g, ''))}</ram:ID></ram:SpecifiedTaxRegistration>` : ''}</ram:BuyerTradeParty>
+${b.bestellnummer ? `<ram:BuyerOrderReferencedDocument><ram:IssuerAssignedID>${x(b.bestellnummer)}</ram:IssuerAssignedID></ram:BuyerOrderReferencedDocument>` : ''}</ram:ApplicableHeaderTradeAgreement>
+<ram:ApplicableHeaderTradeDelivery>${zr ? '' : `<ram:ActualDeliverySupplyChainEvent><ram:OccurrenceDateTime>${d(b.datum)}</ram:OccurrenceDateTime></ram:ActualDeliverySupplyChainEvent>`}</ram:ApplicableHeaderTradeDelivery>
+<ram:ApplicableHeaderTradeSettlement><ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>
+<ram:SpecifiedTradeSettlementPaymentMeans><ram:TypeCode>58</ram:TypeCode><ram:PayeePartyCreditorFinancialAccount><ram:IBANID>${x(String(kto.iban || '').replace(/\s/g, ''))}</ram:IBANID><ram:AccountName>${x(rd.name)}</ram:AccountName></ram:PayeePartyCreditorFinancialAccount>${kto.bic ? `<ram:PayeeSpecifiedCreditorFinancialInstitution><ram:BICID>${x(String(kto.bic).replace(/\s/g, ''))}</ram:BICID></ram:PayeeSpecifiedCreditorFinancialInstitution>` : ''}</ram:SpecifiedTradeSettlementPaymentMeans>
+${steuer(s.mwst, s.netto)}
+${zr ? `<ram:BillingSpecifiedPeriod><ram:StartDateTime>${d(zr.von)}</ram:StartDateTime><ram:EndDateTime>${d(zr.bis)}</ram:EndDateTime></ram:BillingSpecifiedPeriod>` : ''}
+<ram:SpecifiedTradePaymentTerms><ram:Description>${x(b.art === 'GUTSCHRIFT' ? 'Gutschrift' : 'Zahlbar ohne Abzug bis ' + datumText(b.faelligAm))}</ram:Description>${b.faelligAm ? `<ram:DueDateDateTime>${d(b.faelligAm)}</ram:DueDateDateTime>` : ''}</ram:SpecifiedTradePaymentTerms>
+<ram:SpecifiedTradeSettlementHeaderMonetarySummation><ram:LineTotalAmount>${erBetrag(s.netto)}</ram:LineTotalAmount><ram:TaxBasisTotalAmount>${erBetrag(s.netto)}</ram:TaxBasisTotalAmount><ram:TaxTotalAmount currencyID="EUR">${erBetrag(s.mwst)}</ram:TaxTotalAmount><ram:GrandTotalAmount>${erBetrag(s.brutto)}</ram:GrandTotalAmount><ram:TotalPrepaidAmount>${erBetrag(bezahlt)}</ram:TotalPrepaidAmount><ram:DuePayableAmount>${erBetrag(s.brutto - bezahlt)}</ram:DuePayableAmount></ram:SpecifiedTradeSettlementHeaderMonetarySummation>
+${bezug ? `<ram:InvoiceReferencedDocument><ram:IssuerAssignedID>${x(bezug.nummer)}</ram:IssuerAssignedID><ram:FormattedIssueDateTime><qdt:DateTimeString format="102">${erDatum(bezug.datum)}</qdt:DateTimeString></ram:FormattedIssueDateTime></ram:InvoiceReferencedDocument>` : ''}</ram:ApplicableHeaderTradeSettlement>
+</rsm:SupplyChainTradeTransaction>
+</rsm:CrossIndustryInvoice>
+`;
+}
+const eRechnungDateiname = b => `${BELEG_ART[b.art][0]}_${b.nummer}_XRechnung.xml`.replace(/\s+/g, '_');
+
+/** Empfangene E-Rechnung (XRechnung/ZUGFeRD als CII oder UBL) in lesbare Daten. */
+function eRechnungLesen(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('Keine gültige XML-Datei');
+  const alle = (el, n) => [...(el || doc).getElementsByTagNameNS('*', n)], eins = (el, n) => alle(el, n)[0], text = (el, n) => { const e = n ? eins(el, n) : el; return e ? e.textContent.trim() : ''; };
+  const datum = t => { const m = String(t || '').replace(/-/g, '').match(/^(\d{4})(\d{2})(\d{2})/); return m ? `${m[1]}-${m[2]}-${m[3]}` : ''; };
+  const wurzel = doc.documentElement.localName;
+  if (wurzel === 'CrossIndustryInvoice') {
+    const partei = n => { const p = eins(null, n); return p ? { name: text(p, 'Name'), strasse: text(p, 'LineOne'), plz: text(p, 'PostcodeCode'), ort: text(p, 'CityName'), ustId: (alle(p, 'ID').find(e => e.getAttribute('schemeID') === 'VA') || { textContent: '' }).textContent.trim() } : {}; };
+    const summe = eins(null, 'SpecifiedTradeSettlementHeaderMonetarySummation');
+    return { format: 'CII (XRechnung/ZUGFeRD)', nummer: text(eins(null, 'ExchangedDocument'), 'ID'), art: text(null, 'TypeCode') === '381' ? 'Gutschrift' : 'Rechnung',
+      datum: datum(text(eins(null, 'IssueDateTime'), 'DateTimeString')), verkaeufer: partei('SellerTradeParty'), kaeufer: partei('BuyerTradeParty'), referenz: text(null, 'BuyerReference'),
+      faellig: datum(text(eins(null, 'DueDateDateTime'), 'DateTimeString')), iban: text(null, 'IBANID'),
+      positionen: alle(null, 'IncludedSupplyChainTradeLineItem').map(z => ({ bez: text(eins(z, 'SpecifiedTradeProduct'), 'Name'), menge: text(z, 'BilledQuantity'), einheit: (eins(z, 'BilledQuantity') || { getAttribute: () => '' }).getAttribute('unitCode'), preis: text(eins(z, 'NetPriceProductTradePrice'), 'ChargeAmount'), summe: text(z, 'LineTotalAmount') })),
+      netto: text(summe, 'TaxBasisTotalAmount'), steuer: text(summe, 'TaxTotalAmount'), brutto: text(summe, 'GrandTotalAmount'), offen: text(summe, 'DuePayableAmount') };
+  }
+  if (wurzel === 'Invoice' || wurzel === 'CreditNote') {
+    const partei = n => { const p = eins(eins(null, n), 'Party'); return p ? { name: text(eins(p, 'PartyLegalEntity'), 'RegistrationName') || text(eins(p, 'PartyName'), 'Name'), strasse: text(p, 'StreetName'), plz: text(p, 'PostalZone'), ort: text(p, 'CityName'), ustId: text(eins(p, 'PartyTaxScheme'), 'CompanyID') } : {}; };
+    const summe = eins(null, 'LegalMonetaryTotal');
+    return { format: 'UBL (XRechnung)', nummer: text(doc.documentElement.children ? [...doc.documentElement.children].find(e => e.localName === 'ID') : null), art: wurzel === 'CreditNote' ? 'Gutschrift' : 'Rechnung',
+      datum: datum(text(null, 'IssueDate')), verkaeufer: partei('AccountingSupplierParty'), kaeufer: partei('AccountingCustomerParty'), referenz: text(null, 'BuyerReference'),
+      faellig: datum(text(null, 'DueDate')), iban: text(eins(null, 'PayeeFinancialAccount'), 'ID'),
+      positionen: alle(null, wurzel === 'CreditNote' ? 'CreditNoteLine' : 'InvoiceLine').map(z => ({ bez: text(eins(z, 'Item'), 'Name'), menge: text(z, wurzel === 'CreditNote' ? 'CreditedQuantity' : 'InvoicedQuantity'), einheit: '', preis: text(eins(z, 'Price'), 'PriceAmount'), summe: text(z, 'LineExtensionAmount') })),
+      netto: text(summe, 'TaxExclusiveAmount'), steuer: text(eins(null, 'TaxTotal'), 'TaxAmount'), brutto: text(summe, 'TaxInclusiveAmount'), offen: text(summe, 'PayableAmount') };
+  }
+  throw new Error('Unbekanntes Format – erwartet XRechnung oder ZUGFeRD (CII bzw. UBL)');
+}
+const pdfjsLaden = async () => {
+  if (!window.pdfjsLib) await new Promise((ok, fehler) => { const s = document.createElement('script'); s.src = 'pdfjs/pdf.min.js'; s.onload = ok; s.onerror = () => fehler(new Error('PDF-Leser konnte nicht geladen werden')); document.head.appendChild(s); });
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs/pdf.worker.min.js';
+  return pdfjsLib;
+};
+/** E-Rechnung aus PDF (ZUGFeRD/Factur-X) herausholen: eingebettete XML-Datei über pdf.js. */
+async function eRechnungAusPdf(bytes) {
+  const pdf = await (await pdfjsLaden()).getDocument({ data: bytes }).promise;
+  const anh = (await pdf.getAttachments()) || {};
+  const a = Object.values(anh).find(x => /\.xml$/i.test(x.filename || '')) ;
+  if (!a) throw new Error('In diesem PDF steckt keine E-Rechnung (kein ZUGFeRD/Factur-X)');
+  return new TextDecoder('utf-8').decode(a.content);
+}
+function eRechnungAnzeigen(r) {
+  const p = x => [x.name, x.strasse, [x.plz, x.ort].filter(Boolean).join(' '), x.ustId ? 'USt-IdNr. ' + x.ustId : ''].filter(Boolean).map(esc).join('<br>');
+  const eur = t => (t ? Number(t).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '–');
+  const html = `<h2>${esc(r.art)} <span translate="no">${esc(r.nummer)}</span></h2><p class="leise">E-Rechnung · <span translate="no">${esc(r.format)}</span></p>
+    <div class="zeile" style="align-items:flex-start"><div class="fuell"><b>Von</b><br><span translate="no">${p(r.verkaeufer)}</span></div><div class="fuell"><b>An</b><br><span translate="no">${p(r.kaeufer)}</span></div></div>
+    <dl><dt>Datum</dt><dd>${esc(datumText(r.datum))}</dd>${r.faellig ? `<dt>Fällig</dt><dd>${esc(datumText(r.faellig))}</dd>` : ''}${r.referenz ? `<dt>Referenz</dt><dd translate="no">${esc(r.referenz)}</dd>` : ''}${r.iban ? `<dt>IBAN</dt><dd translate="no">${esc(r.iban)}</dd>` : ''}</dl>
+    <div class="tabelle-rahmen"><table class="tabelle" translate="no"><tr><th>Leistung</th><th class="r">Menge</th><th class="r">Preis</th><th class="r">Summe</th></tr>${r.positionen.map(z => `<tr><td>${esc(z.bez)}</td><td class="r">${esc(z.menge)} ${esc(z.einheit || '')}</td><td class="r">${eur(z.preis)}</td><td class="r">${eur(z.summe)}</td></tr>`).join('')}</table></div>
+    <dl><dt>Netto</dt><dd>${eur(r.netto)}</dd><dt>Umsatzsteuer</dt><dd>${eur(r.steuer)}</dd><dt><b>Gesamt</b></dt><dd><b>${eur(r.brutto)}</b></dd><dt>Zu zahlen</dt><dd>${eur(r.offen)}</dd></dl>`;
+  dialog(`<div id="er-ansicht">${html}</div><div class="dialog-knoepfe"><button class="knopf text" data-zu>Schließen</button><button class="knopf voll" id="er-drucken">Drucken</button></div>`);
+  $('#er-drucken').onclick = () => druckeHtml(`<!doctype html><html lang="de"><head><meta charset="utf-8"><style>body{font:10.5pt Arial,sans-serif;margin:20mm}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #ccc;padding:4px;text-align:left}.r{text-align:right}dl{display:grid;grid-template-columns:auto 1fr;gap:2px 12px}.zeile{display:flex;gap:20mm}</style></head><body>${html}</body></html>`);
+}
+async function eRechnungOeffnen(datei) {
+  try {
+    const bytes = new Uint8Array(await datei.arrayBuffer());
+    const xml = /\.pdf$/i.test(datei.name) || (bytes[0] === 0x25 && bytes[1] === 0x50) ? await eRechnungAusPdf(bytes) : new TextDecoder('utf-8').decode(bytes);
+    eRechnungAnzeigen(eRechnungLesen(xml));
+  } catch (e) { toast(t('E-Rechnung nicht lesbar') + ': ' + t(String(e.message || e)), 7000); }
+}
+function eRechnungLueckenDialog(b, l) {
+  dialog(`<h2>E-Rechnung noch nicht möglich</h2><p>Für eine gültige E-Rechnung (XRechnung) fehlt noch:</p><ul>${l.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+    <p class="leise">Eigene Daten unter ⚙ → Eigene Firmendaten, Kundendaten in der Firma (✎ Bearbeiten, Adressen, Ansprechpartner).</p>
+    <div class="dialog-knoepfe"><button class="knopf voll" data-zu>OK</button></div>`);
+}
+
+document.addEventListener('click', e => { if (e.target.closest('[data-erechnung-oeffnen]')) { const i = $('#er-datei'); if (i) i.click(); } });
+document.addEventListener('change', e => { if (e.target.id === 'er-datei' && e.target.files[0]) { eRechnungOeffnen(e.target.files[0]); e.target.value = ''; } });
+
+// ---------- Selbst-Update des Cloud-Skripts (nur Hauptadmin) ----------
+const CUPD = { info: null, laeuft: false, fehler: '', geladen: false };
+async function cloudUpdateLaden() {
+  if (CUPD.laeuft) return;
+  CUPD.laeuft = true; CUPD.fehler = '';
+  try { CUPD.info = await api('cloudUpdateInfo', PIN); } catch (e) { CUPD.fehler = String(e.message || e); }
+  finally { CUPD.laeuft = false; CUPD.geladen = true; if (route().art === 'einstellungen') zeichne(); }
+}
+function cloudUpdateKarte() {
+  if (!mitCloud() || !PIN || !istHauptadmin()) return '';
+  if (!CUPD.geladen && !CUPD.laeuft) setTimeout(cloudUpdateLaden, 0);
+  const i = CUPD.info, v = i && i.verfuegbar, neu = v && (Number(v.stand) > Number(i.stand || 0));
+  const unbekannt = /Unbekannte Funktion/.test(CUPD.fehler);
+  return `<div class="karte block" id="cloud-update-karte"><h3>Cloud-Skript</h3>
+    ${unbekannt ? `<p class="hinweis-box">⚠ Dieses Cloud-Skript kann sich noch nicht selbst aktualisieren. Einmalig die neue Code.gs und appsscript.json von Hand einsetzen (siehe Anleitung) – danach geht es automatisch.</p>`
+      : `<dl><dt>Version (API)</dt><dd translate="no">${esc(i ? String(i.api) : '…')}</dd>${v ? `<dt>Auf der Webseite</dt><dd translate="no">API ${esc(String(v.api))} · ${esc(v.version || '')}</dd>` : ''}</dl>
+    ${i && i.fehler ? `<p class="leise">Update-Server: ${esc(i.fehler)}</p>` : ''}${i && i.letzterFehler ? `<p class="hinweis-box">⚠ Letztes automatisches Update: <span translate="no">${esc(i.letzterFehler)}</span></p>` : ''}
+    ${CUPD.fehler ? `<p class="hinweis-box">⚠ <span translate="no">${esc(CUPD.fehler)}</span></p>` : ''}
+    <label class="auswahl"><input type="checkbox" data-cloud-auto ${i && i.automatisch ? 'checked' : ''} ${i ? '' : 'disabled'}> Nachts automatisch aktualisieren</label>
+    <div class="zeile"><button class="knopf ${neu ? 'voll' : ''}" data-cloud-update ${CUPD.laeuft || !i ? 'disabled' : ''}>${CUPD.laeuft ? 'Bitte warten …' : neu ? 'Cloud-Skript jetzt aktualisieren' : 'Cloud-Skript neu einspielen'}</button></div>`}</div>`;
+}
+document.addEventListener('click', async e => {
+  if (!e.target.closest('[data-cloud-update]')) return;
+  const neu = CUPD.info && CUPD.info.verfuegbar && Number(CUPD.info.verfuegbar.stand) > Number(CUPD.info.stand || 0);
+  CUPD.laeuft = true; zeichne();
+  try {
+    const r = await api('cloudAktualisieren', PIN, !neu);
+    toast(r.neu ? `${t('Cloud-Skript aktualisiert')} (API ${r.api})` : t('Cloud-Skript ist schon aktuell'), 6000);
+    SYNC.versionOk = null;
+  } catch (fehler) { CUPD.fehler = String(fehler.message || fehler); }
+  CUPD.laeuft = false; CUPD.geladen = false; zeichne();
+});
+document.addEventListener('change', async e => {
+  if (!e.target.matches || !e.target.matches('[data-cloud-auto]')) return;
+  try { await api('cloudAutoUpdate', PIN, e.target.checked); toast(e.target.checked ? t('Automatisches Update eingeschaltet') : t('Automatisches Update ausgeschaltet')); }
+  catch (fehler) { CUPD.fehler = String(fehler.message || fehler); e.target.checked = !e.target.checked; }
+  CUPD.geladen = false; zeichne();
+});
 // ============================== In-App-Update (Windows- und Android-App) ==============================
 /**
  * Die Apps laden neue Fassungen der Oberfläche selbst (ohne neues Setup/APK): Die Seite prüft app-update.json auf der
