@@ -1915,8 +1915,8 @@ function zeichneEinstellungenVoll() {
         <button class="knopf voll" id="verbinden">Verbinden</button>`}</div>
     ${window.desktop ? mailEinstellungen() : ''}
     <div class="karte block"><h3>Eigene Firmendaten für Angebote und Rechnungen</h3>
-      ${[['name', 'Firmenname'], ['strasse', 'Straße und Hausnummer'], ['plzOrt', 'PLZ und Ort'], ['telefon', 'Telefon'], ['email', 'E-Mail'], ['steuer', 'Steuernummer'], ['ustId', 'USt-IdNr.'],
-        ['bank', 'Bank'], ['iban', 'IBAN'], ['bic', 'BIC'], ['zahlungsziel', 'Zahlungsziel (Tage)'], ['mwst', 'MwSt.-Satz (%)'], ['fuss', 'Zusatz in der Fußzeile'],
+      ${[['name', 'Firmenname'], ['strasse', 'Straße und Hausnummer'], ['plzOrt', 'PLZ und Ort'], ['telefon', 'Telefon'], ['email', 'E-Mail'], ['steuer', 'Steuernummer'], ['ustId', 'USt-IdNr.'], ['geschaeftsfuehrer', 'Geschäftsführer/in (Name, erscheint in der Fußzeile und wahlweise als Unterschrift)'],
+        ['bank', 'Bank'], ['iban', 'IBAN'], ['bic', 'BIC'], ['zahlungsziel', 'Zahlungsziel (Tage)'], ['mwst', 'MwSt.-Satz (%)'], ['fuss', 'Zusatz in der Fußzeile'], ['hinweisElektronisch', 'Hinweis unter der Unterschrift (leer = kein Hinweis)'],
         ['startRechnung', 'Startnummer Rechnungen (z. B. 1001 → R' + new Date().getFullYear() + '-1001)'], ['startAngebot', 'Startnummer Angebote (z. B. 1 → A' + new Date().getFullYear() + '-0001)']]
         .map(([k, l]) => `<label class="feld">${l}<input data-rechnung="${k}" value="${esc(rechnungsDaten()[k])}"></label>`).join('')}</div>
     <div class="karte block"><h3>CRM</h3><p class="leise" style="margin-bottom:8px">Die Sicherung des bisherigen Browser-CRM (JSON) einlesen. Firmen mit gleichem Namen werden zusammengeführt, nichts wird doppelt angelegt.</p>
@@ -2397,7 +2397,7 @@ const BELEG_STATUS = {
   ANGENOMMEN: ['Angenommen', 'gruen'], ABGELEHNT: ['Abgelehnt', 'rot'],
 };
 const MAHNSTUFEN = ['Zahlungserinnerung', '1. Mahnung', '2. Mahnung', 'Letzte Mahnung'];
-const rechnungsDaten = () => Object.assign({ name: '', strasse: '', plzOrt: '', telefon: '', email: '', steuer: '', ustId: '', iban: '', bic: '', bank: '',
+const rechnungsDaten = () => Object.assign({ name: '', strasse: '', plzOrt: '', telefon: '', email: '', steuer: '', ustId: '', iban: '', bic: '', bank: '', geschaeftsfuehrer: '', hinweisElektronisch: 'Dieses Dokument wurde elektronisch erstellt und ist ohne Unterschrift und Stempel gültig.',
   zahlungsziel: 14, mwst: 19, fuss: '', startRechnung: 1, startAngebot: 1, startGutschrift: 1 }, S.einstellungen.rechnung || {});
 
 const positionen = b => { try { const p = JSON.parse(b.positionen || '[]'); return Array.isArray(p) ? p : []; } catch { return []; } };
@@ -2462,12 +2462,12 @@ const BelegAktionen = {
   },
   /** Gutschrift zu einer Rechnung: voll = alle Positionen (Storno per Gutschrift), sonst leer zum Ausfüllen. */
   gutschrift(rechnung, voll) {
-    return this.neu('GUTSCHRIFT', rechnung.firmaId, { positionen: voll ? rechnung.positionen : '[]', mwstProzent: rechnung.mwstProzent, bezug: rechnung.id, fallId: rechnung.fallId || '', faelligAm: plusTage(heute(), 14),
+    return this.neu('GUTSCHRIFT', rechnung.firmaId, { positionen: voll ? rechnung.positionen : '[]', mwstProzent: rechnung.mwstProzent, unterzeichner: rechnung.unterzeichner || '', bezug: rechnung.id, fallId: rechnung.fallId || '', faelligAm: plusTage(heute(), 14),
       einleitung: `zu unserer Rechnung ${rechnung.nummer} vom ${datumText(rechnung.datum)} schreiben wir Ihnen ${voll ? 'den vollen Betrag' : 'folgende Beträge'} gut:`,
       schluss: 'Den Betrag verrechnen wir mit offenen Forderungen bzw. überweisen ihn auf Ihr Konto.' });
   },
   zuRechnung(angebot) {
-    const id = this.neu('RECHNUNG', angebot.firmaId, { positionen: angebot.positionen, mwstProzent: angebot.mwstProzent, bezug: angebot.id, fallId: angebot.fallId || '' });
+    const id = this.neu('RECHNUNG', angebot.firmaId, { positionen: angebot.positionen, mwstProzent: angebot.mwstProzent, unterzeichner: angebot.unterzeichner || '', bezug: angebot.id, fallId: angebot.fallId || '' });
     this.speichern({ ...angebot, status: 'ANGENOMMEN' });
     return id;
   },
@@ -2484,6 +2484,12 @@ const BelegAktionen = {
   },
 };
 
+/** Wer unterschreibt: Geschäftsführer (wenn am Beleg gewählt und in den Firmendaten eingetragen) oder Bearbeiter/in. */
+function belegUnterschrift(b, rd = rechnungsDaten()) {
+  if (b.unterzeichner === 'GF' && rd.geschaeftsfuehrer) return `${esc(rd.geschaeftsfuehrer)}<br>Geschäftsführer<br>`;
+  const n = S.einstellungen.bearbeiter || '';
+  return n ? `${esc(n)}<br>` : '';
+}
 /** A4-Seite für Druck und PDF (DIN-5008-ähnlich). */
 function belegHtml(b) {
   const rd = rechnungsDaten(), firma = S.auftraggeber[b.firmaId] || { name: '' }, adr = rechnungsAdresse(b.firmaId), s = belegSummen(b);
@@ -2510,9 +2516,10 @@ function belegHtml(b) {
     <table class="pos"><tr><th>Pos.</th><th>Leistung</th><th class="r">Menge</th><th class="r">Einzelpreis</th><th class="r">Gesamt</th></tr>${zeilen}</table>
     <table class="summe" style="margin-left:auto"><tr><td>Summe netto</td><td class="r">${geld(s.netto)}</td></tr><tr><td>zzgl. ${b.mwstProzent ?? 19} % MwSt.</td><td class="r">${geld(s.mwst)}</td></tr>
       <tr class="b"><td class="b">Gesamtbetrag</td><td class="r b">${geld(s.brutto)}</td></tr>${b.bezahltCent ? `<tr><td>bereits bezahlt</td><td class="r">${geld(b.bezahltCent)}</td></tr><tr class="b"><td class="b">offen</td><td class="r b">${geld(offenCent(b))}</td></tr>` : ''}</table>
-    <p>${ersetze(b.schluss)}</p><p>Mit freundlichen Grüßen<br>${esc(S.einstellungen.bearbeiter || '')}${S.einstellungen.bearbeiter ? '<br>' : ''}${esc(rd.name || S.einstellungen.firma || '')}</p>
+    <p>${ersetze(b.schluss)}</p><p>Mit freundlichen Grüßen<br>${belegUnterschrift(b, rd)}${esc(rd.name || S.einstellungen.firma || '')}</p>
+    ${rd.hinweisElektronisch ? `<p style="font-size:8.5pt;color:#555;margin-top:6mm">${esc(rd.hinweisElektronisch)}</p>` : ''}
     <div class="fuss"><div>${esc(rd.name || '')}<br>${esc(rd.strasse)}<br>${esc(rd.plzOrt)}</div><div>${rd.telefon ? 'Tel. ' + esc(rd.telefon) + '<br>' : ''}${esc(rd.email)}</div>
-      <div>${rd.steuer ? 'St.-Nr. ' + esc(rd.steuer) + '<br>' : ''}${rd.ustId ? 'USt-IdNr. ' + esc(rd.ustId) : ''}</div><div>${esc(rd.bank)}<br>${rd.iban ? 'IBAN ' + esc(rd.iban) : ''}<br>${rd.bic ? 'BIC ' + esc(rd.bic) : ''}</div>
+      <div>${rd.geschaeftsfuehrer ? 'Geschäftsführer: ' + esc(rd.geschaeftsfuehrer) + '<br>' : ''}${rd.steuer ? 'St.-Nr. ' + esc(rd.steuer) + '<br>' : ''}${rd.ustId ? 'USt-IdNr. ' + esc(rd.ustId) : ''}</div><div>${esc(rd.bank)}<br>${rd.iban ? 'IBAN ' + esc(rd.iban) : ''}<br>${rd.bic ? 'BIC ' + esc(rd.bic) : ''}</div>
       ${rd.fuss ? `<div>${esc(rd.fuss)}</div>` : ''}</div></div></body></html>`;
 }
 const belegDateiname = b => `${BELEG_ART[b.art][0]}_${b.nummer}_${(S.auftraggeber[b.firmaId] || {}).name || ''}.pdf`.replace(/\s+/g, '_');
@@ -2617,6 +2624,10 @@ function zeichneBeleg(id) {
         ${rechnung && gutgeschriebenCent(b) ? `<dt>Gutgeschrieben</dt><dd>− ${geld(gutgeschriebenCent(b))}</dd>${b.bezahltCent ? '' : `<dt>Offen</dt><dd>${geld(offenCent(b))}</dd>`}` : ''}
         ${b.bezahltCent ? `<dt>Bezahlt${b.bezahltAm ? ' am ' + datumText(b.bezahltAm) : ''}</dt><dd>${geld(b.bezahltCent)}</dd><dt>Offen</dt><dd>${geld(offenCent(b))}</dd>` : ''}</dl>
       <label class="feld">Schlusstext (${'{FAELLIG}'} = Fälligkeitsdatum)<textarea name="schluss" ${gesperrt ? 'disabled' : ''}>${esc(b.schluss || '')}</textarea></label>
+      <label class="feld">Unterschrift<select name="unterzeichner" ${gesperrt ? 'disabled' : ''}>
+        <option value="" ${b.unterzeichner === 'GF' ? '' : 'selected'}>Bearbeiter/in</option><option value="GF" ${b.unterzeichner === 'GF' ? 'selected' : ''}>Geschäftsführer/in</option></select>
+        <span class="leise" translate="no">${esc(b.unterzeichner === 'GF' ? (rechnungsDaten().geschaeftsfuehrer || '') : (S.einstellungen.bearbeiter || ''))}</span></label>
+      ${b.unterzeichner === 'GF' && !rechnungsDaten().geschaeftsfuehrer ? '<p class="leise">Name des Geschäftsführers fehlt – unter ⚙ → Eigene Firmendaten eintragen.</p>' : ''}
       <label class="feld">Interne Notiz<input name="notiz" value="${esc(b.notiz || '')}"></label>
       ${gesperrt ? '' : '<div class="zeile"><button class="knopf voll" id="beleg-speichern">Speichern</button></div>'}</form>`;
 }
@@ -2629,7 +2640,7 @@ function belegAusFormular(b) {
     return { bez: v('bez').trim(), einheit: v('einheit').trim(), menge: Number(String(v('menge')).replace(',', '.')) || 0, einzelCent: geldLesen(v('einzel')) ?? 0 };
   });
   return { ...b, datum: w.datum || b.datum, faelligAm: w.faelligAm || b.faelligAm, mwstProzent: Number(w.mwstProzent) || 0, einleitung: w.einleitung ?? b.einleitung,
-    schluss: w.schluss ?? b.schluss, notiz: w.notiz ?? b.notiz, positionen: JSON.stringify(pos) };
+    schluss: w.schluss ?? b.schluss, notiz: w.notiz ?? b.notiz, unterzeichner: 'unterzeichner' in w ? (w.unterzeichner === 'GF' ? 'GF' : '') : (b.unterzeichner || ''), positionen: JSON.stringify(pos) };
 }
 
 async function belegMail(b, art = 'beleg') {
@@ -6109,7 +6120,7 @@ function briefHtml({ an = [], betreff = '', anrede = 'Sehr geehrte Damen und Her
     <h1>${esc(betreff)}</h1><p>${esc(anrede)}</p><div class="text">${esc(text)}</div>
     <p>Mit freundlichen Grüßen</p><p style="margin-top:14mm">${esc(S.einstellungen.bearbeiter || '')}${S.einstellungen.funktion ? '<br>' + esc(S.einstellungen.funktion) : ''}<br>${esc(firma)}</p>
     <div class="fuss"><div>${esc(firma)}<br>${esc(rd.strasse || '')}<br>${esc(rd.plzOrt || '')}</div><div>${rd.telefon ? 'Tel. ' + esc(rd.telefon) + '<br>' : ''}${esc(rd.email || '')}</div>
-      <div>${rd.steuer ? 'St.-Nr. ' + esc(rd.steuer) + '<br>' : ''}${rd.ustId ? 'USt-IdNr. ' + esc(rd.ustId) : ''}</div><div>${esc(rd.bank || '')}<br>${rd.iban ? 'IBAN ' + esc(rd.iban) : ''}</div></div></div></body></html>`;
+      <div>${rd.geschaeftsfuehrer ? 'Geschäftsführer: ' + esc(rd.geschaeftsfuehrer) + '<br>' : ''}${rd.steuer ? 'St.-Nr. ' + esc(rd.steuer) + '<br>' : ''}${rd.ustId ? 'USt-IdNr. ' + esc(rd.ustId) : ''}</div><div>${esc(rd.bank || '')}<br>${rd.iban ? 'IBAN ' + esc(rd.iban) : ''}</div></div></div></body></html>`;
 }
 /** Vorlagen: [Titel, für (FIRMA|MITARBEITER|FREI), Betreff, Text]; {NAME}, {ANSCHRIFT}-Felder werden ersetzt. */
 const BRIEF_VORLAGEN = {
