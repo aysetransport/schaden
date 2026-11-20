@@ -940,7 +940,12 @@ async function abgleich() {
       if (SYNC.neuAngelegt > 2) throw new Error('Die Cloud legt ihren Bestand ständig neu an – bitte den Ordner „Schadensfaelle“ in Google Drive und die Code.gs prüfen.');
       for (const tabelle of TABELLEN) for (const d of Object.values(S[tabelle])) { d._dirty = true; if (tabelle === 'anlagen') d.vorhanden = false; }
       S.seit = 0; SYNC.nochmal = true;
+    } else if (S.seit && r.rolle && S.sichtRolle !== r.rolle) {
+      // Rolle des Geräts hat sich geändert (z. B. Fahrer → Disposition) oder erster Abgleich mit dieser Version:
+      // bisher kam nur ein Ausschnitt an – einmal den kompletten Bestand holen, sonst fehlen Mitarbeiter, Touren usw.
+      S.seit = 0; SYNC.nochmal = true; SYNC.neuAngelegt = 0;
     } else { S.seit = r.rev; SYNC.neuAngelegt = 0; }
+    if (r.rolle) S.sichtRolle = r.rolle;
     S.kennung = r.kennung;
     speichere();
 
