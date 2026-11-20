@@ -2528,6 +2528,13 @@ function belegHtml(b) {
       <div>${rd.geschaeftsfuehrer ? 'Geschäftsführer: ' + esc(rd.geschaeftsfuehrer) + '<br>' : ''}${rd.steuer ? 'St.-Nr. ' + esc(rd.steuer) + '<br>' : ''}${rd.ustId ? 'USt-IdNr. ' + esc(rd.ustId) : ''}</div><div>${esc(kto.bank)}<br>${kto.iban ? 'IBAN ' + esc(kto.iban) : ''}<br>${kto.bic ? 'BIC ' + esc(kto.bic) : ''}</div>
       ${rd.fuss ? `<div>${esc(rd.fuss)}</div>` : ''}</div></div></body></html>`;
 }
+/** Wer eine Rechnung/Gutschrift ausdruckt oder als PDF speichert, gibt sie heraus: Entwurf → offen (zählt dann zum Umsatz). */
+function alsVersendet(b) {
+  const x = S.belege[b.id];
+  if (!x || x.status !== 'ENTWURF' || !['RECHNUNG', 'GUTSCHRIFT'].includes(x.art)) return;
+  BelegAktionen.speichern({ ...x, status: 'OFFEN' });
+  toast(`${BELEG_ART[x.art][0]} ${x.nummer} als versendet markiert – zählt jetzt zum Umsatz`, 5000);
+}
 const belegDateiname = b => `${BELEG_ART[b.art][0]}_${b.nummer}_${(S.auftraggeber[b.firmaId] || {}).name || ''}.pdf`.replace(/\s+/g, '_');
 async function belegPdf(b) {
   if (!window.desktop || !window.desktop.pdf) throw new Error('PDF gibt es in der Windows- und der Android-App. Im Browser bitte „Drucken“ → „Als PDF speichern“ nutzen.');
@@ -2700,9 +2707,9 @@ $('#detail').addEventListener('click', async e => {
   const aktuell = ['BEZAHLT', 'STORNIERT'].includes(b.status) ? b : belegAusFormular(b);
   if (aktuell !== b) BelegAktionen.speichern(aktuell);
   switch (akt.dataset.belegAkt) {
-    case 'pdf': try { const pfad = await window.desktop.speichere(belegDateiname(aktuell), await belegPdf(aktuell)); if (pfad) toast('Gespeichert: ' + pfad); }
-      catch (fehler) { if (!window.desktop) belegDrucken(aktuell); else toast(fehler.message); } break;
-    case 'drucken': belegDrucken(aktuell); break;
+    case 'pdf': try { const pfad = await window.desktop.speichere(belegDateiname(aktuell), await belegPdf(aktuell)); if (pfad) { toast('Gespeichert: ' + pfad); alsVersendet(aktuell); } }
+      catch (fehler) { if (!window.desktop) { belegDrucken(aktuell); alsVersendet(aktuell); } else toast(fehler.message); } break;
+    case 'drucken': belegDrucken(aktuell); alsVersendet(aktuell); break;
     case 'mail': belegMail(aktuell); break;
     case 'mahnung': belegMail(aktuell, 'mahnung'); break;
     case 'zahlung': zahlungDialog(aktuell); break;
@@ -4352,12 +4359,15 @@ function firmaTourenHtml(firma) {
   const umsatz = vonFirma('belege', firma.id).filter(b => String(b.datum).startsWith(heute().slice(0, 4))).reduce((n, b) => n + umsatzNetto(b), 0);
   const leute = {}; for (const t of tourenVonFirma(firma, plusTage(heute(), -90), heute())) for (const id of teamVon(t)) leute[id] = (leute[id] || 0) + 1;
   const top = Object.entries(leute).sort((a, b) => b[1] - a[1]).slice(0, 6).filter(([id]) => maVon(id));
-  if (!tourenVonFirma(firma).length) return '<p class="leise">Noch keine Touren für diese Firma.</p>';
+  // Rechnungen ohne Tourbezug (Pauschalen usw.) zählen beim Gewinn mit
+  const virt = belegZeilen().filter(v => v.auftraggeberId === firma.id && String(v.datum).startsWith(heute().slice(0, 4)));
+  const guvZeile = () => { const r = jahr.concat(virt).map(tourRechnung), e = r.reduce((n, x) => n + x.erloes, 0), db = r.reduce((n, x) => n + x.db, 0);
+    return jahr.length || virt.length ? `<dt>Gewinn/Verlust ${heute().slice(0, 4)}</dt><dd><b style="${db < 0 ? 'color:var(--rot-t)' : ''}">${geld(db)}</b>${jahr.length ? ` · Ø ${geld(Math.round(r.slice(0, jahr.length).reduce((n, x) => n + x.db, 0) / jahr.length))} je Tour` : ''}${e ? ` · Marge ${(db / e * 100).toFixed(1).replace('.', ',')} %` : ''}${virt.length ? ` <span class="leise">(inkl. ${virt.length} Rechnung${virt.length === 1 ? '' : 'en'} ohne Tourbezug)</span>` : ''}</dd>` : ''; };
+  if (!tourenVonFirma(firma).length) return virt.length ? `<dl>${guvZeile()}</dl>` : '<p class="leise">Noch keine Touren für diese Firma.</p>';
   return `<dl><dt>${esc(m0.text)}</dt><dd><b>${dies.length}</b> ${dies.length ? '(' + esc(zaehle(dies)) + ')' : ''}</dd><dt>${esc(m1.text)}</dt><dd><b>${letzter.length}</b> ${letzter.length ? '(' + esc(zaehle(letzter)) + ')' : ''}</dd>
     <dt>Nächste 14 Tage</dt><dd>${geplant.length ? geplant.slice(0, 6).map(t => `<button class="knopf text" style="padding:0" data-tour-tag="${t.datum}">${esc(datumText(t.datum))}${t.name ? ' ' + esc(t.name) : ''}</button>`).join(', ') : 'nichts geplant'}</dd>
     <dt>Nicht abgerechnet</dt><dd>${offen.length ? `<b>${offen.length}</b> Touren` : 'alles abgerechnet'}</dd>
-    ${(() => { const r = jahr.map(tourRechnung), e = r.reduce((n, x) => n + x.erloes, 0), db = r.reduce((n, x) => n + x.db, 0);
-      return jahr.length ? `<dt>Gewinn/Verlust ${heute().slice(0, 4)}</dt><dd><b style="${db < 0 ? 'color:var(--rot-t)' : ''}">${geld(db)}</b> · Ø ${geld(Math.round(db / jahr.length))} je Tour${e ? ` · Marge ${(db / e * 100).toFixed(1).replace('.', ',')} %` : ''}</dd>` : ''; })()}
+    ${guvZeile()}
     ${umsatz && jahr.length ? `<dt>Umsatz je Tour ${heute().slice(0, 4)}</dt><dd>${geld(Math.round(umsatz / jahr.length))} (netto)</dd>` : ''}
     ${top.length ? `<dt>Eingesetztes Personal</dt><dd>${top.map(([id, n]) => `<button class="knopf text" style="padding:0" data-mitarbeiter="${id}">${esc(maName(id))} (${n})</button>`).join(', ')}</dd>` : ''}</dl>`;
 }
@@ -4988,8 +4998,9 @@ function guvHtml(zr) {
   const s = Object.values(monate).reduce((a, x) => { for (const k in x) a[k] = (a[k] || 0) + x[k]; return a; }, {});
   const ergebnis = (s.erloes || 0) - (s.personal || 0) - (s.fahrzeug || 0) - (s.schaeden || 0) - (s.gemein || 0);
   const umsatzSumme = umsatz.reduce((n, b) => n + umsatzNetto(b), 0);
+  const entwuerfe = alle('belege').filter(b => b.status === 'ENTWURF' && ['RECHNUNG', 'GUTSCHRIFT'].includes(b.art) && b.datum >= zr.von && b.datum <= zr.bis);
   const kz = (w, l, rot) => `<div class="kennzahl ${rot ? 'rot' : ''}"><b>${esc(w)}</b><span>${esc(l)}</span></div>`;
-  return `${finanzHinweis(zr)}<div class="kennzahlen vier">${kz(geld(s.erloes || 0), s.sonstig ? 'Erlös (Touren + Rechnungen ohne Tour)' : 'Erlös aus Touren')}${kz(geld((s.personal || 0) + (s.fahrzeug || 0) + (s.schaeden || 0) + (s.gemein || 0)), 'Kosten der Touren')}
+  return `${finanzHinweis(zr)}${entwuerfe.length ? `<p class="hinweis-box" style="margin-bottom:10px">⚠ ${entwuerfe.length} Entwurf/Entwürfe zählen nicht zum Umsatz – im Beleg „Als versendet markieren“ (oder drucken bzw. als PDF speichern): ${entwuerfe.map(b => `<a href="#/beleg/${b.id}" translate="no">${esc(b.nummer)} (${esc(geld(belegSummen(b).netto))})</a>`).join(', ')}</p>` : ''}<div class="kennzahlen vier">${kz(geld(s.erloes || 0), s.sonstig ? 'Erlös (Touren + Rechnungen ohne Tour)' : 'Erlös aus Touren')}${kz(geld((s.personal || 0) + (s.fahrzeug || 0) + (s.schaeden || 0) + (s.gemein || 0)), 'Kosten der Touren')}
       ${kz(geld(ergebnis), ergebnis >= 0 ? 'Gewinn (Deckungsbeitrag)' : 'Verlust', ergebnis < 0)}${kz(s.erloes ? (ergebnis / s.erloes * 100).toFixed(1).replace('.', ',') + ' %' : '–', 'Marge')}</div>
     <div class="tabelle-rahmen" tabindex="0"><table class="tabelle" id="guv"><tr><th>Monat</th><th class="r">Touren</th><th class="r">Erlös</th><th class="r">Personal</th><th class="r">Fahrzeuge</th><th class="r">Schäden</th>${kostenAnnahmen().gemein ? '<th class="r">Gemeinkosten</th>' : ''}<th class="r">Ergebnis</th><th class="r">je Tour</th></tr>
       ${Object.keys(monate).sort().map(m => { const x = monate[m], e = x.erloes - x.personal - x.fahrzeug - x.schaeden - x.gemein;
