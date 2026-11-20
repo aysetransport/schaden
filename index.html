@@ -8,6 +8,8 @@
 // Adresse des Cloud-Skripts (…/exec). Bleibt sie leer, fragt die App beim ersten Start danach.
 window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwhDnWP7p9XeoIz8NisZR7NApIj-Xfgd_lP5j8KjPE11OFbQuA/exec";
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
+// Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
+window.WEB_STAND = 1795205361; window.WEB_VERSION = '4.13.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -1913,6 +1915,7 @@ function zeichneEinstellungenVoll() {
       : `<p class="leise" style="margin-bottom:8px">Derzeit bleiben alle Fälle nur in diesem Browser. Mit der Adresse des Cloud-Skripts werden sie in Google Drive gespeichert und mit anderen Geräten geteilt.</p>
         <label class="feld">Cloud-Adresse (…/exec)<input id="cloud-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(apiUrl())}"></label>
         <button class="knopf voll" id="verbinden">Verbinden</button>`}</div>
+    ${updateKarte()}
     ${window.desktop ? mailEinstellungen() : ''}
     <div class="karte block"><h3>Eigene Firmendaten für Angebote und Rechnungen</h3>
       ${[['name', 'Firmenname'], ['strasse', 'Straße und Hausnummer'], ['plzOrt', 'PLZ und Ort'], ['telefon', 'Telefon'], ['email', 'E-Mail'], ['steuer', 'Steuernummer'], ['ustId', 'USt-IdNr.'], ['geschaeftsfuehrer', 'Geschäftsführer/in (Name, erscheint in der Fußzeile und wahlweise als Unterschrift)'],
@@ -2516,6 +2519,7 @@ function belegHtml(b) {
     <div class="empf">${esc(firmaName(firma))}<br>${k ? 'z. Hd. ' + esc(k.name) + '<br>' : ''}${adr ? esc(adr.strasse) + '<br>' + esc([adr.plz, adr.ort].filter(Boolean).join(' ')) : ''}</div>
     <table class="info"><tr><td>${esc(BELEG_ART[b.art][0])}-Nr.:</td><td>${esc(b.nummer)}</td></tr><tr><td>Datum:</td><td>${datumText(b.datum)}</td></tr>
       ${firma.kundennummer ? `<tr><td>Kunden-Nr.:</td><td>${esc(firma.kundennummer)}</td></tr>` : ''}${firma.ustId ? `<tr><td>Ihre USt-IdNr.:</td><td>${esc(firma.ustId)}</td></tr>` : ''}
+      ${leistungszeitraum(b) && b.art !== 'ANGEBOT' ? `<tr><td>Leistungszeitraum:</td><td>${datumText(leistungszeitraum(b).von)}${leistungszeitraum(b).bis !== leistungszeitraum(b).von ? ' – ' + datumText(leistungszeitraum(b).bis) : ''}</td></tr>` : ''}
       ${b.art === 'RECHNUNG' ? `<tr><td>Fällig am:</td><td>${datumText(b.faelligAm)}</td></tr>` : b.art === 'GUTSCHRIFT' ? (S.belege[b.bezug] ? `<tr><td>Zu Rechnung:</td><td>${esc(S.belege[b.bezug].nummer)} vom ${datumText(S.belege[b.bezug].datum)}</td></tr>` : '') : `<tr><td>Gültig bis:</td><td>${datumText(b.faelligAm)}</td></tr>`}</table>
     <h1>${b.status === 'STORNIERT' ? 'Storno – ' : ''}${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</h1>
     <p>${k ? `Guten Tag ${esc(k.name)},` : 'Sehr geehrte Damen und Herren,'}</p><p>${ersetze(b.einleitung)}</p>
@@ -2528,12 +2532,46 @@ function belegHtml(b) {
       <div>${rd.geschaeftsfuehrer ? 'Geschäftsführer: ' + esc(rd.geschaeftsfuehrer) + '<br>' : ''}${rd.steuer ? 'St.-Nr. ' + esc(rd.steuer) + '<br>' : ''}${rd.ustId ? 'USt-IdNr. ' + esc(rd.ustId) : ''}</div><div>${esc(kto.bank)}<br>${kto.iban ? 'IBAN ' + esc(kto.iban) : ''}<br>${kto.bic ? 'BIC ' + esc(kto.bic) : ''}</div>
       ${rd.fuss ? `<div>${esc(rd.fuss)}</div>` : ''}</div></div></body></html>`;
 }
+/** Rechnung, die nicht in dieser App erstellt wurde (z. B. alte Buchhaltung, Hand-Rechnung) – zählt in Umsatz und Statistik. */
+function externeRechnungDialog() {
+  const firmen = auftraggeberListe();
+  if (!firmen.length) { toast('Bitte zuerst eine Firma anlegen'); return; }
+  dialog(`<form method="dialog" id="extern-form"><h2>Externe Rechnung erfassen</h2>
+    <p class="leise">Für Rechnungen, die nicht hier geschrieben wurden. Sie zählen im Umsatz und in der Statistik, werden aber nicht gedruckt oder versendet.</p>
+    <label class="feld">Firma<select name="firma">${firmen.map(f => `<option value="${f.id}">${esc(firmaName(f))}</option>`).join('')}</select></label>
+    <div class="zeile"><label class="feld fuell">Rechnungsnummer<input name="nummer" required></label><label class="feld fuell">Rechnungsdatum<input type="date" name="datum" value="${heute()}" required></label></div>
+    <div class="zeile"><label class="feld fuell">Betrag netto in Euro<input name="netto" inputmode="decimal" required><span class="fehlertext" id="extern-fehler" hidden>Bitte einen Betrag wie 2500,00 eingeben.</span></label>
+      <label class="feld" style="width:90px">MwSt. %<input name="mwst" inputmode="numeric" value="${esc(rechnungsDaten().mwst || 19)}"></label></div>
+    <div class="zeile"><label class="feld fuell">Leistungszeitraum von<input type="date" name="von"></label><label class="feld fuell">bis<input type="date" name="bis"></label></div>
+    <label class="feld">Bezeichnung (z. B. Montagen Oktober)<input name="bez"></label>
+    <label class="feld">Status<select name="status"><option value="OFFEN">offen</option><option value="BEZAHLT">bezahlt</option></select></label>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Erfassen</button></div></form>`);
+  $('#extern-form').onsubmit = ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries(new FormData(ev.target)), netto = geldLesen(w.netto);
+    if (netto == null) { $('#extern-fehler').hidden = false; return; }
+    const mwst = Number(String(w.mwst).replace(',', '.')) || 0, brutto = Math.round(netto * (1 + mwst / 100));
+    const id = BelegAktionen.neu('RECHNUNG', w.firma, { extern: true, nummer: w.nummer.trim(), datum: w.datum, faelligAm: w.datum, mwstProzent: mwst, status: w.status,
+      positionen: JSON.stringify([{ bez: w.bez.trim() || 'Externe Rechnung', einheit: '', menge: 1, einzelCent: netto }]), leistungVon: w.von || null, leistungBis: w.bis || w.von || null,
+      einleitung: '', schluss: '', bezahltCent: w.status === 'BEZAHLT' ? brutto : 0, bezahltAm: w.status === 'BEZAHLT' ? w.datum : null });
+    $('#dialog').close(); gehe('#/beleg/' + id); toast('Externe Rechnung erfasst');
+  };
+}
+document.addEventListener('click', e => { if (e.target.closest('[data-externe-rechnung]')) externeRechnungDialog(); });
+$('#detail').addEventListener('change', e => {
+  const k = e.target.dataset && e.target.dataset.leistung; if (!k) return;
+  const r = route(), b = r.art === 'beleg' && S.belege[r.id]; if (!b) return;
+  const neu = { ...b, [k]: e.target.value || null };
+  if (k === 'leistungVon' && neu.leistungVon && (!neu.leistungBis || neu.leistungBis < neu.leistungVon)) neu.leistungBis = neu.leistungVon;
+  BelegAktionen.speichern(neu); toast('Leistungszeitraum gespeichert');
+});
 /** Wer eine Rechnung/Gutschrift ausdruckt oder als PDF speichert, gibt sie heraus: Entwurf → offen (zählt dann zum Umsatz). */
-function alsVersendet(b) {
+function alsVersendet(b, still = false) {
   const x = S.belege[b.id];
-  if (!x || x.status !== 'ENTWURF' || !['RECHNUNG', 'GUTSCHRIFT'].includes(x.art)) return;
+  if (!x || x.status !== 'ENTWURF' || !['RECHNUNG', 'GUTSCHRIFT'].includes(x.art)) return false;
   BelegAktionen.speichern({ ...x, status: 'OFFEN' });
-  toast(`${BELEG_ART[x.art][0]} ${x.nummer} als versendet markiert – zählt jetzt zum Umsatz`, 5000);
+  if (!still) toast(`${BELEG_ART[x.art][0]} ${x.nummer} als versendet markiert – zählt jetzt zum Umsatz`, 5000);
+  return true;
 }
 const belegDateiname = b => `${BELEG_ART[b.art][0]}_${b.nummer}_${(S.auftraggeber[b.firmaId] || {}).name || ''}.pdf`.replace(/\s+/g, '_');
 async function belegPdf(b) {
@@ -2588,7 +2626,7 @@ function zeichneFinanzen(r) {
       : f === 'BEZAHLT' ? b.status === 'BEZAHLT' : f === 'UEBERFAELLIG' ? istUeberfaellig(b) : istRechnungOffen(b);
   }).sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || String(b.nummer).localeCompare(String(a.nummer)));
   return seitenkopf('Finanzen', '<button class="knopf voll" data-neuer-beleg="RECHNUNG">＋ Rechnung</button>', `<button class="knopf" data-neuer-beleg="ANGEBOT">＋ Angebot</button>
-      <button class="knopf" data-monatsabrechnung>🧾 Monatsabrechnung</button><button class="knopf" data-rechnung-touren="">Rechnung aus Touren</button><button class="knopf" data-kalkulator>🧮 Kalkulator</button><button class="knopf" data-belege-csv>CSV</button>
+      <button class="knopf" data-monatsabrechnung>🧾 Monatsabrechnung</button><button class="knopf" data-rechnung-touren="">Rechnung aus Touren</button><button class="knopf" data-externe-rechnung>＋ Externe Rechnung</button><button class="knopf" data-kalkulator>🧮 Kalkulator</button><button class="knopf" data-belege-csv>CSV</button>
       <button class="knopf" data-buchhaltung>📒 Buchhaltung (CSV)</button>`) + `<div class="kennzahlen" style="grid-template-columns:1fr 1fr">
       <button class="kennzahl" data-beleg-filter="OFFEN"><b>${geld(k.offen)}</b><span>Offen (${k.offenAnzahl} Rechnungen)</span></button>
       <button class="kennzahl ${k.ueberfaelligAnzahl ? 'rot' : ''}" data-beleg-filter="UEBERFAELLIG"><b>${geld(k.ueberfaellig)}</b><span>Überfällig (${k.ueberfaelligAnzahl})</span></button>
@@ -2610,8 +2648,8 @@ function zeichneBeleg(id) {
   el.innerHTML = `<div class="karte"><div class="zeile eng"><h2 class="gross fuell">${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</h2><span class="marke ${m[1]}">${esc(m[0])}</span></div>
       <p class="leise"><a href="#/firma/${b.firmaId}">${esc(firmaName(firma))}</a>${b.bezug && S.belege[b.bezug] ? ` · ${b.art === 'GUTSCHRIFT' ? 'zu' : 'aus'} <a href="#/beleg/${b.bezug}">${esc(S.belege[b.bezug].nummer)}</a>` : ''}${rechnung && gutschriftenZu(b).length ? ` · Gutschriften: ${gutschriftenZu(b).map(g => `<a href="#/beleg/${g.id}">${esc(g.nummer)}</a>`).join(', ')}` : ''}</p>
       <div class="zeile" style="margin-top:8px">
-        <button class="knopf voll" data-beleg-akt="pdf">PDF speichern</button><button class="knopf" data-beleg-akt="drucken">Drucken</button>
-        ${MAIL.konto ? '<button class="knopf" data-beleg-akt="mail">Per E-Mail senden</button>' : ''}
+        ${b.extern ? '<span class="marke grau">Externe Rechnung – nicht im System erstellt</span>' : `<button class="knopf voll" data-beleg-akt="pdf">PDF speichern</button><button class="knopf" data-beleg-akt="drucken">Drucken</button>
+        ${MAIL.konto ? '<button class="knopf" data-beleg-akt="mail">Per E-Mail senden</button>' : ''}`}
         ${rechnung && istRechnungOffen(b) ? '<button class="knopf" data-beleg-akt="zahlung">Zahlung erfassen</button>' : ''}
         ${rechnung && istUeberfaellig(b) && MAIL.konto ? `<button class="knopf" data-beleg-akt="mahnung">${esc(MAHNSTUFEN[Math.min(b.mahnstufe || 0, 3)])} senden</button>` : ''}
         ${rechnung && !['ENTWURF', 'STORNIERT'].includes(b.status) ? '<button class="knopf" data-beleg-akt="gutschrift">↩ Gutschrift</button>' : ''}
@@ -2637,6 +2675,9 @@ function zeichneBeleg(id) {
         ${rechnung && gutgeschriebenCent(b) ? `<dt>Gutgeschrieben</dt><dd>− ${geld(gutgeschriebenCent(b))}</dd>${b.bezahltCent ? '' : `<dt>Offen</dt><dd>${geld(offenCent(b))}</dd>`}` : ''}
         ${b.bezahltCent ? `<dt>Bezahlt${b.bezahltAm ? ' am ' + datumText(b.bezahltAm) : ''}</dt><dd>${geld(b.bezahltCent)}</dd><dt>Offen</dt><dd>${geld(offenCent(b))}</dd>` : ''}</dl>
       <label class="feld">Schlusstext (${'{FAELLIG}'} = Fälligkeitsdatum)<textarea name="schluss" ${gesperrt ? 'disabled' : ''}>${esc(b.schluss || '')}</textarea></label>
+      ${['RECHNUNG', 'GUTSCHRIFT'].includes(b.art) ? `<div class="zeile"><label class="feld fuell">Leistungszeitraum von<input type="date" data-leistung="leistungVon" value="${esc(b.leistungVon || '')}"></label>
+        <label class="feld fuell">bis<input type="date" data-leistung="leistungBis" value="${esc(b.leistungBis || '')}"></label></div>
+        <p class="leise" style="margin-top:-4px">Für die Statistik: Der Betrag wird anteilig auf die Monate des Zeitraums verteilt (bei Rechnungen ohne Touren). Auch nachträglich änderbar.</p>` : ''}
       <label class="feld">Unterschrift<select name="unterzeichner" ${gesperrt ? 'disabled' : ''}>
         <option value="" ${b.unterzeichner === 'GF' ? '' : 'selected'}>Bearbeiter/in</option><option value="GF" ${b.unterzeichner === 'GF' ? 'selected' : ''}>Geschäftsführer/in</option></select>
         <span class="leise" translate="no">${esc(b.unterzeichner === 'GF' ? (rechnungsDaten().geschaeftsfuehrer || '') : (S.einstellungen.bearbeiter || ''))}</span></label>
@@ -2707,7 +2748,7 @@ $('#detail').addEventListener('click', async e => {
   const aktuell = ['BEZAHLT', 'STORNIERT'].includes(b.status) ? b : belegAusFormular(b);
   if (aktuell !== b) BelegAktionen.speichern(aktuell);
   switch (akt.dataset.belegAkt) {
-    case 'pdf': try { const pfad = await window.desktop.speichere(belegDateiname(aktuell), await belegPdf(aktuell)); if (pfad) { toast('Gespeichert: ' + pfad); alsVersendet(aktuell); } }
+    case 'pdf': try { const pfad = await window.desktop.speichere(belegDateiname(aktuell), await belegPdf(aktuell)); if (pfad) { const v = alsVersendet(aktuell, true); toast('Gespeichert: ' + pfad + (v ? ' – als versendet markiert' : ''), v ? 6000 : 3500); } }
       catch (fehler) { if (!window.desktop) { belegDrucken(aktuell); alsVersendet(aktuell); } else toast(fehler.message); } break;
     case 'drucken': belegDrucken(aktuell); alsVersendet(aktuell); break;
     case 'mail': belegMail(aktuell); break;
@@ -4624,7 +4665,14 @@ function ergebnisKern() {
   const erloes = new Map(), quelle = new Map(), abgerechnet = new Set(), zeilen = [];
   const verteile = (l, betrag, text) => { const an = anteile(l); let rest = betrag;
     l.forEach((t, i) => { const teil = i === l.length - 1 ? rest : Math.round(betrag * an[i]); rest -= teil; erloes.set(t.id, (erloes.get(t.id) || 0) + teil); abgerechnet.add(t.id); quelle.set(t.id, text); }); };
-  const zusatz = (b, betrag) => zeilen.push({ id: 'beleg:' + b.id, virtuell: true, beleg: b, betrag, datum: b.datum, auftraggeberId: b.firmaId, belegId: b.id, kennzeichen: '', fahrerId: '', name: `${BELEG_ART[b.art][0]} ${b.nummer}` });
+  // Rechnung ohne Touren: am Rechnungsdatum oder – mit Leistungszeitraum – anteilig nach Tagen auf die Monate verteilt
+  const zusatz = (b, betrag) => {
+    const zr = leistungszeitraum(b), teile = zr ? zeitraumAnteile(zr.von, zr.bis) : [{ datum: b.datum, anteil: 1 }];
+    let rest = betrag;
+    teile.forEach((x, i) => { const teil = i === teile.length - 1 ? rest : Math.round(betrag * x.anteil); rest -= teil;
+      zeilen.push({ id: 'beleg:' + b.id + ':' + i, virtuell: true, beleg: b, betrag: teil, datum: x.datum, auftraggeberId: b.firmaId, belegId: b.id, kennzeichen: '', fahrerId: '',
+        name: `${b.extern ? 'Externe Rechnung' : BELEG_ART[b.art][0]} ${b.nummer}` + (zr ? ` (Leistung ${datumText(zr.von)}–${datumText(zr.bis)})` : '') }); });
+  };
   for (const b of alle('belege').filter(zaehltUmsatz)) {
     const netto = belegSummen(b).netto;
     if (b.art === 'RECHNUNG') {
@@ -4654,6 +4702,22 @@ function ergebnisKern() {
   }
   c.kern = { tourWerte, zeilen };
   return c.kern;
+}
+/** Leistungszeitraum eines Belegs (bei Gutschriften ohne eigenen der der Rechnung); null = keiner. */
+function leistungszeitraum(b) {
+  const q = b.leistungVon ? b : b.art === 'GUTSCHRIFT' && b.bezug && S.belege[b.bezug] && S.belege[b.bezug].leistungVon ? S.belege[b.bezug] : null;
+  if (!q) return null;
+  const von = q.leistungVon, bis = q.leistungBis && q.leistungBis >= von ? q.leistungBis : von;
+  return { von, bis };
+}
+/** Zeitraum in Monatsstücke: je Monat das erste Datum im Zeitraum und der Anteil der Tage. */
+function zeitraumAnteile(von, bis) {
+  const tage = tageZwischen(von, bis) + 1, l = [];
+  for (let d = von; d <= bis;) {
+    const monatsende = plusTage(d.slice(0, 7) + '-01', 40).slice(0, 7) + '-01', ende = plusTage(monatsende, -1) < bis ? plusTage(monatsende, -1) : bis;
+    l.push({ datum: d, anteil: (tageZwischen(d, ende) + 1) / tage }); d = plusTage(ende, 1);
+  }
+  return l;
 }
 /** Rechnungen ohne Tourbezug (und Gutschriften ohne Tour-Rechnung) als eigene Zeilen. */
 const belegZeilen = () => ergebnisKern().zeilen;
@@ -7504,6 +7568,79 @@ document.addEventListener('change', async e => {
 });
 window.addEventListener('hashchange', zeichne);
 window.addEventListener('beforeunload', e => { if ($('#fall-form') && formularWerte() !== formularStand) e.preventDefault(); });
+// ============================== In-App-Update (Windows- und Android-App) ==============================
+/**
+ * Die Apps laden neue Fassungen der Oberfläche selbst (ohne neues Setup/APK): Die Seite prüft app-update.json auf der
+ * Web-Adresse; ist sie neuer, lädt die App (nativ, nur von der festen Adresse, mit Prüfsummen) die geänderten Dateien
+ * und zeigt sie nach einem Neuladen. Braucht eine Fassung neue Gerätefunktionen (minNativ), meldet die Seite „App-Update nötig“.
+ */
+const UPDATE_BASIS = 'https://aysetransport.github.io/schaden/';
+const UPD = { info: null, neu: null, fehler: '', laeuft: false, bereit: false, appNoetig: false, gemeldet: false };
+const updateApi = () => (window.desktop && window.desktop.web) || null;
+const updateModus = () => S.einstellungen.updateModus || 'AUTO';
+async function updatePruefen(manuell = false) {
+  const w = updateApi(); if (!w || UPD.laeuft) return;
+  UPD.laeuft = true; UPD.fehler = '';
+  if (manuell && route().art === 'einstellungen') zeichne();
+  try {
+    UPD.info = await w.info();
+    const r = await fetch(UPDATE_BASIS + 'app-update.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error('Update-Server nicht erreichbar');
+    const m = await r.json(); UPD.neu = m;
+    if (!(Number(m.stand) > Number(window.WEB_STAND || 0))) { if (manuell) toast(t('Die Oberfläche ist auf dem neuesten Stand')); return; }
+    if ((m.minNativ || 1) > (UPD.info && UPD.info.nativ || 0)) {
+      UPD.appNoetig = true;
+      if (manuell || !UPD.gemeldet) { UPD.gemeldet = true; toast(t('Neue Version verfügbar – dafür ist ein App-Update nötig (⚙ → Updates)'), 8000); }
+      return;
+    }
+    if (UPD.bereit) { updateNeuLadenAnbieten(); return; }
+    if (!manuell && updateModus() === 'AUS') return;
+    if (!manuell && updateModus() === 'FRAGEN') { updateFragen(m); return; }
+    await updateInstallieren();
+  } catch (e) { UPD.fehler = e.message || String(e); if (manuell) toast(t('Update nicht möglich') + ': ' + UPD.fehler, 6000); }
+  finally { UPD.laeuft = false; if (route().art === 'einstellungen') zeichne(); }
+}
+async function updateInstallieren() {
+  const r = await updateApi().installieren();
+  if (r && r.neu) { UPD.bereit = true; updateNeuLadenAnbieten(); }
+}
+function updateFragen(m) {
+  dialog(`<h2>Neue Version verfügbar</h2><p>Eine neue Version der Oberfläche ist da. Jetzt laden? Deine Daten bleiben erhalten.</p><p class="leise" translate="no">${esc(m.version || '')}</p>
+    <div class="dialog-knoepfe"><button class="knopf text" data-zu>Später</button><button class="knopf voll" id="upd-ja">Jetzt aktualisieren</button></div>`);
+  $('#upd-ja').onclick = async () => { $('#dialog').close(); try { await updateInstallieren(); } catch (e) { toast(t('Update nicht möglich') + ': ' + (e.message || e), 6000); } };
+}
+function updateNeuLadenAnbieten() {
+  if ($('#dialog').open) return;
+  dialog(`<h2>Update geladen</h2><p>Die neue Version ist bereit. Jetzt neu laden? Sonst wird sie beim nächsten Start aktiv.</p>
+    <div class="dialog-knoepfe"><button class="knopf text" data-zu>Später</button><button class="knopf voll" id="upd-neu">Jetzt neu laden</button></div>`);
+  $('#upd-neu').onclick = () => location.reload();
+}
+function updateKarte() {
+  const w = updateApi(), i = UPD.info || {};
+  if (!w) return '';
+  const datum = s => (s ? new Date(Number(s) * 1000).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '–');
+  return `<div class="karte block" id="update-karte"><h3>Updates</h3>
+    <p class="leise" style="margin-bottom:8px">Neue Funktionen kommen automatisch – ohne neues Setup bzw. neue APK. Nur wenn sich die App selbst ändern muss, erscheint hier ein Hinweis.</p>
+    <dl><dt>App</dt><dd translate="no">${esc(i.app || '–')}</dd><dt>Oberfläche</dt><dd translate="no">${esc(window.WEB_VERSION || '–')} (${esc(datum(window.WEB_STAND))})${i.aktiv ? ' · per Update' : ''}</dd>
+      ${UPD.neu && Number(UPD.neu.stand) > Number(window.WEB_STAND || 0) ? `<dt>Verfügbar</dt><dd translate="no">${esc(UPD.neu.version || '')} (${esc(datum(UPD.neu.stand))})</dd>` : ''}</dl>
+    ${UPD.appNoetig ? '<p class="hinweis-box">⚠ Die neueste Version braucht ein App-Update (neues Setup bzw. neue APK).</p>' : ''}
+    ${UPD.fehler ? `<p class="leise">Letzte Prüfung: ${esc(UPD.fehler)}</p>` : ''}
+    <label class="feld">Neue Versionen<select data-einst="updateModus">${[['AUTO', 'automatisch laden'], ['FRAGEN', 'vorher fragen'], ['AUS', 'nicht suchen']].map(([k, l]) => `<option value="${k}" ${updateModus() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <div class="zeile"><button class="knopf voll" data-update-pruefen ${UPD.laeuft ? 'disabled' : ''}>${UPD.laeuft ? 'Suche …' : 'Jetzt nach Updates suchen'}</button>
+      ${UPD.bereit ? '<button class="knopf" data-update-neuladen>Jetzt neu laden</button>' : ''}
+      ${i.aktiv ? '<button class="knopf text" data-update-zurueck>Auf die mitgelieferte Version zurücksetzen</button>' : ''}</div></div>`;
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-update-pruefen]')) updatePruefen(true);
+  else if (e.target.closest('[data-update-neuladen]')) location.reload();
+  else if (e.target.closest('[data-update-zurueck]')) bestaetige('Zurücksetzen', 'Die per Update geladene Version wird entfernt, die mitgelieferte Version der App gilt wieder.', 'Zurücksetzen', async () => { await updateApi().zuruecksetzen(); location.reload(); });
+});
+if (updateApi()) {
+  // Diese Fassung ist sauber gestartet – sonst fällt die App nach zwei Fehlstarts auf die mitgelieferte zurück.
+  setTimeout(() => { updateApi().ok().catch(() => {}); updateApi().info().then(i => { UPD.info = i; }).catch(() => {}); }, 3000);
+  setTimeout(() => updatePruefen(false), 15000);
+  setInterval(() => updatePruefen(false), 4 * 3600 * 1000);
+}
 window.addEventListener('online', () => { if (SYNC.fehler === 'offline') { SYNC.fehler = ''; zeichneSync(); } toast('Wieder online – gleiche ab …'); abgleich(); });
 window.addEventListener('offline', () => { if (!mitCloud()) return; SYNC.fehler = 'offline'; zeichneSync(); toast('Offline – du kannst weiterarbeiten. Änderungen werden gespeichert und abgeglichen, sobald wieder Netz da ist.', 6000); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { zeichne(); pruefeStand(); } });

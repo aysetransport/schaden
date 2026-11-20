@@ -1,0 +1,35 @@
+{
+ "stand": 1795205361,
+ "version": "4.13.0",
+ "minNativ": 1,
+ "dateien": {
+  "index.html": {
+   "sha256": "57f3a3a7a0756b270d5fe773ff930810b606fb1484cc39ee620f56f7a4050a2b",
+   "groesse": 781357
+  },
+  "sprachen.js": {
+   "sha256": "4fe03f5a4287cf40d7f1c896096f5f67590c9d4501cc7f0e5ddb36048f8f00a3",
+   "groesse": 536462
+  },
+  "manifest.webmanifest": {
+   "sha256": "9cae0e37b60f049ee2a4f16cf72794b45743ce3a180d6ec2b34c247add102b81",
+   "groesse": 497
+  },
+  "icon-192.png": {
+   "sha256": "19f69110c86b8763a4e111ec9aa09ed8d710efdda9badb1651caa9a000983899",
+   "groesse": 2194
+  },
+  "icon-512.png": {
+   "sha256": "647a74e29e3e467a055ad41967f550272d4eddd3f111c13102836a4aa8c73fef",
+   "groesse": 5613
+  },
+  "pdfjs/pdf.min.js": {
+   "sha256": "978fd1b2d134a98e98966186a97777bebf87d8e770dadab1ece3687e21a5aa6c",
+   "groesse": 377116
+  },
+  "pdfjs/pdf.worker.min.js": {
+   "sha256": "38cde5311957b86bc3669f93e7d2566de333a90055ed6635bef60d9bf00e96f2",
+   "groesse": 1133660
+  }
+ }
+}
