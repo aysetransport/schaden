@@ -4355,20 +4355,21 @@ function firmaTourenHtml(firma) {
   const zaehle = l => Object.entries(l.reduce((o, t) => { o[t.einsatzart || 'ohne Einsatzart'] = (o[t.einsatzart || 'ohne Einsatzart'] || 0) + 1; return o; }, {})).map(([a, n]) => `${n}× ${a}`).join(', ');
   const dies = tourenVonFirma(firma, m0.von, heute()).filter(tourGefahren), letzter = tourenVonFirma(firma, m1.von, m1.bis).filter(tourGefahren);
   const geplant = tourenVonFirma(firma, plusTage(heute(), 1), plusTage(heute(), 14)), offen = tourenVonFirma(firma).filter(t => tourGefahren(t) && t.datum <= heute() && !(t.belegId && S.belege[t.belegId] && !S.belege[t.belegId].geloescht));
-  const jahr = tourenVonFirma(firma, heute().slice(0, 4) + '-01-01', heute()).filter(tourGefahren);
+  const jahr = tourenVonFirma(firma, heute().slice(0, 4) + '-01-01', heute()).filter(imErgebnis);
   const umsatz = vonFirma('belege', firma.id).filter(b => String(b.datum).startsWith(heute().slice(0, 4))).reduce((n, b) => n + umsatzNetto(b), 0);
   const leute = {}; for (const t of tourenVonFirma(firma, plusTage(heute(), -90), heute())) for (const id of teamVon(t)) leute[id] = (leute[id] || 0) + 1;
   const top = Object.entries(leute).sort((a, b) => b[1] - a[1]).slice(0, 6).filter(([id]) => maVon(id));
   // Rechnungen ohne Tourbezug (Pauschalen usw.) zählen beim Gewinn mit
   const virt = belegZeilen().filter(v => v.auftraggeberId === firma.id && String(v.datum).startsWith(heute().slice(0, 4)));
   const guvZeile = () => { const r = jahr.concat(virt).map(tourRechnung), e = r.reduce((n, x) => n + x.erloes, 0), db = r.reduce((n, x) => n + x.db, 0);
-    return jahr.length || virt.length ? `<dt>Gewinn/Verlust ${heute().slice(0, 4)}</dt><dd><b style="${db < 0 ? 'color:var(--rot-t)' : ''}">${geld(db)}</b>${jahr.length ? ` · Ø ${geld(Math.round(r.slice(0, jahr.length).reduce((n, x) => n + x.db, 0) / jahr.length))} je Tour` : ''}${e ? ` · Marge ${(db / e * 100).toFixed(1).replace('.', ',')} %` : ''}${virt.length ? ` <span class="leise">(inkl. ${virt.length} Rechnung${virt.length === 1 ? '' : 'en'} ohne Tourbezug)</span>` : ''}</dd>` : ''; };
+    return jahr.length || virt.length ? `<dt>Gewinn/Verlust ${heute().slice(0, 4)}</dt><dd><b style="${db < 0 ? 'color:var(--rot-t)' : ''}">${geld(db)}</b>${jahr.some(tourGefahren) ? ` · Ø ${geld(Math.round(jahr.filter(tourGefahren).reduce((n, t) => n + tourRechnung(t).db, 0) / jahr.filter(tourGefahren).length))} je Tour` : ''}${e ? ` · Marge ${(db / e * 100).toFixed(1).replace('.', ',')} %` : ''}${virt.length ? ` <span class="leise">(inkl. ${virt.length} Rechnung${virt.length === 1 ? '' : 'en'} ohne Tourbezug)</span>` : ''}</dd>` : ''; };
   if (!tourenVonFirma(firma).length) return virt.length ? `<dl>${guvZeile()}</dl>` : '<p class="leise">Noch keine Touren für diese Firma.</p>';
   return `<dl><dt>${esc(m0.text)}</dt><dd><b>${dies.length}</b> ${dies.length ? '(' + esc(zaehle(dies)) + ')' : ''}</dd><dt>${esc(m1.text)}</dt><dd><b>${letzter.length}</b> ${letzter.length ? '(' + esc(zaehle(letzter)) + ')' : ''}</dd>
     <dt>Nächste 14 Tage</dt><dd>${geplant.length ? geplant.slice(0, 6).map(t => `<button class="knopf text" style="padding:0" data-tour-tag="${t.datum}">${esc(datumText(t.datum))}${t.name ? ' ' + esc(t.name) : ''}</button>`).join(', ') : 'nichts geplant'}</dd>
     <dt>Nicht abgerechnet</dt><dd>${offen.length ? `<b>${offen.length}</b> Touren` : 'alles abgerechnet'}</dd>
     ${guvZeile()}
-    ${umsatz && jahr.length ? `<dt>Umsatz je Tour ${heute().slice(0, 4)}</dt><dd>${geld(Math.round(umsatz / jahr.length))} (netto)</dd>` : ''}
+    ${jahr.some(tourGefahren) ? `<dt>Erlös je Tour ${heute().slice(0, 4)}</dt><dd>${geld(Math.round(jahr.filter(tourGefahren).reduce((n, t) => n + tourRechnung(t).erloes, 0) / jahr.filter(tourGefahren).length))} (netto)</dd>` : ''}
+    ${umsatz ? `<dt>Umsatz ${heute().slice(0, 4)} (Rechnungen − Gutschriften)</dt><dd>${geld(umsatz)} (netto)</dd>` : ''}
     ${top.length ? `<dt>Eingesetztes Personal</dt><dd>${top.map(([id, n]) => `<button class="knopf text" style="padding:0" data-mitarbeiter="${id}">${esc(maName(id))} (${n})</button>`).join(', ')}</dd>` : ''}</dl>`;
 }
 /** Fahrzeug: heutige Tour und letzte Einsätze. */
@@ -4543,7 +4544,7 @@ const kostenAnnahmen = () => {
 const WK = { stand: -1 };
 function wkCache() {
   const stand = (S.seit || 0) + ':' + (speichere.zaehler || 0);
-  if (WK.stand !== stand) Object.assign(WK, { stand, tour: new Map(), maTag: new Map(), fzMonat: new Map(), maMonat: new Map(), preis: new Map(), belegGewicht: new Map(), belegTouren: null, proTag: null, monatTouren: null, belegZeilen: null });
+  if (WK.stand !== stand) Object.assign(WK, { stand, tour: new Map(), maTag: new Map(), fzMonat: new Map(), maMonat: new Map(), preis: new Map(), belegGewicht: new Map(), belegTouren: null, proTag: null, monatTouren: null, kern: null });
   return WK;
 }
 const schadenKosten = f => {
@@ -4600,60 +4601,71 @@ function fahrzeugTagKosten(kz, datum) {
   return c.fzMonat.get(k);
 }
 /**
- * Rechnungen ohne Tourbezug (z. B. Pauschalen, Monatsabrechnungen, Montagen nach Aufwand) und alle Gutschriften:
- * Sie orientieren sich nicht am Tourpreis und fließen als eigene Zeilen in Gewinn & Verlust ein (Erlös, ohne Personal-/Fahrzeugkosten).
+ * Ergebnisrechnung – ein Kern für alle Statistiken (Gewinn & Verlust, Baukasten, Top & Flop, Firma, Mitarbeiter, Fahrzeug).
+ *
+ * Erlös (netto), jede Rechnung zählt genau einmal:
+ *  1. Verbuchte Rechnung (offen, teilbezahlt, bezahlt – nicht Entwurf/Storno, nicht vor dem Finanz-Stichtag) mit Touren:
+ *     Betrag wird auf ALLE ihre Touren verteilt (gewichtet nach Listenpreis der Einsatzart, ohne Preise gleichmäßig).
+ *  2. Verbuchte Rechnung ohne Touren: eigene Zeile „Rechnung ohne Tourbezug“ am Rechnungsdatum.
+ *  3. Gutschrift: mindert die Touren der zugehörigen Rechnung im selben Verhältnis, sonst eigene (negative) Zeile.
+ *  4. Gefahrene Tour ohne verbuchte Rechnung: geschätzter Erlös aus der Preisliste (als „geschätzt“ gekennzeichnet).
+ * Kosten nur für gefahrene Touren: Personal und Fahrzeug („Kosten pro Einsatz“, sonst Lohn/Stundenlohn/Fahrzeugakte/Tagessatz,
+ * geteilt durch die Touren am Tag), Schäden der Tour, Gemeinkosten-Zuschlag (% vom Erlös).
  */
-function belegZeilen() {
+function ergebnisKern() {
   const c = wkCache();
-  if (!c.belegZeilen) {
-    // Touren je Rechnung: Was über gefahrene Touren schon als Erlös zählt, wird abgezogen – der Rest (Rechnung ohne Touren,
-    // Touren ohne Fahrer/Fahrzeug, Zuschläge, abweichende Beträge) kommt als eigene Zeile dazu. So zählt jede verbuchte Rechnung genau einmal.
-    const jeBeleg = new Map();
-    for (const t of alle('touren')) if (t.belegId) (jeBeleg.get(t.belegId) || jeBeleg.set(t.belegId, []).get(t.belegId)).push(t);
-    c.belegZeilen = [];
-    for (const b of alle('belege').filter(zaehltUmsatz)) {
-      const touren = b.art === 'GUTSCHRIFT' ? [] : (jeBeleg.get(b.id) || []).filter(tourGefahren);
-      const betrag = umsatzNetto(b) - touren.reduce((n, t) => n + tourRechnung(t).erloes, 0);
-      if (Math.abs(betrag) < 1) continue;
-      c.belegZeilen.push({ id: 'beleg:' + b.id, virtuell: true, beleg: b, betrag, datum: b.datum, auftraggeberId: b.firmaId, belegId: b.id, kennzeichen: '', fahrerId: '',
-        name: `${BELEG_ART[b.art][0]} ${b.nummer}` + (touren.length ? ' (Rest ohne gefahrene Tour)' : '') });
+  if (c.kern) return c.kern;
+  const a = kostenAnnahmen(), pt = tourenProTag();
+  const touren = alle('touren'), jeBeleg = new Map();
+  for (const t of touren) if (t.belegId) (jeBeleg.get(t.belegId) || jeBeleg.set(t.belegId, []).get(t.belegId)).push(t);
+  const listenpreis = x => { if (c.preis.has(x.id)) return c.preis.get(x.id); const p = x.auftraggeberId && S.auftraggeber[x.auftraggeberId] ? preisFuerArt(preiseZum(x.auftraggeberId, x.datum), x.einsatzart) : null; const e = p && p.betragCent != null ? p : null; c.preis.set(x.id, e); return e; };
+  // Anteile einer Rechnung auf ihre Touren (Summe = 1)
+  const anteile = l => { const g = l.map(x => (listenpreis(x) || {}).betragCent || 0), sum = g.reduce((n, x) => n + x, 0); return l.map((x, i) => (sum ? g[i] / sum : 1 / l.length)); };
+  const erloes = new Map(), quelle = new Map(), abgerechnet = new Set(), zeilen = [];
+  const verteile = (l, betrag, text) => { const an = anteile(l); let rest = betrag;
+    l.forEach((t, i) => { const teil = i === l.length - 1 ? rest : Math.round(betrag * an[i]); rest -= teil; erloes.set(t.id, (erloes.get(t.id) || 0) + teil); abgerechnet.add(t.id); quelle.set(t.id, text); }); };
+  const zusatz = (b, betrag) => zeilen.push({ id: 'beleg:' + b.id, virtuell: true, beleg: b, betrag, datum: b.datum, auftraggeberId: b.firmaId, belegId: b.id, kennzeichen: '', fahrerId: '', name: `${BELEG_ART[b.art][0]} ${b.nummer}` });
+  for (const b of alle('belege').filter(zaehltUmsatz)) {
+    const netto = belegSummen(b).netto;
+    if (b.art === 'RECHNUNG') {
+      const l = jeBeleg.get(b.id) || [];
+      if (l.length) verteile(l, netto, 'Rechnung ' + b.nummer); else zusatz(b, netto);
+    } else { // Gutschrift
+      const r = b.bezug && S.belege[b.bezug], l = r && zaehltUmsatz(r) ? jeBeleg.get(r.id) || [] : [];
+      if (l.length) verteile(l, -netto, 'Rechnung ' + r.nummer + ' − Gutschrift ' + b.nummer); else zusatz(b, -netto);
     }
   }
-  return c.belegZeilen;
+  const tourWerte = new Map();
+  for (const t of touren) {
+    const gefahren = tourGefahren(t);
+    let e = erloes.get(t.id) || 0, eq = quelle.get(t.id) || 'ohne Preis', geschaetzt = false;
+    if (!abgerechnet.has(t.id) && gefahren) { const p = listenpreis(t); if (p) { e = p.betragCent; eq = 'Preisliste (noch nicht abgerechnet): ' + p.bezeichnung; geschaetzt = true; } }
+    const personal = gefahren ? teamVon(t).reduce((n, id) => { const m = maVon(id);
+      return n + (m && m.einsatzKostenCent != null ? m.einsatzKostenCent : Math.round(personalTagKosten(id, t.datum).wert / (pt.ma[id + '|' + t.datum] || 1))); }, 0) : 0;
+    const fz = gefahren ? fahrzeugZumKz(t.kennzeichen) : null;
+    const fahrzeug = !gefahren ? 0 : fz && fz.einsatzKostenCent != null ? fz.einsatzKostenCent : Math.round(fahrzeugTagKosten(t.kennzeichen, t.datum).wert / (pt.fz[kzNormal(t.kennzeichen) + '|' + t.datum] || 1));
+    const schaeden = gefahren ? schaedenVonTour(t).reduce((n, f) => n + schadenKosten(f), 0) : 0;
+    const gemein = Math.round(e * a.gemein / 100), kosten = personal + fahrzeug + schaeden + gemein;
+    tourWerte.set(t.id, { erloes: e, erloesQuelle: eq, geschaetzt, personal, fahrzeug, schaeden, gemein, kosten, db: e - kosten, gefahren });
+  }
+  for (const v of zeilen) {
+    const gemein = Math.round(v.betrag * a.gemein / 100);
+    tourWerte.set(v.id, { erloes: v.betrag, erloesQuelle: v.name + ' (ohne Tourbezug)', geschaetzt: false, personal: 0, fahrzeug: 0, schaeden: 0, gemein, kosten: gemein, db: v.betrag - gemein, gefahren: false });
+  }
+  c.kern = { tourWerte, zeilen };
+  return c.kern;
 }
-/** Erlös, Kosten und Deckungsbeitrag einer Tour (Cent). */
+/** Rechnungen ohne Tourbezug (und Gutschriften ohne Tour-Rechnung) als eigene Zeilen. */
+const belegZeilen = () => ergebnisKern().zeilen;
+/** Zählt eine Tour (bzw. Zeile) im Ergebnis? Gefahren oder mit Erlös aus einer verbuchten Rechnung. */
+const imErgebnis = t => { const r = tourRechnung(t); return r.gefahren || r.erloes !== 0; };
+/** Erlös, Kosten und Deckungsbeitrag einer Tour oder Zeile (Cent). */
 function tourRechnung(t) {
-  const c = wkCache(); if (c.tour.has(t.id)) return c.tour.get(t.id);
-  const a = kostenAnnahmen(), pt = tourenProTag();
-  if (t.virtuell) {
-    const erloes = t.betrag ?? umsatzNetto(t.beleg), gemein = Math.round(erloes * a.gemein / 100);
-    const r = { erloes, erloesQuelle: t.name + ' (ohne Tourbezug)', personal: 0, fahrzeug: 0, schaeden: 0, gemein, kosten: gemein, db: erloes - gemein, gefahren: false };
-    c.tour.set(t.id, r); return r;
-  }
-  let erloes = 0, erloesQuelle = 'ohne Preis';
-  const beleg = t.belegId && S.belege[t.belegId] && !S.belege[t.belegId].geloescht ? S.belege[t.belegId] : null;
-  const listenpreis = x => { if (c.preis.has(x.id)) return c.preis.get(x.id); const p = x.auftraggeberId && S.auftraggeber[x.auftraggeberId] ? preisFuerArt(preiseZum(x.auftraggeberId, x.datum), x.einsatzart) : null; const e = p && p.betragCent != null ? p : null; c.preis.set(x.id, e); return e; };
-  if (beleg && beleg.status !== 'STORNIERT') {
-    // Anteil am Rechnungsbetrag, gewichtet nach Listenpreis der Einsatzart (ohne Preis: gleich verteilt)
-    if (!c.belegTouren) { c.belegTouren = new Map(); for (const x of alle('touren')) if (x.belegId) (c.belegTouren.get(x.belegId) || c.belegTouren.set(x.belegId, []).get(x.belegId)).push(x); }
-    const alleT = c.belegTouren.get(beleg.id) || [t], gewicht = x => (listenpreis(x) || {}).betragCent || 0;
-    if (!c.belegGewicht.has(beleg.id)) c.belegGewicht.set(beleg.id, alleT.reduce((n, x) => n + gewicht(x), 0));
-    const summe = c.belegGewicht.get(beleg.id);
-    erloes = Math.round(belegSummen(beleg).netto * (summe ? gewicht(t) / summe : 1 / (alleT.length || 1))); erloesQuelle = 'Rechnung ' + beleg.nummer;
-  } else {
-    const p = listenpreis(t);
-    if (p) { erloes = p.betragCent; erloesQuelle = 'Preisliste: ' + p.bezeichnung; }
-  }
-  const gefahren = tourGefahren(t);
-  const personal = gefahren ? teamVon(t).reduce((n, id) => { const m = maVon(id);
-    return n + (m && m.einsatzKostenCent != null ? m.einsatzKostenCent : Math.round(personalTagKosten(id, t.datum).wert / (pt.ma[id + '|' + t.datum] || 1))); }, 0) : 0;
-  const fzE = fahrzeugZumKz(t.kennzeichen);
-  const fahrzeug = !gefahren ? 0 : fzE && fzE.einsatzKostenCent != null ? fzE.einsatzKostenCent : Math.round(fahrzeugTagKosten(t.kennzeichen, t.datum).wert / (pt.fz[kzNormal(t.kennzeichen) + '|' + t.datum] || 1));
-  const schaeden = schaedenVonTour(t).reduce((n, f) => n + schadenKosten(f), 0);
-  const gemein = Math.round(erloes * a.gemein / 100);
-  const kosten = personal + fahrzeug + schaeden + gemein, r = { erloes, erloesQuelle, personal, fahrzeug, schaeden, gemein, kosten, db: erloes - kosten, gefahren };
-  c.tour.set(t.id, r); return r;
+  const k = ergebnisKern(), r = k.tourWerte.get(t.id);
+  return r || { erloes: 0, erloesQuelle: 'ohne Preis', geschaetzt: false, personal: 0, fahrzeug: 0, schaeden: 0, gemein: 0, kosten: 0, db: 0, gefahren: false };
 }
+/** Alle Zeilen der Ergebnisrechnung im Zeitraum (Touren am Tourdatum, Rechnungen ohne Tour am Rechnungsdatum). */
+const ergebnisZeilen = (von, bis) => alle('touren').filter(t => t.datum >= von && t.datum <= bis && imErgebnis(t)).concat(belegZeilen().filter(v => v.datum >= von && v.datum <= bis));
 
 // ============================== Statistik ==============================
 /**
@@ -4687,7 +4699,7 @@ const fallTour = f => (f.tourId && S.touren[f.tourId] ? S.touren[f.tourId] : nul
 
 /** Datenquellen: Zeilen im Zeitraum, Gruppierungen (Text oder Liste) und Kennzahlen (Summe, Schnitt oder eindeutig gezählt). */
 const QUELLEN = {
-  touren: { titel: 'Touren (inkl. Rechnungen ohne Tourbezug)', datum: t => t.datum, zeilen: () => alle('touren').filter(t => t.kennzeichen || teamVon(t).length).concat(belegZeilen()),
+  touren: { titel: 'Touren (inkl. Rechnungen ohne Tourbezug)', datum: t => t.datum, zeilen: () => alle('touren').filter(t => t.kennzeichen || teamVon(t).length || imErgebnis(t)).concat(belegZeilen()),
     dims: { auftraggeber: ['Auftraggeber', t => tourAuftraggeberName(t) || '(ohne)'], fahrzeug: ['Fahrzeug', t => t.kennzeichen || '(ohne)'], fahrer: ['Fahrer', t => maName(t.fahrerId) || '(ohne)'],
       mitarbeiter: ['Mitarbeiter (Team)', t => teamVon(t).map(maName).filter(Boolean)], einsatzart: ['Einsatzart', t => t.einsatzart || '(ohne)'], tour: ['Tour (Nr./Name)', tourGruppe],
       abgerechnet: ['Abgerechnet', t => jaNeinText(t.belegId && S.belege[t.belegId] && !S.belege[t.belegId].geloescht)], team: ['Teamgröße', t => teamVon(t).length + ' Personen'],
@@ -4713,7 +4725,7 @@ const QUELLEN = {
     dims: { mitarbeiter: ['Mitarbeiter', x => maName(x.id) || '(gelöscht)'], rolle: ['Rolle in der Tour', x => x.rolle], auftraggeber: ['Auftraggeber', x => tourAuftraggeberName(x.t) || '(ohne)'],
       fahrzeug: ['Fahrzeug', x => x.t.kennzeichen], einsatzart: ['Einsatzart', x => x.t.einsatzart || '(ohne)'], anstellung: ['Anstellung', x => ANSTELLUNG[(maVon(x.id) || {}).anstellung] || '–'] },
     masse: { anzahl: ['Einsätze', () => 1], tage: ['Arbeitstage', x => x.id + x.t.datum, 'zahl', 'eindeutig'], fahrer: ['davon als Fahrer', x => (x.rolle === 'Fahrer' ? 1 : 0)],
-      kosten: ['Personalkosten', x => Math.round(personalTagKosten(x.id, x.t.datum).wert / (tourenProTag().ma[x.id + '|' + x.t.datum] || 1)), 'geld'],
+      kosten: ['Personalkosten', x => { const m = maVon(x.id); return m && m.einsatzKostenCent != null ? m.einsatzKostenCent : Math.round(personalTagKosten(x.id, x.t.datum).wert / (tourenProTag().ma[x.id + '|' + x.t.datum] || 1)); }, 'geld'],
       db: ['Deckungsbeitrag-Anteil', x => Math.round(tourRechnung(x.t).db / Math.max(1, teamVon(x.t).length)), 'geld'],
       schaeden: ['Schäden auf Touren', x => schaedenVonTour(x.t).length] } },
   abwesenheiten: { titel: 'Abwesenheiten (Arbeitstage)', datum: x => x.tag, zeilen: (von, bis) => alle('abwesenheiten').flatMap(a => {
@@ -4948,7 +4960,7 @@ function bestenlistenHtml(zr) {
   const touren = alle('touren').filter(t => tourGefahren(t) && t.datum >= zf.von && t.datum <= zf.bis).map(t => ({ t, r: tourRechnung(t) }));
   const gruppen = Object.values(touren.reduce((o, x) => { const k = tourGruppe(x.t); (o[k] = o[k] || { k, l: [] }).l.push(x); return o; }, {}))
     .map(g => ({ k: g.k, n: g.l.length, db: g.l.reduce((n, x) => n + x.r.db, 0), schaeden: g.l.reduce((n, x) => n + schaedenVonTour(x.t).length, 0) }));
-  const mitBelegen = touren.concat(belegZeilen().filter(v => v.datum >= zf.von && v.datum <= zf.bis).map(t => ({ t, r: tourRechnung(t), virtuell: true })));
+  const mitBelegen = ergebnisZeilen(zf.von, zf.bis).map(t => ({ t, r: tourRechnung(t), virtuell: t.virtuell || !tourGefahren(t) }));
   const firmen = Object.values(mitBelegen.reduce((o, x) => { const k = tourAuftraggeberName(x.t) || '(ohne)'; (o[k] = o[k] || { k, id: x.t.auftraggeberId, n: 0, erloes: 0, kosten: 0, schaeden: 0 }); if (!x.virtuell) o[k].n++; o[k].erloes += x.r.erloes; o[k].kosten += x.r.kosten; o[k].schaeden += schaedenVonTour(x.t).length; return o; }, {}))
     .map(f => ({ ...f, db: f.erloes - f.kosten, marge: f.erloes ? (f.erloes - f.kosten) / f.erloes * 100 : null }));
   const liste = (titel, l, zeile, leer = 'Keine Daten.') => `<div class="karte block"><h3>${titel}</h3>${l.length ? `<ol class="rangliste">${l.map(zeile).join('')}</ol>` : `<p class="leise">${leer}</p>`}</div>`;
@@ -4980,16 +4992,12 @@ function bestenlistenHtml(zr) {
 // ---------- Gewinn & Verlust ----------
 function guvHtml(zr) {
   zr = abFinanz(zr);
-  const touren = alle('touren').filter(t => tourGefahren(t) && t.datum >= zr.von && t.datum <= zr.bis);
   const monate = {};
-  for (const t of touren) {
-    const m = t.datum.slice(0, 7), r = tourRechnung(t), x = monate[m] = monate[m] || { touren: 0, erloes: 0, personal: 0, fahrzeug: 0, schaeden: 0, gemein: 0, ohnePreis: 0 };
-    x.touren++; x.erloes += r.erloes; x.personal += r.personal; x.fahrzeug += r.fahrzeug; x.schaeden += r.schaeden; x.gemein += r.gemein; if (!r.erloes) x.ohnePreis++;
-  }
-  // Rechnungen ohne Tourbezug und Gutschriften (nicht nach Tourpreis abgerechnet)
-  for (const v of belegZeilen().filter(v => v.datum >= zr.von && v.datum <= zr.bis)) {
-    const m = v.datum.slice(0, 7), r = tourRechnung(v), x = monate[m] = monate[m] || { touren: 0, erloes: 0, personal: 0, fahrzeug: 0, schaeden: 0, gemein: 0, ohnePreis: 0 };
-    x.erloes += r.erloes; x.gemein += r.gemein; x.sonstig = (x.sonstig || 0) + r.erloes;
+  for (const t of ergebnisZeilen(zr.von, zr.bis)) {
+    const m = t.datum.slice(0, 7), r = tourRechnung(t), x = monate[m] = monate[m] || { touren: 0, erloes: 0, personal: 0, fahrzeug: 0, schaeden: 0, gemein: 0, ohnePreis: 0, sonstig: 0, geschaetzt: 0, tourErgebnis: 0 };
+    x.erloes += r.erloes; x.personal += r.personal; x.fahrzeug += r.fahrzeug; x.schaeden += r.schaeden; x.gemein += r.gemein;
+    if (t.virtuell) x.sonstig += r.erloes;
+    else { if (r.gefahren) { x.touren++; x.tourErgebnis += r.db; if (!r.erloes) x.ohnePreis++; } if (r.geschaetzt) x.geschaetzt += r.erloes; }
   }
   const umsatz = alle('belege').filter(b => zaehltUmsatz(b) && b.datum >= zr.von && b.datum <= zr.bis);
   const lohn = alle('personaleintraege').filter(x => x.art === 'LOHN' && x.datum >= zr.von.slice(0, 7) + '-01' && x.datum <= zr.bis).reduce((n, x) => n + (x.kostenCent ?? x.bruttoCent ?? 0), 0);
@@ -5005,10 +5013,11 @@ function guvHtml(zr) {
     <div class="tabelle-rahmen" tabindex="0"><table class="tabelle" id="guv"><tr><th>Monat</th><th class="r">Touren</th><th class="r">Erlös</th><th class="r">Personal</th><th class="r">Fahrzeuge</th><th class="r">Schäden</th>${kostenAnnahmen().gemein ? '<th class="r">Gemeinkosten</th>' : ''}<th class="r">Ergebnis</th><th class="r">je Tour</th></tr>
       ${Object.keys(monate).sort().map(m => { const x = monate[m], e = x.erloes - x.personal - x.fahrzeug - x.schaeden - x.gemein;
         return `<tr><td>${esc(ZEIT_DIMS.monat[2](m))}${x.ohnePreis ? ` <span class="leise">(${x.ohnePreis} ohne Preis)</span>` : ''}</td><td class="r">${x.touren}</td><td class="r">${geld(x.erloes)}</td><td class="r">${geld(x.personal)}</td><td class="r">${geld(x.fahrzeug)}</td><td class="r">${geld(x.schaeden)}</td>
-          ${kostenAnnahmen().gemein ? `<td class="r">${geld(x.gemein)}</td>` : ''}<td class="r" style="${e < 0 ? 'color:var(--rot-t)' : ''}"><b>${geld(e)}</b></td><td class="r">${x.touren ? geld(Math.round((e - (x.sonstig || 0)) / x.touren)) : '–'}</td></tr>`; }).join('')}</table></div>
+          ${kostenAnnahmen().gemein ? `<td class="r">${geld(x.gemein)}</td>` : ''}<td class="r" style="${e < 0 ? 'color:var(--rot-t)' : ''}"><b>${geld(e)}</b></td><td class="r">${x.touren ? geld(Math.round(x.tourErgebnis / x.touren)) : '–'}</td></tr>`; }).join('')}</table></div>
     <div class="karte block"><h3>Abgleich mit den Ist-Zahlen</h3><dl>
       <dt>Rechnungen − Gutschriften (netto)</dt><dd>${geld(umsatzSumme)} (${umsatz.length} Belege)</dd>
       ${s.sonstig ? `<dt>davon ohne Tourbezug (im Erlös oben enthalten)</dt><dd>${geld(s.sonstig)}</dd>` : ''}
+      ${s.geschaetzt ? `<dt>Geschätzt aus Preisliste (noch nicht abgerechnet, im Erlös oben enthalten)</dt><dd>${geld(s.geschaetzt)}</dd>` : ''}
       <dt>Lohnkosten laut Abrechnungen</dt><dd>${lohn ? geld(lohn) : 'keine Lohnabrechnungen im Zeitraum'}</dd>
       <dt>Fahrzeugakte</dt><dd>${geld(fzKosten)}</dd><dt>Schadenkosten (Fälle im Zeitraum)</dt><dd>${geld(schaedenIst)}</dd>
       <dt>Ergebnis Ist (vereinfacht)</dt><dd><b>${geld(umsatzSumme - lohn - fzKosten - schaedenIst)}</b> <span class="leise">Rechnungen − Lohn − Fahrzeugakte − Schäden (ohne Leasing, Miete, Versicherung …)</span></dd></dl>
