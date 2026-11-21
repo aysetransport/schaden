@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795213935; window.WEB_VERSION = '4.15.0';
+window.WEB_STAND = 1795214811; window.WEB_VERSION = '4.15.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -9541,22 +9541,23 @@ document.addEventListener('click', e => {
 // ============================== Windows-Stil (Windows-App) ==============================
 // Symbole aus „Segoe Fluent Icons“ (Windows 11, sonst Segoe MDL2), Statusleiste, Titelleisten-Farben, Kontextmenüs per
 // Rechtsklick, Windows-Tastenkürzel und Zähler auf dem Taskleistensymbol. Alles nur aktiv, wenn window.WIN gesetzt ist.
-const FLUENT = { uebersicht: '', fahrer: '', kalender: '', termine: '', aufgaben: '', touren: '', personal: '', zeiten: '',
+var FLUENT = { uebersicht: '', fahrer: '', kalender: '', termine: '', aufgaben: '', touren: '', personal: '', zeiten: '',
   fuhrpark: '', firmen: '', faelle: '', postfach: '', finanzen: '', auswertung: '',
   einstellungen: '', thema: '', hilfe: '', menue: '', zurueck: '', suche: '', neu: '', sync: '', mehr: '' };
-const fluentDa = (() => {
-  let wert = null;
-  return () => {
+var FLUENT_DA = null;
+function fluentDa() {
+  {
+    let wert = FLUENT_DA;
     if (wert !== null) return wert;
     try {
       const c = document.createElement('canvas').getContext('2d'), b = f => { c.font = `16px ${f}`; return c.measureText('').width; };
       wert = b('"Segoe Fluent Icons", monospace') !== b('monospace') || b('"Segoe MDL2 Assets", monospace') !== b('monospace');
     } catch { wert = false; }
-    return wert;
-  };
-})();
+    return (FLUENT_DA = wert);
+  }
+}
 /** Symbol: im Windows-Stil als Fluent-Glyphe, sonst das bisherige Zeichen. */
-const winSymbol = (schluessel, ersatz) => (window.WIN && fluentDa() && FLUENT[schluessel] ? `<span class="fi" aria-hidden="true">${FLUENT[schluessel]}</span>` : ersatz);
+function winSymbol(schluessel, ersatz) { return window.WIN && fluentDa() && FLUENT && FLUENT[schluessel] ? `<span class="fi" aria-hidden="true">${FLUENT[schluessel]}</span>` : ersatz; }
 function winRahmen() {
   if (!window.WIN) return;
   const h = document.documentElement;
@@ -9573,8 +9574,8 @@ function winRahmen() {
   titelleisteFarben();
   statusleisteZeichnen();
 }
-let WIN_ZOOM = 1;
-const winDunkel = () => (S.einstellungen.thema === 'dunkel' || (S.einstellungen.thema !== 'hell' && matchMedia('(prefers-color-scheme: dark)').matches));
+var WIN_ZOOM = 1;
+function winDunkel() { return S.einstellungen.thema === 'dunkel' || (S.einstellungen.thema !== 'hell' && matchMedia('(prefers-color-scheme: dark)').matches); }
 function titelleisteFarben() {
   const d = window.WIN && window.desktop && window.desktop.fenster; if (!d) return;
   const dunkel = winDunkel();
