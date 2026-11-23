@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795462932; window.WEB_VERSION = '4.19.1';
+window.WEB_STAND = 1795469016; window.WEB_VERSION = '4.19.2';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -3165,6 +3165,7 @@ function eingangScanDialog(eingereicht = []) {
     }
     $('#ers-leer').hidden = !!posten.length; summe();
   })();
+  if ($('#ers-scan')) scanWahlEinrichten();
   if ($('#ers-scan')) $('#ers-scan').onclick = async () => {
     const b = $('#ers-scan'); b.disabled = true;
     try {
@@ -3223,13 +3224,35 @@ function eingangScanDialog(eingereicht = []) {
 // ---------- Scannen und Auslesen (Windows-App: Scanner über WIA, Texterkennung offline) ----------
 const scanner = () => window.desktop && window.desktop.scan;
 const scanModusHtml = name => `<label class="auswahl"><input type="radio" name="${name}" value="STAPEL" checked> Stapel über den Einzug</label>
-  <label class="auswahl"><input type="radio" name="${name}" value="EINZELN"> Einzeln – lange Bons per Hand führen</label>`;
+  <label class="auswahl"><input type="radio" name="${name}" value="EINZELN"> Einzeln – lange Bons per Hand führen</label>
+  <label class="auswahl">Scanner <select data-scan-geraet aria-label="Scanner"><option value="">wird gesucht …</option></select></label>
+  <button type="button" class="knopf text" data-scan-pruefen title="Zeigt, was Windows und der Treiber melden – mit Papier im Einzug auch einen Testscan">🩺 Scanner prüfen</button>
+  <div data-scan-bericht hidden style="flex-basis:100%"><pre class="leise" style="white-space:pre-wrap;max-height:30vh;overflow:auto"></pre><button type="button" class="knopf text" data-scan-kopieren>📋 Kopieren</button></div>`;
+/** Füllt die Scannerauswahl im offenen Dialog (Wahl bleibt gespeichert) und verdrahtet „Scanner prüfen“. */
+async function scanWahlEinrichten() {
+  const sel = $('#dialog [data-scan-geraet]'); if (!sel) return;
+  sel.onchange = () => { S.einstellungen.scannerId = sel.value; speichere(); };
+  const bericht = $('#dialog [data-scan-bericht]'), knopf = $('#dialog [data-scan-pruefen]');
+  knopf.onclick = async () => {
+    knopf.disabled = true; bericht.hidden = false; bericht.querySelector('pre').textContent = 'Prüfe … (mit Papier im Einzug wird eine Seite testweise gescannt)';
+    try { bericht.querySelector('pre').textContent = await scanner().pruefen(sel.value, true); } catch (e) { bericht.querySelector('pre').textContent = 'Prüfen nicht möglich: ' + e.message; }
+    knopf.disabled = false;
+  };
+  $('#dialog [data-scan-kopieren]').onclick = () => navigator.clipboard.writeText(bericht.querySelector('pre').textContent).then(() => toast('Kopiert'), e => toast(e.message));
+  if (!scanner().pruefen) knopf.hidden = true; // ältere Windows-App ohne Prüfen
+  try {
+    const g = await scanner().geraete();
+    sel.innerHTML = g.length ? g.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('') : '<option value="">kein Scanner gefunden</option>';
+    if (g.some(x => x.id === S.einstellungen.scannerId)) sel.value = S.einstellungen.scannerId;
+  } catch (e) { sel.innerHTML = `<option value="">${esc(e.message)}</option>`; }
+}
 /** Scannt (Stapel oder einzeln) und liest jede Seite: [{ seite: { name, mimeType, base64 }, text, sicherheit }]. fortschritt(text) zeigt den Stand. */
 async function scannenUndLesen(modus, fortschritt) {
   const g = await scanner().geraete();
   if (!g.length) throw new Error('Kein Scanner gefunden – ist er eingeschaltet und in Windows eingerichtet?');
   fortschritt(modus === 'EINZELN' ? 'Beleg einlegen und per Hand führen …' : 'Scanne …');
-  const seiten = await scanner().stapel(g[0].id, modus), aus = [];
+  const sel = $('#dialog [data-scan-geraet]'), id = g.some(x => x.id === (sel && sel.value)) ? sel.value : g[0].id;
+  const seiten = await scanner().stapel(id, modus), aus = [];
   for (const [k, seite] of seiten.entries()) { fortschritt(`Lese ${k + 1} / ${seiten.length} …`); aus.push({ seite, ...(await scanner().lesen(seite.base64)) }); }
   return aus;
 }
@@ -3333,6 +3356,7 @@ function tankbelegeDialog(eingereicht = []) {
     <p class="fehlertext" id="tank-fehler" hidden></p>
     <div class="dialog-knoepfe"><span class="leise fuell" id="tank-summe"></span><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
   const d = $('#dialog'), form = $('#tank-form'), tb = $('#tank-tabelle tbody');
+  if (scan) scanWahlEinrichten();
   d.classList.add('gross'); d.addEventListener('close', () => d.classList.remove('gross'), { once: true });
   const zeilen = () => [...tb.rows].map(r => Object.fromEntries([...r.querySelectorAll('input')].map(i => [i.dataset.t, i.value.trim()])));
   const summe = () => { const l = zeilen().map(z => geldLesen(z.betrag)).filter(x => x != null); $('#tank-summe').textContent = l.length ? `${l.length} Belege · ${geld(l.reduce((n, x) => n + x, 0))}` : ''; };
