@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795439006; window.WEB_VERSION = '4.16.1';
+window.WEB_STAND = 1795441952; window.WEB_VERSION = '4.16.2';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -2777,15 +2777,17 @@ function belegMarke(b) {
   return BELEG_STATUS[b.status] || BELEG_STATUS.OFFEN;
 }
 /**
- * Nächste freie Nummer, z. B. R2026-0007 (Rechnung) oder A2026-0003 (Angebot). Die Startnummer aus den
- * Einstellungen gilt als Untergrenze – so lässt sich an einen bisherigen Nummernkreis anschließen.
+ * Nächste freie Nummer, z. B. R2026-0007 (Rechnung) oder A2026-0003 (Angebot): die kleinste noch nicht vergebene.
+ * So werden Nummern gelöschter Entwürfe wieder verwendet und der Nummernkreis bleibt lückenlos.
+ * Die Startnummer aus den Einstellungen gilt als Untergrenze – so lässt sich an einen bisherigen Nummernkreis anschließen.
  */
 function naechsteBelegNummer(art, jahr = new Date().getFullYear()) {
   const praefix = `${BELEG_ART[art][1]}${jahr}-`;
   const start = Math.max(1, Math.floor(Number(rechnungsDaten()[{ RECHNUNG: 'startRechnung', ANGEBOT: 'startAngebot' }[art] || 'startGutschrift']) || 1));
-  const hoechste = alle('belege').filter(b => b.art === art && String(b.nummer || '').startsWith(praefix))
-    .reduce((n, b) => Math.max(n, Number(String(b.nummer).slice(praefix.length)) || 0), start - 1);
-  return praefix + String(hoechste + 1).padStart(4, '0');
+  const vergeben = new Set(alle('belege').filter(b => String(b.nummer || '').startsWith(praefix)).map(b => Number(String(b.nummer).slice(praefix.length))));
+  let n = start;
+  while (vergeben.has(n)) n++;
+  return praefix + String(n).padStart(4, '0');
 }
 const zahlungsziel = firma => Number((firma && firma.zahlungszielTage) || rechnungsDaten().zahlungsziel) || 14;
 function rechnungsAdresse(firmaId) {
