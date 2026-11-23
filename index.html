@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795460616; window.WEB_VERSION = '4.18.0';
+window.WEB_STAND = 1795462203; window.WEB_VERSION = '4.19.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -318,7 +318,8 @@ dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
 .stopp{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--linie)}.stopp.fertig{opacity:.65}.stopp.naechster{background:var(--blau-f);border-radius:10px}
 .stopp-nr{display:inline-grid;place-items:center;min-width:26px;height:26px;border-radius:50%;background:var(--primaer);color:var(--bg);font-size:13px}.stopp.fertig .stopp-nr{background:var(--gruen-t,#0C3A18)}
 .stopp-knoepfe{display:flex;gap:4px;align-items:center}.stopp-knoepfe a.symbol{text-decoration:none}.fahrer-stopps{margin:8px 0}.stopp-zahl{font-size:12px!important;white-space:nowrap}
-.rk-tabelle{border-collapse:collapse;font-size:13px;min-width:100%}.rk-tabelle th,.rk-tabelle td{padding:4px;border-bottom:1px solid var(--linie);text-align:left;vertical-align:top}.rk-tabelle input:not([type=checkbox]){width:100%;min-width:90px;padding:5px 6px;border:1px solid var(--rand);border-radius:6px;background:var(--bg);color:var(--text);font:inherit}
+.rk-tabelle{border-collapse:collapse;font-size:13px;min-width:100%}.rk-tabelle th,.rk-tabelle td{padding:4px;border-bottom:1px solid var(--linie);text-align:left;vertical-align:top}.rk-tabelle input.unsicher{background:var(--gelb-f);color:var(--gelb-t)}
+.rk-tabelle input:not([type=checkbox]){width:100%;min-width:90px;padding:5px 6px;border:1px solid var(--rand);border-radius:6px;background:var(--bg);color:var(--text);font:inherit}
 .rk-tabelle tr.pruefen{background:color-mix(in srgb,#f5c400 15%,transparent)}.rk-tabelle thead th{position:sticky;top:0;background:var(--flaeche2)}
 .imp-liste{max-height:55vh;overflow:auto}.imp-zeile{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:6px 4px;border-bottom:1px solid var(--linie)}.imp-zeile select{flex:1 1 200px;max-width:100%}.imp-zeile.pruefen{background:color-mix(in srgb,#f5c400 18%,transparent)}
 .auswahl:hover{background:var(--flaeche2)}
@@ -3008,6 +3009,8 @@ document.addEventListener('click', e => {
   const ein = e.target.closest('[data-eingang]'); if (ein) eingangDialog(S.eingangsrechnungen[ein.dataset.eingang]);
   if (e.target.closest('[data-neue-eingangsrechnung]')) eingangDialog(null);
   if (e.target.closest('[data-tankbelege]')) tankbelegeDialog();
+  if (e.target.closest('[data-rechnungen-scannen]')) eingangScanDialog();
+  if (e.target.closest('[data-belege-pruefen]')) belegePruefenDialog();
 });
 const centText = t => (t !== '' && t != null && Number.isFinite(Number(t)) ? geldOhneSymbol(Math.round(Number(t) * 100)) : '');
 const formFuellen = (form, werte) => { for (const [k, v] of Object.entries(werte)) if (v != null && v !== '' && form.elements[k]) form.elements[k].value = v; };
@@ -3091,20 +3094,242 @@ function eingangDialog(x) {
   };
 }
 
+// ============================== Eingangsrechnungen scannen (Stapel oder einzeln) ==============================
+const KATEGORIE_WOERTER = [['KRAFTSTOFF', /diesel|kraftstoff|tankstelle|adblue|super e10|liter/i], ['WERKSTATT', /werkstatt|reparatur|inspektion|reifen|ersatzteil|kfz-?meister|hauptuntersuchung|dekra|t[uü]v/i],
+  ['MAUT', /maut|toll collect|vignette/i], ['VERSICHERUNG', /versicherung|police|beitrag.*versicher/i], ['FAHRZEUGE', /leasing|mietwagen|fahrzeugmiete|autovermietung|sixt|europcar/i],
+  ['MIETE', /miete|nebenkosten|strom|wasser|heizung/i], ['BUERO', /telefon|internet|software|lizenz|b[uü]robedarf|druckerpatrone|telekom|vodafone|o2\b/i], ['SUBUNTERNEHMER', /subunternehm|fracht|transportleistung|nachunternehm/i]];
+const datumIn = z => { for (const m of String(z).matchAll(/\b(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4}|\d{2})\b/g)) {
+  const d = `${m[3].length === 2 ? 2000 + Number(m[3]) : m[3]}-${pad(Number(m[2]))}-${pad(Number(m[1]))}`;
+  if (Number(m[1]) >= 1 && Number(m[1]) <= 31 && Number(m[2]) >= 1 && Number(m[2]) <= 12 && d >= plusTage(heute(), -730) && d <= plusTage(heute(), 120)) return d; } return ''; };
+/**
+ * Rechnung aus erkanntem Text: Lieferant, Nummer, Datum, Fälligkeit, Brutto, MwSt-Satz, IBAN, Kategorie.
+ * unsicher = nicht sicher gefundene Felder (gelb). Unsere eigene Anschrift (Empfänger) und IBAN werden übergangen.
+ */
+function rechnungLesen(text) {
+  const t = String(text || '').replace(/\r/g, ''), zeilen = t.split('\n').map(z => z.trim()).filter(Boolean), unsicher = [];
+  const zahl = x => Number(String(x).replace(/\./g, '').replace(',', '.')), rd = rechnungsDaten(), wir = normal(rd.name || S.einstellungen.firma || '');
+  const betraege = z => [...z.matchAll(/(\d{1,6}(?:\.\d{3})*,\d{2})(?!\d)/g)].map(m => Math.round(zahl(m[1]) * 100));
+  const datum = datumIn(zeilen.find(z => /rechnungsdatum|datum|date/i.test(z) && !/liefer|leistung|fällig|zahlbar/i.test(z)) || '') || datumIn(t);
+  if (!datum) unsicher.push('datum');
+  const faelligZeile = zeilen.find(z => /fällig|zahlbar|zahlungsziel|due/i.test(z)) || '', tage = (faelligZeile.match(/(\d{1,3})\s*tage/i) || [])[1];
+  const faelligAm = datumIn(faelligZeile) || (tage && datum ? plusTage(datum, Number(tage)) : '');
+  const nummer = (t.match(/(?:rechnungs?[- ]?(?:nr|nummer)|re[- ]?nr|beleg[- ]?nr|invoice\s*(?:no|nr|number))\.?\s*[:#]?\s*([A-Z0-9][\w\/-]{2,30})/i) || [])[1] || '';
+  if (!nummer) unsicher.push('nummer');
+  const summe = zeilen.filter(z => /gesamtbetrag|rechnungsbetrag|zu zahlen|endbetrag|brutto|gesamtsumme|summe|total/i.test(z) && !/netto|zwischensumme|mwst\b.*%|ust\.?\s*\d/i.test(z)).flatMap(betraege);
+  let bruttoCent = summe.length ? Math.max(...summe) : null;
+  if (bruttoCent == null) { unsicher.push('brutto'); const l = zeilen.flatMap(betraege); bruttoCent = l.length ? Math.max(...l) : null; }
+  const proz = (t.match(/\b(19|7|0)\s?%/) || [])[1];
+  const mwst = proz != null ? Number(proz) : 19;
+  if (proz == null) unsicher.push('mwst');
+  const iban = ([...t.matchAll(/\bDE\d{2}(?:\s?\d{4}){4}\s?\d{2}\b/g)].map(m => m[0].replace(/\s/g, '')).find(i => i !== String(rd.iban || '').replace(/\s/g, '')) || '');
+  const bekannt = [...new Set(alle('eingangsrechnungen').map(e => e.lieferant).filter(Boolean))].find(l => normal(t).includes(normal(l)));
+  const kopf = zeilen.slice(0, 8).find(z => /[a-zäöü]{3}/i.test(z) && !(wir && normal(z).includes(wir)) && !/rechnung|seite|datum|kunden|^an\b|^\d/i.test(z) && z.length <= 60);
+  const lieferant = bekannt || kopf || '';
+  if (!bekannt) unsicher.push('lieferant');
+  const vorher = bekannt && alle('eingangsrechnungen').filter(e => e.lieferant === bekannt).sort((a, b) => String(b.datum).localeCompare(String(a.datum)))[0];
+  const kategorie = (vorher && vorher.kategorie) || (KATEGORIE_WOERTER.find(([, r]) => r.test(t)) || ['SONSTIGES'])[0];
+  return { lieferant, nummer, datum, faelligAm, bruttoCent, mwst, iban, kategorie, unsicher };
+}
+/** Eingangsrechnungen scannen: Stapel über den Einzug oder einzeln. Jede Rechnung wird eine Zeile zum Prüfen; Folgeseiten ohne eigene Nummer und eigenen Betrag hängen an der Rechnung davor. */
+function eingangScanDialog(eingereicht = []) {
+  if (!scanner() && !eingereicht.length) { toast('Scannen geht in der Windows-App'); return; }
+  const posten = []; // { seiten: [Seite] }
+  dialog(`<form method="dialog" id="ers-form"><h2>Rechnungen scannen</h2>
+    <p class="leise">Lieferantenrechnungen, Werkstatt, Versicherung, Maut … Jede Rechnung wird ausgelesen und erscheint unten zum Prüfen. Folgeseiten ohne eigenen Betrag hängen an der Rechnung davor. Gelbe Felder bitte prüfen.</p>
+    ${scanner() && scanner().stapel ? `<div class="zeile" style="margin-bottom:8px;flex-wrap:wrap"><button type="button" class="knopf tonal" id="ers-scan">🖨 Scannen</button>${scanModusHtml('ers-modus')}</div>` : ''}
+    <div class="tabelle-rahmen"><table class="tabelle rk-tabelle" id="ers-tabelle"><thead><tr><th></th><th>Lieferant</th><th>Nummer</th><th>Datum</th><th>Fällig</th><th>Brutto €</th><th>MwSt %</th><th>Kategorie</th><th>Bezahlt</th></tr></thead><tbody></tbody></table></div>
+    <p class="leise" id="ers-leer">Noch nichts gescannt.</p><p class="fehlertext" id="ers-fehler" hidden></p>
+    <div class="dialog-knoepfe"><span class="leise fuell" id="ers-summe"></span><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
+  const d = $('#dialog'), form = $('#ers-form'), tb = $('#ers-tabelle tbody');
+  d.classList.add('gross'); d.addEventListener('close', () => d.classList.remove('gross'), { once: true });
+  const zeile = (w, i) => { const u = f => (w.unsicher.includes(f) || w.unsicher.includes('alles') ? 'class="unsicher" title="Bitte prüfen – nicht sicher erkannt"' : '');
+    return `<tr data-ers="${i}"><td><button type="button" class="symbol" data-ers-scan="${i}" title="Scan ansehen" aria-label="Scan ansehen">📄<small data-ers-seiten="${i}"></small></button></td>
+      <td><input data-t="lieferant" list="eingang-lieferanten" value="${esc(w.lieferant)}" aria-label="Lieferant" ${u('lieferant')}></td><td><input data-t="nummer" value="${esc(w.nummer)}" aria-label="Rechnungsnummer" ${u('nummer')}></td>
+      <td><input type="date" data-t="datum" value="${esc(w.datum)}" aria-label="Datum" ${u('datum')}></td><td><input type="date" data-t="faelligAm" value="${esc(w.faelligAm)}" aria-label="Fällig am"></td>
+      <td><input data-t="brutto" inputmode="decimal" value="${w.bruttoCent != null ? esc(geldOhneSymbol(w.bruttoCent)) : ''}" aria-label="Betrag brutto" ${u('brutto')}></td>
+      <td><input data-t="mwst" inputmode="numeric" value="${esc(w.mwst)}" style="min-width:50px" aria-label="MwSt %" ${u('mwst')}></td>
+      <td><select data-t="kategorie" aria-label="Kategorie">${Object.entries(EINGANG_KATEGORIE).map(([k, l]) => `<option value="${k}" ${w.kategorie === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></td>
+      <td><input type="checkbox" data-t="bezahlt" aria-label="Schon bezahlt"><input type="hidden" data-t="iban" value="${esc(w.iban)}"></td></tr>`; };
+  const summe = () => { const l = [...tb.rows].map(r => geldLesen(r.querySelector('[data-t=brutto]').value)).filter(x => x != null); $('#ers-summe').textContent = l.length ? `${l.length} Rechnungen · ${geld(l.reduce((n, x) => n + x, 0))}` : ''; };
+  const modus = () => (form.querySelector('[name=ers-modus]:checked') || {}).value || 'STAPEL';
+  form.addEventListener('input', ev => { ev.target.classList.remove('unsicher'); summe(); });
+  form.addEventListener('click', ev => { const b = ev.target.closest('[data-ers-scan]'); if (b) posten[Number(b.dataset.ersScan)].seiten.forEach(seiteZeigen); });
+  if (eingereicht.length) (async () => {
+    for (const a of eingereicht) {
+      const t = S.touren[a.fallId] || {};
+      try { const seite = await anlageAlsSeite(a), r = scanner() && scanner().lesen ? await scanner().lesen(seite.base64) : { text: '', sicherheit: 0 }, w = rechnungLesen(r.text);
+        if (!w.datum) w.datum = t.datum || ''; if (!r.text) w.unsicher.push('alles');
+        if (!w.lieferant) w.lieferant = (TANKSTELLEN.find(x => new RegExp(`\\b${x}\\b`, 'i').test(r.text)) || '');
+        posten.push({ seiten: [seite], anlageId: a.id }); tb.insertAdjacentHTML('beforeend', zeile(w, posten.length - 1));
+      } catch (e) { toast(e.message, 6000); }
+    }
+    $('#ers-leer').hidden = !!posten.length; summe();
+  })();
+  if ($('#ers-scan')) $('#ers-scan').onclick = async () => {
+    const b = $('#ers-scan'); b.disabled = true;
+    try {
+      const gelesen = await scannenUndLesen(modus(), x => { b.textContent = x; });
+      for (const { seite, text, sicherheit } of gelesen) {
+        const w = rechnungLesen(text);
+        if (posten.length && !w.nummer && w.unsicher.includes('brutto')) { // Folgeseite
+          const p = posten[posten.length - 1]; p.seiten.push(seite); tb.querySelector(`[data-ers-seiten="${posten.length - 1}"]`).textContent = ` ${p.seiten.length}`; continue;
+        }
+        if (sicherheit < 60) w.unsicher.push('alles');
+        posten.push({ seiten: [seite] }); tb.insertAdjacentHTML('beforeend', zeile(w, posten.length - 1));
+      }
+      $('#ers-leer').hidden = !!posten.length;
+      toast(`${gelesen.length} Seite(n) gelesen – gelbe Felder bitte prüfen, dann speichern`, 6000);
+    } catch (e) { toast('Scannen nicht möglich: ' + e.message, 8000); }
+    b.disabled = false; b.textContent = modus() === 'EINZELN' && posten.length ? '🖨 Nächste Rechnung scannen' : '🖨 Scannen'; summe();
+  };
+  form.onsubmit = async ev => {
+    ev.preventDefault();
+    const fehler = [], fertig = [], doppelt = [];
+    const schonDa = (nr, lief, brutto) => alle('eingangsrechnungen').concat(fertig.map(x => ({ nummer: x.nummer, lieferant: x.lieferant, nettoCent: x.brutto, mwstCent: 0 })))
+      .some(e => normal(e.nummer) === normal(nr) && (normal(e.lieferant) === normal(lief) || eingangBrutto(e) === brutto)); // auch doppelt im selben Stapel
+    [...tb.rows].forEach((r, n) => {
+      const w = Object.fromEntries([...r.querySelectorAll('[data-t]')].map(i => [i.dataset.t, i.type === 'checkbox' ? i.checked : i.value.trim()]));
+      for (const i of r.querySelectorAll('input')) i.removeAttribute('aria-invalid');
+      const brutto = geldLesen(w.brutto), falsch = [];
+      if (!w.lieferant) falsch.push('lieferant');
+      if (brutto == null) falsch.push('brutto');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(w.datum)) falsch.push('datum');
+      if (falsch.length) { falsch.forEach(t => r.querySelector(`[data-t=${t}]`).setAttribute('aria-invalid', 'true')); fehler.push(n + 1); return; }
+      if (w.nummer && schonDa(w.nummer, w.lieferant, brutto)) { doppelt.push(w.nummer); return; }
+      fertig.push({ ...w, brutto, posten: posten[Number(r.dataset.ers)] });
+    });
+    const f = $('#ers-fehler');
+    if (fehler.length) { f.textContent = `Bitte Zeile ${fehler.join(', ')} prüfen (rot): Lieferant, Datum und Betrag wie 89,50 sind nötig.`; f.hidden = false; tb.querySelector('[aria-invalid]').focus(); return; }
+    $('#dialog').close();
+    for (const x of fertig) {
+      const id = uuid(), p = Number(String(x.mwst).replace(',', '.')) || 0, netto = Math.round(x.brutto / (1 + p / 100));
+      if (!x.posten.anlageId) for (const [k, seite] of x.posten.seiten.entries()) await legeAnlage(id, seiteAlsDatei(seite, `Rechnung_${(x.nummer || x.datum).replace(/[^\w-]/g, '_')}${x.posten.seiten.length > 1 ? '_S' + (k + 1) : ''}`));
+      merke('eingangsrechnungen', { id, firmaId: '', art: 'RECHNUNG', lieferant: x.lieferant, nummer: x.nummer, datum: x.datum, faelligAm: x.faelligAm || null, nettoCent: netto, mwstCent: x.brutto - netto,
+        kategorie: x.kategorie, status: x.bezahlt ? 'BEZAHLT' : 'OFFEN', bezahltAm: x.bezahlt ? x.datum : null, iban: x.iban,
+        notiz: x.posten.anlageId ? `Vom Fahrer eingereicht (Foto an der Tour) · ${belegVerweis(x.posten.anlageId)}` : 'Gescannt', eRechnung: false, geaendertAm: jetztIso() });
+    }
+    nachAenderung();
+    toast(`${fertig.length} Eingangsrechnung(en) gespeichert${doppelt.length ? ` – ${doppelt.length} schon erfasst und übersprungen (${doppelt.join(', ')})` : ''}`, 7000);
+  };
+  // Lieferanten zur Auswahl (wie im Einzeldialog)
+  form.insertAdjacentHTML('beforeend', `<datalist id="eingang-lieferanten">${[...new Set(alle('eingangsrechnungen').map(y => y.lieferant).filter(Boolean))].sort().map(l => `<option value="${esc(l)}">`).join('')}</datalist>`);
+}
+
 // ============================== Tankbelege in Massen (Tabelle zum Runtertippen) ==============================
 /**
  * Eine Zeile je Beleg, Enter springt ins nächste Feld, unten kommt automatisch eine neue Zeile dazu.
  * Mit Kennzeichen → Fahrzeugakte (Tanken), ohne → Eingangsrechnung „Kraftstoff“ (bezahlt).
  */
-function tankbelegeDialog() {
-  const zeile = datum => `<tr><td><input type="date" data-t="datum" value="${esc(datum)}" aria-label="Datum"></td><td><input data-t="kz" list="tank-kz" aria-label="Kennzeichen (leer = ohne Fahrzeug)"></td>
-    <td><input data-t="liter" inputmode="decimal" aria-label="Liter"></td><td><input data-t="betrag" inputmode="decimal" aria-label="Betrag brutto"></td>
-    <td><input data-t="km" inputmode="numeric" aria-label="Kilometerstand"></td><td><input data-t="ort" aria-label="Tankstelle"></td></tr>`;
+// ---------- Scannen und Auslesen (Windows-App: Scanner über WIA, Texterkennung offline) ----------
+const scanner = () => window.desktop && window.desktop.scan;
+const scanModusHtml = name => `<label class="auswahl"><input type="radio" name="${name}" value="STAPEL" checked> Stapel über den Einzug</label>
+  <label class="auswahl"><input type="radio" name="${name}" value="EINZELN"> Einzeln – lange Bons per Hand führen</label>`;
+/** Scannt (Stapel oder einzeln) und liest jede Seite: [{ seite: { name, mimeType, base64 }, text, sicherheit }]. fortschritt(text) zeigt den Stand. */
+async function scannenUndLesen(modus, fortschritt) {
+  const g = await scanner().geraete();
+  if (!g.length) throw new Error('Kein Scanner gefunden – ist er eingeschaltet und in Windows eingerichtet?');
+  fortschritt(modus === 'EINZELN' ? 'Beleg einlegen und per Hand führen …' : 'Scanne …');
+  const seiten = await scanner().stapel(g[0].id, modus), aus = [];
+  for (const [k, seite] of seiten.entries()) { fortschritt(`Lese ${k + 1} / ${seiten.length} …`); aus.push({ seite, ...(await scanner().lesen(seite.base64)) }); }
+  return aus;
+}
+const seiteAlsDatei = (sc, name) => new File([blobAusBase64(sc.base64, sc.mimeType)], name + (/png/.test(sc.mimeType) ? '.png' : '.jpg'), { type: sc.mimeType });
+const seiteZeigen = sc => window.desktop.oeffneDatei(sc.name, Uint8Array.from(atob(sc.base64), c => c.charCodeAt(0))).catch(e => toast(e.message));
+
+/** Von Fahrern eingereichte Belege: Foto an ihrer Tour, Name „Beleg eingereicht · TANK|SONST · Fahrer …“. Übernommen = die Buchung nennt „Beleg <id>“. */
+const BELEG_EINGEREICHT = /^Beleg eingereicht · (TANK|SONST) · /;
+const belegVerweis = id => `Beleg ${id}`;
+function eingereichteBelege() {
+  const genutzt = alle('fahrzeugeintraege').map(x => x.text || '').concat(alle('eingangsrechnungen').map(x => x.notiz || '')).join('\n');
+  return alle('anlagen').filter(a => BELEG_EINGEREICHT.test(a.anzeigename || '') && S.touren[a.fallId] && !S.touren[a.fallId].geloescht && !genutzt.includes(belegVerweis(a.id)))
+    .sort((a, b) => String(a.hinzugefuegtAm).localeCompare(String(b.hinzugefuegtAm)));
+}
+async function anlageAlsSeite(a) {
+  const u = await Dateien.adresse(a); if (!u) throw new Error('Foto noch nicht geladen – bitte später erneut');
+  const blob = await (await fetch(u)).blob(), b64 = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.readAsDataURL(blob); });
+  return { name: a.anzeigename.split(' – ').pop() || 'beleg.jpg', mimeType: blob.type || a.mimeType || 'image/jpeg', base64: b64, anlageId: a.id };
+}
+/** Fahrer: Beleg fotografieren und einreichen – das Büro prüft und bucht ihn. Das Foto hängt an der gewählten eigenen Tour. */
+function belegEinreichenDialog() {
+  const ich = maVon(ichId()); if (!ich) return;
+  const touren = alle('touren').filter(x => teamVon(x).includes(ich.id) && x.datum <= heute() && x.datum >= plusTage(heute(), -6) && x.status !== 'STORNIERT').sort((a, b) => b.datum.localeCompare(a.datum));
+  if (!touren.length) { toast(T('Keine Tour in den letzten 7 Tagen – den Beleg bitte im Büro abgeben.'), 6000); return; }
+  dialog(`<form method="dialog" id="be-form"><h2>🧾 ${esc(T('Beleg einreichen'))}</h2><p class="leise">${esc(T('Foto machen und absenden – das Büro prüft den Beleg.'))}</p>
+    <label class="feld">${esc(T('Art'))}<select name="art"><option value="TANK">⛽ ${esc(T('Tankbeleg'))}</option><option value="SONST">🧾 ${esc(T('Andere Quittung (Parken, Waschen, Maut …)'))}</option></select></label>
+    <label class="feld">${esc(T('Tour'))}<select name="tour">${touren.map(x => `<option value="${x.id}">${esc(datumUI(x.datum))} · ${esc(x.kennzeichen || '–')} · ${esc([x.tourNr && 'Tour ' + x.tourNr, tourAuftraggeberName(x)].filter(Boolean).join(' · '))}</option>`).join('')}</select></label>
+    <label class="feld">${esc(T('Foto des Belegs'))}<input type="file" name="foto" accept="image/*" capture="environment" multiple required></label>
+    <label class="feld">${esc(T('Notiz (optional)'))}<input name="notiz" maxlength="80"></label>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>${esc(T('Abbrechen'))}</button><button class="knopf voll">${esc(T('Einreichen'))}</button></div></form>`);
+  $('#be-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const f = ev.target, dateien = [...f.elements.foto.files], notiz = f.elements.notiz.value.trim().replace(/[–·]/g, '-');
+    if (!dateien.length) return;
+    $('#dialog').close();
+    for (const d of dateien) await legeAnlage(f.elements.tour.value, d, `Beleg eingereicht · ${f.elements.art.value} · ${ich.name}${notiz ? ' · ' + notiz : ''} – `);
+    nachAenderung(); toast(T('Beleg eingereicht – das Büro prüft ihn.'), 5000);
+  };
+}
+/** Büro: eingereichte Belege ansehen, übernehmen (Texterkennung, vorausgefüllt) oder verwerfen. */
+function belegePruefenDialog() {
+  const l = eingereichteBelege(), tank = l.filter(a => /· TANK ·/.test(a.anzeigename)), sonst = l.filter(a => !/· TANK ·/.test(a.anzeigename));
+  dialog(`<div><h2>📥 Eingereichte Belege</h2><p class="leise">Von Fahrern fotografiert. „Übernehmen“ liest sie aus${scanner() ? '' : ' (Texterkennung gibt es in der Windows-App – sonst von Hand ausfüllen)'} und füllt die Tabelle vor – dort prüfen und speichern.</p>
+    <div id="bp-liste">${l.map(a => { const t = S.touren[a.fallId], teile = a.anzeigename.split(' – ')[0].split(' · ');
+      return `<div class="zeile eng" style="margin:6px 0"><span class="fuell">${/TANK/.test(teile[1]) ? '⛽' : '🧾'} <b>${esc(teile[2] || '')}</b>${teile[3] ? ` · ${esc(teile[3])}` : ''}<br><span class="leise">${esc(datumText(t.datum))} · ${esc(t.kennzeichen || '–')} · eingereicht ${esc(zeitText(a.hinzugefuegtAm))}</span></span>
+        <button class="knopf text" data-bp-zeigen="${a.id}">📄 Ansehen</button><button class="knopf text gefahr" data-bp-weg="${a.id}">Verwerfen</button></div>`; }).join('') || '<p class="leise">Keine offenen Belege.</p>'}</div>
+    <div class="dialog-knoepfe"><button class="knopf text" data-zu>Schließen</button>${sonst.length ? `<button class="knopf" id="bp-sonst">${sonst.length} Quittung(en) übernehmen</button>` : ''}${tank.length ? `<button class="knopf voll" id="bp-tank">${tank.length} Tankbeleg(e) übernehmen</button>` : ''}</div></div>`);
+  $('#bp-liste').onclick = e => {
+    const z = e.target.closest('[data-bp-zeigen]'), w = e.target.closest('[data-bp-weg]');
+    if (z) oeffneAnlage(S.anlagen[z.dataset.bpZeigen]);
+    if (w) bestaetige('Beleg verwerfen?', 'Das Foto wird gelöscht, nichts wird gebucht.', 'Verwerfen', () => { const a = S.anlagen[w.dataset.bpWeg]; entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id); nachAenderung(); belegePruefenDialog(); });
+  };
+  if ($('#bp-tank')) $('#bp-tank').onclick = () => tankbelegeDialog(tank);
+  if ($('#bp-sonst')) $('#bp-sonst').onclick = () => eingangScanDialog(sonst);
+}
+
+const TANKSTELLEN = ['Aral', 'Shell', 'Esso', 'TotalEnergies', 'Total', 'Jet', 'Avia', 'Agip', 'Eni', 'OMV', 'Star', 'HEM', 'Westfalen', 'BFT', 'Raiffeisen', 'Q1', 'Hoyer', 'Tamoil', 'Orlen', 'Classic', 'Team', 'Score', 'Gulf', 'Sprint', 'Elan'];
+/**
+ * Tankbeleg aus erkanntem Text (Scan): Datum, Betrag brutto, Liter, Kennzeichen, km-Stand, Tankstelle.
+ * unsicher = Felder, die nicht sicher gefunden wurden (in der Tabelle gelb). Die Texterkennung liest „l“ oft als 1 oder I.
+ */
+function tankbelegLesen(text) {
+  const t = String(text || '').replace(/\r/g, ''), zeilen = t.split('\n').map(z => z.trim()).filter(Boolean), unsicher = [];
+  const zahl = x => Number(String(x).replace(/\./g, '').replace(',', '.'));
+  let datum = '';
+  for (const m of t.matchAll(/\b(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4}|\d{2})\b/g)) {
+    const d = `${m[3].length === 2 ? 2000 + Number(m[3]) : m[3]}-${pad(Number(m[2]))}-${pad(Number(m[1]))}`;
+    if (Number(m[1]) >= 1 && Number(m[1]) <= 31 && Number(m[2]) >= 1 && Number(m[2]) <= 12 && d <= heute() && d >= plusTage(heute(), -730)) { datum = d; break; }
+  }
+  if (!datum) unsicher.push('datum');
+  const betraege = z => [...z.matchAll(/(\d{1,4}(?:\.\d{3})*,\d{2})(?!\d)/g)].map(m => Math.round(zahl(m[1]) * 100));
+  const summe = zeilen.filter(z => /summe|gesamt|betrag|zu zahlen|total|kartenzahlung|ec-?karte/i.test(z) && !/mwst|ust\b|netto|steuer/i.test(z)).flatMap(betraege);
+  let betragCent = summe.length ? Math.max(...summe) : null;
+  if (betragCent == null) { unsicher.push('betrag'); const l = zeilen.filter(z => !/mwst|ust\b|netto|steuer|eur\/l|\/l\b/i.test(z)).flatMap(betraege); betragCent = l.length ? Math.max(...l) : null; }
+  const lm = t.match(/(\d{1,4},\d{2,3})\s*(?:l|ltr|liter|1|i)\b(?!\s*\d)/i) || (zeilen.find(z => /liter|menge/i.test(z)) || '').match(/(\d{1,4},\d{2,3})/);
+  let liter = lm ? zahl(lm[1]) : null;
+  if (liter != null && betragCent && !(betragCent / 100 / liter > 0.8 && betragCent / 100 / liter < 3.5)) unsicher.push('liter'); // Literpreis unplausibel
+  if (liter == null) unsicher.push('liter');
+  let kz = '';
+  for (const m of t.matchAll(/\b([A-ZÄÖÜ]{1,3})[\s-]+([A-Z]{1,2})[\s-]?(\d{1,4}[EH]?)\b/g)) { const z = fahrzeugZumKz(`${m[1]}-${m[2]} ${m[3]}`); if (z) { kz = z.kennzeichen; break; } }
+  const km = (t.match(/(?:km[- ]?stand|kilometer(?:stand)?)\D{0,10}(\d{3,7})/i) || [])[1] || '';
+  const marke = TANKSTELLEN.find(x => new RegExp(`\\b${x}\\b`, 'i').test(zeilen.slice(0, 6).join(' ')));
+  const ort = marke || (zeilen[0] || '').slice(0, 40);
+  return { datum, betragCent, liter, kz, km, ort, unsicher };
+}
+function tankbelegeDialog(eingereicht = []) {
+  const scans = []; // gescannte Seiten (Base64) – beim Speichern als Dokument am Fahrzeug bzw. an der Ausgabe
+  const zeile = (w = {}) => { const u = f => (w.unsicher && (w.unsicher.includes(f) || w.unsicher.includes('alles')) ? 'class="unsicher" title="Bitte prüfen – nicht sicher erkannt"' : '');
+    return `<tr ${w.scan != null ? `data-scan="${w.scan}"` : ''}><td>${w.scan != null ? `<button type="button" class="symbol" data-tank-scan="${w.scan}" title="Scan ansehen" aria-label="Scan ansehen">📄</button>` : ''}<input type="date" data-t="datum" value="${esc(w.datum ?? heute())}" aria-label="Datum" ${u('datum')}></td>
+    <td><input data-t="kz" list="tank-kz" value="${esc(w.kz || '')}" aria-label="Kennzeichen (leer = ohne Fahrzeug)"></td>
+    <td><input data-t="liter" inputmode="decimal" value="${esc(w.liter || '')}" aria-label="Liter" ${u('liter')}></td><td><input data-t="betrag" inputmode="decimal" value="${esc(w.betrag || '')}" aria-label="Betrag brutto" ${u('betrag')}></td>
+    <td><input data-t="km" inputmode="numeric" value="${esc(w.km || '')}" aria-label="Kilometerstand"></td><td><input data-t="ort" value="${esc(w.ort || '')}" aria-label="Tankstelle"></td></tr>`; };
+  const scan = scanner();
   dialog(`<form method="dialog" id="tank-form"><h2>Tankbelege erfassen</h2>
     <p class="leise">Einfach runtertippen: Enter springt weiter, unten kommt automatisch eine neue Zeile dazu. Ohne Kennzeichen zählt der Beleg als Ausgabe „Kraftstoff“ ohne Fahrzeug. Strg+Enter speichert.</p>
+    ${scan ? `<div class="zeile" style="margin-bottom:8px;flex-wrap:wrap"><button type="button" class="knopf tonal" id="tank-scan">🖨 Belege scannen</button>${scanModusHtml('tank-modus')}
+      <span class="leise">Erkannte Belege landen unten in der Tabelle – gelbe Felder bitte prüfen.</span></div>` : ''}
     <datalist id="tank-kz">${fahrzeugListe().map(z => `<option value="${esc(z.kennzeichen)}">`).join('')}</datalist>
     <div class="tabelle-rahmen"><table class="tabelle rk-tabelle" id="tank-tabelle"><thead><tr><th>Datum</th><th>Kennzeichen</th><th>Liter</th><th>Betrag €</th><th>km-Stand</th><th>Tankstelle</th></tr></thead>
-      <tbody>${zeile(heute())}</tbody></table></div>
+      <tbody>${zeile()}</tbody></table></div>
     <p class="fehlertext" id="tank-fehler" hidden></p>
     <div class="dialog-knoepfe"><span class="leise fuell" id="tank-summe"></span><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
   const d = $('#dialog'), form = $('#tank-form'), tb = $('#tank-tabelle tbody');
@@ -3113,9 +3338,47 @@ function tankbelegeDialog() {
   const summe = () => { const l = zeilen().map(z => geldLesen(z.betrag)).filter(x => x != null); $('#tank-summe').textContent = l.length ? `${l.length} Belege · ${geld(l.reduce((n, x) => n + x, 0))}` : ''; };
   form.addEventListener('input', ev => {
     const r = ev.target.closest('tr');
-    if (r && r === tb.rows[tb.rows.length - 1] && ev.target.value) tb.insertAdjacentHTML('beforeend', zeile(r.querySelector('[data-t=datum]').value));
+    ev.target.classList.remove('unsicher'); // geprüft
+    if (r && r === tb.rows[tb.rows.length - 1] && ev.target.value) tb.insertAdjacentHTML('beforeend', zeile({ datum: r.querySelector('[data-t=datum]').value }));
     summe();
   });
+  form.addEventListener('click', ev => {
+    const b = ev.target.closest('[data-tank-scan]'); if (!b) return;
+    seiteZeigen(scans[Number(b.dataset.tankScan)]);
+  });
+  const leer = r => [...r.querySelectorAll('input')].every(i => i.dataset.t === 'datum' || !i.value.trim());
+  const modus = () => (form.querySelector('[name=tank-modus]:checked') || {}).value || 'STAPEL';
+  const knopfText = () => (modus() === 'EINZELN' && scans.length ? '🖨 Nächsten Beleg scannen' : '🖨 Belege scannen');
+  if (scan) form.addEventListener('change', ev => { if (ev.target.name === 'tank-modus') $('#tank-scan').textContent = knopfText(); });
+  /** Gelesenen Beleg als vorausgefüllte Zeile anhängen; vorgabe = Werte aus der Tour (Datum, Fahrzeug) für eingereichte Fotos. */
+  const zeileAus = (seite, text, sicherheit, vorgabe = {}) => {
+    const w = tankbelegLesen(text);
+    if (!w.datum && vorgabe.datum) w.datum = vorgabe.datum; if (!w.kz && vorgabe.kz) w.kz = vorgabe.kz;
+    if (sicherheit < 60) w.unsicher.push('alles'); // schlecht lesbar (z. B. verblasstes Thermopapier)
+    scans.push(seite);
+    tb.insertAdjacentHTML('beforeend', zeile({ ...w, liter: w.liter != null ? String(w.liter).replace('.', ',') : '', betrag: w.betragCent != null ? geldOhneSymbol(w.betragCent) : '', scan: scans.length - 1 }));
+  };
+  if (eingereicht.length) (async () => {
+    for (const r of [...tb.rows]) if (leer(r)) r.remove();
+    for (const a of eingereicht) {
+      const t = S.touren[a.fallId] || {}, fz = fahrzeugZumKz(t.kennzeichen);
+      try { const seite = await anlageAlsSeite(a), r = scan && scan.lesen ? await scan.lesen(seite.base64) : { text: '', sicherheit: 0 };
+        zeileAus(seite, r.text, r.sicherheit, { datum: t.datum, kz: fz ? fz.kennzeichen : '' });
+      } catch (e) { toast(e.message, 6000); }
+    }
+    tb.insertAdjacentHTML('beforeend', zeile()); summe();
+  })();
+  if (scan) $('#tank-scan').onclick = async () => {
+    const b = $('#tank-scan'); b.disabled = true;
+    try {
+      const gelesen = await scannenUndLesen(modus(), x => { b.textContent = x; });
+      for (const r of [...tb.rows]) if (leer(r)) r.remove();
+      for (const { seite, text, sicherheit } of gelesen) zeileAus(seite, text, sicherheit);
+      tb.insertAdjacentHTML('beforeend', zeile());
+      toast(`${gelesen.length} Beleg(e) gelesen – gelbe Felder bitte prüfen, dann speichern`, 6000);
+    } catch (e) { toast('Scannen nicht möglich: ' + e.message, 8000); }
+    b.disabled = false; b.textContent = knopfText(); summe();
+  };
   form.addEventListener('keydown', ev => {
     if (ev.key !== 'Enter' || !ev.target.matches('#tank-tabelle input')) return;
     ev.preventDefault();
@@ -3123,7 +3386,7 @@ function tankbelegeDialog() {
     const alle = [...tb.querySelectorAll('input')], i = alle.indexOf(ev.target);
     if (alle[i + 1]) alle[i + 1].focus();
   });
-  form.onsubmit = ev => {
+  form.onsubmit = async ev => {
     ev.preventDefault();
     const fehler = [], fertig = [];
     [...tb.rows].forEach((r, n) => {
@@ -3138,19 +3401,24 @@ function tankbelegeDialog() {
       if (z.kz && !fz) falsch.push('kz');
       if (!/^\d{4}-\d{2}-\d{2}$/.test(z.datum)) falsch.push('datum');
       if (falsch.length) { falsch.forEach(t => r.querySelector(`[data-t=${t}]`).setAttribute('aria-invalid', 'true')); fehler.push(n + 1); return; }
-      fertig.push({ ...z, betrag, liter, km, fz });
+      fertig.push({ ...z, betrag, liter, km, fz, scan: r.dataset.scan });
     });
     const f = $('#tank-fehler');
     if (fehler.length) { f.textContent = `Bitte Zeile ${fehler.join(', ')} prüfen (rot markiert): Betrag wie 89,50, Liter wie 62,5, bekanntes Kennzeichen.`; f.hidden = false; tb.querySelector('[aria-invalid]').focus(); return; }
     if (!fertig.length) { $('#dialog').close(); return; }
+    $('#dialog').close();
     for (const x of fertig) {
-      if (x.fz) FuhrparkAktionen.eintragSpeichern({ fahrzeugId: x.fz.id, art: 'TANKEN', datum: x.datum, kmStand: x.km != null ? Math.round(x.km) : null, betragCent: x.betrag,
-        menge: x.liter ? Math.round(x.liter * 100) : null, werkstatt: x.ort, text: '' }, true);
-      else { const netto = Math.round(x.betrag / 1.19);
-        merke('eingangsrechnungen', { id: uuid(), firmaId: '', art: 'RECHNUNG', lieferant: x.ort || 'Tankstelle', nummer: '', datum: x.datum, faelligAm: null, nettoCent: netto, mwstCent: x.betrag - netto,
-          kategorie: 'KRAFTSTOFF', status: 'BEZAHLT', bezahltAm: x.datum, iban: '', notiz: x.liter ? `${String(x.liter).replace('.', ',')} l` : '', eRechnung: false, geaendertAm: jetztIso() }); }
+      const sc = x.scan != null && scans[Number(x.scan)], datei = sc && !sc.anlageId && seiteAlsDatei(sc, `Tankbeleg_${x.datum}`), verweis = sc && sc.anlageId ? belegVerweis(sc.anlageId) : '';
+      if (x.fz) {
+        FuhrparkAktionen.eintragSpeichern({ fahrzeugId: x.fz.id, art: 'TANKEN', datum: x.datum, kmStand: x.km != null ? Math.round(x.km) : null, betragCent: x.betrag,
+          menge: x.liter ? Math.round(x.liter * 100) : null, werkstatt: x.ort, text: verweis ? `Foto vom Fahrer an der Tour · ${verweis}` : sc ? 'Gescannter Beleg bei den Dokumenten' : '' }, true);
+        if (datei) await legeAnlage(x.fz.id, datei, `Tankbeleg ${datumText(x.datum)} – `);
+      } else { const netto = Math.round(x.betrag / 1.19), id = uuid();
+        if (datei) await legeAnlage(id, datei);
+        merke('eingangsrechnungen', { id, firmaId: '', art: 'RECHNUNG', lieferant: x.ort || 'Tankstelle', nummer: '', datum: x.datum, faelligAm: null, nettoCent: netto, mwstCent: x.betrag - netto,
+          kategorie: 'KRAFTSTOFF', status: 'BEZAHLT', bezahltAm: x.datum, iban: '', notiz: [x.liter ? `${String(x.liter).replace('.', ',')} l` : '', verweis].filter(Boolean).join(' · '), eRechnung: false, geaendertAm: jetztIso() }); }
     }
-    $('#dialog').close(); nachAenderung();
+    nachAenderung();
     const mitFz = fertig.filter(x => x.fz).length;
     toast(`${fertig.length} Tankbelege gespeichert${mitFz < fertig.length ? ` (${fertig.length - mitFz} ohne Fahrzeug als Ausgabe „Kraftstoff“)` : ''}`);
   };
@@ -3247,11 +3515,12 @@ function zeichneFinanzen(r) {
     .sort((a, b) => Number(eingangFaellig(b)) - Number(eingangFaellig(a)) || String(b.datum).localeCompare(String(a.datum)));
   const faelligeEingaenge = alle('eingangsrechnungen').filter(eingangFaellig).length;
   return seitenkopf('Finanzen', '<button class="knopf voll" data-neuer-beleg="RECHNUNG">＋ Rechnung</button>', `<button class="knopf" data-neuer-beleg="ANGEBOT">＋ Angebot</button>
-      <button class="knopf" data-monatsabrechnung>🧾 Monatsabrechnung</button><button class="knopf" data-rechnung-touren="">Rechnung aus Touren</button><button class="knopf" data-externe-rechnung>＋ Externe Rechnung / Gutschrift</button><button class="knopf" data-neue-eingangsrechnung>＋ Eingangsrechnung</button><button class="knopf" data-tankbelege>⛽ Tankbelege</button><button class="knopf" data-erechnung-oeffnen>📥 E-Rechnung öffnen</button><input type="file" id="er-datei" accept=".xml,.pdf,application/xml,text/xml,application/pdf" hidden><button class="knopf" data-kalkulator>🧮 Kalkulator</button><button class="knopf" data-belege-csv>CSV</button>
+      <button class="knopf" data-monatsabrechnung>🧾 Monatsabrechnung</button><button class="knopf" data-rechnung-touren="">Rechnung aus Touren</button><button class="knopf" data-externe-rechnung>＋ Externe Rechnung / Gutschrift</button><button class="knopf" data-neue-eingangsrechnung>＋ Eingangsrechnung</button>${window.desktop && window.desktop.scan ? '<button class="knopf" data-rechnungen-scannen>🖨 Rechnungen scannen</button>' : ''}<button class="knopf" data-tankbelege>⛽ Tankbelege</button><button class="knopf" data-erechnung-oeffnen>📥 E-Rechnung öffnen</button><input type="file" id="er-datei" accept=".xml,.pdf,application/xml,text/xml,application/pdf" hidden><button class="knopf" data-kalkulator>🧮 Kalkulator</button><button class="knopf" data-belege-csv>CSV</button>
       <button class="knopf" data-buchhaltung>📒 Buchhaltung (CSV)</button>`) + `<div class="kennzahlen" style="grid-template-columns:1fr 1fr">
       <button class="kennzahl" data-beleg-filter="OFFEN"><b>${geld(k.offen)}</b><span>Offen (${k.offenAnzahl} Rechnungen)</span></button>
       <button class="kennzahl ${k.ueberfaelligAnzahl ? 'rot' : ''}" data-beleg-filter="UEBERFAELLIG"><b>${geld(k.ueberfaellig)}</b><span>Überfällig (${k.ueberfaelligAnzahl})</span></button>
       <div class="kennzahl"><b>${geld(k.monat)}</b><span>Umsatz diesen Monat (netto)</span></div><div class="kennzahl"><b>${geld(k.jahr)}</b><span>Umsatz ${heute().slice(0, 4)} (netto)</span></div></div>
+    ${eingereichteBelege().length ? `<p class="hinweis-box" style="margin-bottom:10px">📥 ${eingereichteBelege().length} eingereichte(r) Beleg(e) von Fahrern <button class="knopf text" data-belege-pruefen>Prüfen</button></p>` : ''}
     ${ohneVersandnachweis().length ? `<p class="hinweis-box" style="margin-bottom:10px">⚠ ${ohneVersandnachweis().length} Beleg(e) gelten als versendet, wurden aber nur gedruckt bzw. als PDF gespeichert – nicht per E-Mail. <button class="knopf text" data-versand-pruefen>Prüfen</button></p>` : ''}
     ${k.topFirmen.length ? `<div class="karte block"><h3>Umsatz je Firma ${heute().slice(0, 4)}</h3><dl>${k.topFirmen.map(([id, c]) => `<dt>${esc((S.auftraggeber[id] || {}).name || '–')}</dt><dd>${geld(c)}</dd>`).join('')}</dl></div>` : ''}
 
@@ -6670,7 +6939,7 @@ function zeichneFahrer() {
         : `${st.pauseAb ? `<button class="knopf voll" data-stempel="weiter">⏵ ${esc(T('Pause beenden'))}</button>` : `<button class="knopf tonal" data-stempel="pause">⏸ ${esc(T('Pause'))}</button>`}<button class="knopf voll" data-stempel="ende">⏹ ${esc(T('Feierabend'))}</button>`}</div></div>
     <h3 class="abschnitt">${esc(T('Meine Touren (7 Tage)'))}</h3>${meine.map(karte).join('') || `<div class="leer"><b>${esc(T('Keine Touren eingeplant'))}</b>${esc(T('Sobald die Disposition dich einteilt, erscheint die Tour hier.'))}</div>`}
     ${abwesenheitenVon(ich.id).filter(a => (a.bis || a.von) >= t).slice(-3).reverse().map(a => `<p class="leise">🏖 ${esc(a.grund || T('Abwesend'))}: ${esc(datumText(a.von))} – ${esc(datumText(a.bis || a.von))}</p>`).join('')}
-    <div class="zeile" style="margin-top:12px"><button class="knopf" data-fahrer-urlaub>🏖 ${esc(T('Urlaub beantragen'))}</button><button class="knopf" data-fahrer-krank>🤒 ${esc(T('Krank melden'))}</button></div>`;
+    <div class="zeile" style="margin-top:12px"><button class="knopf voll" data-fahrer-beleg>🧾 ${esc(T('Beleg einreichen'))}</button><button class="knopf" data-fahrer-urlaub>🏖 ${esc(T('Urlaub beantragen'))}</button><button class="knopf" data-fahrer-krank>🤒 ${esc(T('Krank melden'))}</button></div>`;
 }
 /** Unterschrift auf dem Bildschirm (Finger oder Maus). */
 function unterschriftFeld(canvas) {
@@ -6711,6 +6980,7 @@ $('#liste').addEventListener('click', async e => {
   const ich = e.target.closest('[data-ich]'), f = e.target.closest('[data-fahrer]'), s = e.target.closest('[data-stempel]');
   if (ich) { S.einstellungen.ichId = ich.dataset.ich; speichere(); zeichneListe(); return; }
   if (e.target.closest('[data-fahrer-dispo]')) { oeffne('tel:' + rechnungsDaten().telefon.replace(/[^\d+]/g, '')); return; }
+  if (e.target.closest('[data-fahrer-beleg]')) { belegEinreichenDialog(); return; }
   if (e.target.closest('[data-fahrer-urlaub]')) { abwesenheitDialog(maVon(ichId()), null, plusTage(heute(), 14)); setTimeout(() => { const g = $('#abwesenheit-form [name=grund]'); if (g) g.value = 'Urlaub (beantragt)'; }, 0); return; }
   if (e.target.closest('[data-fahrer-krank]')) { PersonalAktionen.abwesenheit({ mitarbeiterId: ichId(), von: heute(), bis: heute(), grund: 'Krank', notiz: 'Im Fahrer-Modus gemeldet' }); AufgabeAktionen.speichern({ titel: `${maName(ichId())} hat sich krank gemeldet – Touren prüfen`, faelligAm: heute(), prioritaet: 'HOCH', bezugArt: 'mitarbeiter', bezugId: ichId() }); toast(T('Krankmeldung eingetragen – gute Besserung!')); return; }
   if (s) {
