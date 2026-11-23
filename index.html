@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795214811; window.WEB_VERSION = '4.15.0';
+window.WEB_STAND = 1795434034; window.WEB_VERSION = '4.16.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -2814,6 +2814,10 @@ function belegSummen(b) {
 const gutschriftenZu = r => alle('belege').filter(g => g.art === 'GUTSCHRIFT' && g.bezug === r.id && !['ENTWURF', 'STORNIERT'].includes(g.status));
 const gutgeschriebenCent = r => gutschriftenZu(r).reduce((n, g) => n + belegSummen(g).brutto, 0);
 const offenCent = b => (b.art === 'GUTSCHRIFT' ? 0 : Math.max(0, belegSummen(b).brutto - (b.bezahltCent || 0) - (b.art === 'RECHNUNG' ? gutgeschriebenCent(b) : 0)));
+/** Was der Kunde insgesamt zahlen muss: Rechnungsbetrag abzüglich Gutschriften. */
+const zuZahlenCent = b => Math.max(0, belegSummen(b).brutto - (b.art === 'RECHNUNG' ? gutgeschriebenCent(b) : 0));
+/** Status einer verbuchten Rechnung aus dem Zahlstand. */
+const zahlStatus = b => (!(b.bezahltCent > 0) ? 'OFFEN' : b.bezahltCent >= zuZahlenCent(b) ? 'BEZAHLT' : 'TEILBEZAHLT');
 const istRechnungOffen = b => b.art === 'RECHNUNG' && ['OFFEN', 'TEILBEZAHLT'].includes(b.status) && offenCent(b) > 0;
 /** Stichtag aus ⚙ → Kosten: Finanzzahlen erst ab diesem Tag (davor unvollständige Daten). */
 const finanzAb = () => (/^\d{4}-\d{2}-\d{2}$/.test(S.einstellungen.finanzAb || '') ? S.einstellungen.finanzAb : '');
@@ -2858,9 +2862,14 @@ const BelegAktionen = {
       geaendertAm: jetztIso(), ...extra });
     nachAenderung(); return b.id;
   },
-  speichern(b) { merke('belege', { ...b, geaendertAm: jetztIso() }); nachAenderung(); },
+  speichern(b) {
+    const vorher = S.belege[b.id];
+    // Korrekturrechnung wird wirksam, sobald sie herausgeht (Entwurf → offen): die alte Rechnung gilt dann als storniert.
+    if (b.korrekturVon && b.art === 'RECHNUNG' && (!vorher || vorher.status === 'ENTWURF') && !['ENTWURF', 'STORNIERT'].includes(b.status)) b = this.korrekturWirksam(b);
+    merke('belege', { ...b, geaendertAm: jetztIso() }); nachAenderung();
+  },
   zahlung(b, cent, am) {
-    const bezahlt = (b.bezahltCent || 0) + cent, voll = bezahlt >= belegSummen(b).brutto;
+    const bezahlt = (b.bezahltCent || 0) + cent, voll = bezahlt >= zuZahlenCent(b);
     this.speichern({ ...b, bezahltCent: bezahlt, bezahltAm: am, status: voll ? 'BEZAHLT' : 'TEILBEZAHLT' });
     Aktionen.crmSpeichern('aktivitaeten', { firmaId: b.firmaId, datum: am, art: 'SONSTIGES', kontakt: '', text: `Zahlung ${geld(cent)} zu ${b.nummer} erhalten${voll ? ' – vollständig bezahlt' : ''}` });
   },
@@ -2869,6 +2878,41 @@ const BelegAktionen = {
     return this.neu('GUTSCHRIFT', rechnung.firmaId, { positionen: voll ? rechnung.positionen : '[]', mwstProzent: rechnung.mwstProzent, unterzeichner: rechnung.unterzeichner || '', bezug: rechnung.id, fallId: rechnung.fallId || '', faelligAm: plusTage(heute(), 14),
       einleitung: `zu unserer Rechnung ${rechnung.nummer} vom ${datumText(rechnung.datum)} schreiben wir Ihnen ${voll ? 'den vollen Betrag' : 'folgende Beträge'} gut:`,
       schluss: 'Den Betrag verrechnen wir mit offenen Forderungen bzw. überweisen ihn auf Ihr Konto.' });
+  },
+  /** Korrekturrechnung als Entwurf: übernimmt alle Angaben der Rechnung; ersetzt sie, sobald sie versendet ist. */
+  korrektur(r) {
+    const rd = rechnungsDaten();
+    return this.neu('RECHNUNG', r.firmaId, { positionen: r.positionen, mwstProzent: r.mwstProzent, unterzeichner: r.unterzeichner || '', fallId: r.fallId || '', bestellnummer: r.bestellnummer || '',
+      leistungVon: r.leistungVon || null, leistungBis: r.leistungBis || null, korrekturVon: r.id, bezug: r.bezug || '', notiz: r.notiz || '',
+      einleitung: `diese Rechnung ersetzt unsere Rechnung ${r.nummer} vom ${datumText(r.datum)}, die hiermit storniert wird. Für unsere Leistungen berechnen wir:`,
+      schluss: r.schluss || `Bitte überweisen Sie den Betrag bis zum {FAELLIG} ohne Abzug.`, faelligAm: plusTage(heute(), zahlungsziel(S.auftraggeber[r.firmaId]) || rd.zahlungsziel || 14) });
+  },
+  /** Alte Rechnung stornieren; Zahlungen, Gutschriften und Touren gehen auf die Korrekturrechnung über. @return Korrekturrechnung mit Zahlstand */
+  korrekturWirksam(k) {
+    const alt = S.belege[k.korrekturVon];
+    if (!alt || alt.geloescht || alt.status === 'STORNIERT') return k;
+    merke('belege', { ...alt, status: 'STORNIERT', ersetztDurch: k.id, geaendertAm: jetztIso() });
+    for (const g of gutschriftenZu(alt)) merke('belege', { ...g, bezug: k.id, geaendertAm: jetztIso() });
+    for (const t of alle('touren').filter(t => t.belegId === alt.id)) merke('touren', { ...t, belegId: k.id, geaendertAm: jetztIso() });
+    Aktionen.crmSpeichern('aktivitaeten', { firmaId: k.firmaId, datum: heute(), art: 'SONSTIGES', kontakt: '', text: `Rechnung ${alt.nummer} durch Korrekturrechnung ${k.nummer} ersetzt (storniert)` });
+    const neu = { ...k, bezahltCent: alt.bezahltCent || 0, bezahltAm: alt.bezahltAm || null };
+    return { ...neu, status: zahlStatus(neu) };
+  },
+  /**
+   * Status und Zahlstand eines bestehenden Belegs von Hand berichtigen (z. B. versehentlich als bezahlt markiert).
+   * Wird im Verlauf der Firma vermerkt.
+   */
+  berichtigen(b, aenderung, grund) {
+    const neu = { ...b, ...aenderung };
+    if (!neu.bezahltCent) { neu.bezahltCent = 0; neu.bezahltAm = null; }
+    const vorher = belegMarke(b)[0];
+    this.speichern(neu);
+    const nachher = belegMarke(S.belege[b.id])[0], teile = [];
+    if (vorher !== nachher) teile.push(`Status ${vorher} → ${nachher}`);
+    if ((b.bezahltCent || 0) !== (neu.bezahltCent || 0)) teile.push(`bezahlt ${geld(b.bezahltCent || 0)} → ${geld(neu.bezahltCent || 0)}`);
+    if ((b.mahnstufe || 0) !== (neu.mahnstufe || 0)) teile.push(`Mahnstufe ${b.mahnstufe || 0} → ${neu.mahnstufe || 0}`);
+    if (teile.length) Aktionen.crmSpeichern('aktivitaeten', { firmaId: b.firmaId, datum: heute(), art: 'SONSTIGES', kontakt: '', text: `${BELEG_ART[b.art][0]} ${b.nummer} berichtigt: ${teile.join(', ')}${grund ? ' – ' + grund : ''}` });
+    return teile.length;
   },
   zuRechnung(angebot) {
     const id = this.neu('RECHNUNG', angebot.firmaId, { positionen: angebot.positionen, mwstProzent: angebot.mwstProzent, unterzeichner: angebot.unterzeichner || '', bezug: angebot.id, fallId: angebot.fallId || '' });
@@ -2920,8 +2964,9 @@ function belegHtml(b) {
     <table class="info"><tr><td>${esc(BELEG_ART[b.art][0])}-Nr.:</td><td>${esc(b.nummer)}</td></tr><tr><td>Datum:</td><td>${datumText(b.datum)}</td></tr>
       ${firma.kundennummer ? `<tr><td>Kunden-Nr.:</td><td>${esc(firma.kundennummer)}</td></tr>` : ''}${firma.ustId ? `<tr><td>Ihre USt-IdNr.:</td><td>${esc(firma.ustId)}</td></tr>` : ''}
       ${leistungszeitraum(b) && b.art !== 'ANGEBOT' ? `<tr><td>Leistungszeitraum:</td><td>${datumText(leistungszeitraum(b).von)}${leistungszeitraum(b).bis !== leistungszeitraum(b).von ? ' – ' + datumText(leistungszeitraum(b).bis) : ''}</td></tr>` : ''}
+      ${b.korrekturVon && S.belege[b.korrekturVon] ? `<tr><td>Ersetzt Rechnung:</td><td>${esc(S.belege[b.korrekturVon].nummer)} vom ${datumText(S.belege[b.korrekturVon].datum)}</td></tr>` : ''}
       ${b.art === 'RECHNUNG' ? `<tr><td>Fällig am:</td><td>${datumText(b.faelligAm)}</td></tr>` : b.art === 'GUTSCHRIFT' ? (S.belege[b.bezug] ? `<tr><td>Zu Rechnung:</td><td>${esc(S.belege[b.bezug].nummer)} vom ${datumText(S.belege[b.bezug].datum)}</td></tr>` : '') : `<tr><td>Gültig bis:</td><td>${datumText(b.faelligAm)}</td></tr>`}</table>
-    <h1>${b.status === 'STORNIERT' ? 'Storno – ' : ''}${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</h1>
+    <h1>${b.status === 'STORNIERT' ? 'Storno – ' : ''}${b.korrekturVon ? 'Korrigierte Rechnung' : esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</h1>
     <p>${k ? `Guten Tag ${esc(k.name)},` : 'Sehr geehrte Damen und Herren,'}</p><p>${ersetze(b.einleitung)}</p>
     <table class="pos"><tr><th>Pos.</th><th>Leistung</th><th class="r">Menge</th><th class="r">Einzelpreis</th><th class="r">Gesamt</th></tr>${zeilen}</table>
     <table class="summe" style="margin-left:auto"><tr><td>Summe netto</td><td class="r">${geld(s.netto)}</td></tr><tr><td>zzgl. ${b.mwstProzent ?? 19} % MwSt.</td><td class="r">${geld(s.mwst)}</td></tr>
@@ -3043,10 +3088,10 @@ function zeichneBeleg(id) {
   if (!b || b.geloescht) { gehe('#/'); return; }
   const firma = S.auftraggeber[b.firmaId] || { name: '(Firma gelöscht)' }, s = belegSummen(b), m = belegMarke(b), pos = positionen(b);
   const preise = vonFirma('preise', b.firmaId);
-  const rechnung = b.art === 'RECHNUNG', gesperrt = ['BEZAHLT', 'STORNIERT'].includes(b.status);
+  const rechnung = b.art === 'RECHNUNG', gesperrt = ['BEZAHLT', 'STORNIERT'].includes(b.status) && !(b.extern && b.status !== 'STORNIERT');
   el.dataset.id = 'beleg' + id;
   el.innerHTML = `<div class="karte"><div class="zeile eng"><h2 class="gross fuell">${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</h2><span class="marke ${m[1]}">${esc(m[0])}</span></div>
-      <p class="leise"><a href="#/firma/${b.firmaId}">${esc(firmaName(firma))}</a>${b.bezug && S.belege[b.bezug] ? ` · ${b.art === 'GUTSCHRIFT' ? 'zu' : 'aus'} <a href="#/beleg/${b.bezug}">${esc(S.belege[b.bezug].nummer)}</a>` : ''}${rechnung && gutschriftenZu(b).length ? ` · Gutschriften: ${gutschriftenZu(b).map(g => `<a href="#/beleg/${g.id}">${esc(g.nummer)}</a>`).join(', ')}` : ''}</p>
+      <p class="leise"><a href="#/firma/${b.firmaId}">${esc(firmaName(firma))}</a>${b.bezug && S.belege[b.bezug] ? ` · ${b.art === 'GUTSCHRIFT' ? 'zu' : 'aus'} <a href="#/beleg/${b.bezug}">${esc(S.belege[b.bezug].nummer)}</a>` : ''}${b.korrekturVon && S.belege[b.korrekturVon] ? ` · Korrektur zu <a href="#/beleg/${b.korrekturVon}">${esc(S.belege[b.korrekturVon].nummer)}</a>${b.status === 'ENTWURF' ? ' (ersetzt sie beim Versenden)' : ''}` : ''}${b.ersetztDurch && S.belege[b.ersetztDurch] ? ` · ersetzt durch <a href="#/beleg/${b.ersetztDurch}">${esc(S.belege[b.ersetztDurch].nummer)}</a>` : ''}${rechnung && gutschriftenZu(b).length ? ` · Gutschriften: ${gutschriftenZu(b).map(g => `<a href="#/beleg/${g.id}">${esc(g.nummer)}</a>`).join(', ')}` : ''}</p>
       <div class="zeile" style="margin-top:8px">
         ${b.extern ? '<span class="marke grau">Externe Rechnung – nicht im System erstellt</span>' : `<button class="knopf voll" data-beleg-akt="pdf">PDF speichern</button><button class="knopf" data-beleg-akt="drucken">Drucken</button>${['RECHNUNG', 'GUTSCHRIFT'].includes(b.art) ? '<button class="knopf" data-beleg-akt="erechnung">E-Rechnung (XRechnung)</button>' : ''}
         ${MAIL.konto ? '<button class="knopf" data-beleg-akt="mail">Per E-Mail senden</button>' : ''}`}
@@ -3056,6 +3101,8 @@ function zeichneBeleg(id) {
         ${b.art === 'GUTSCHRIFT' && b.status === 'OFFEN' ? '<button class="knopf" data-beleg-akt="ausgezahlt">Als ausgezahlt / verrechnet markieren</button>' : ''}
         ${b.art === 'ANGEBOT' && !['ANGENOMMEN', 'ABGELEHNT'].includes(b.status) ? '<button class="knopf" data-beleg-akt="zurechnung">In Rechnung umwandeln</button><button class="knopf" data-beleg-akt="abgelehnt">Abgelehnt</button>' : ''}
         ${b.status === 'ENTWURF' ? '<button class="knopf" data-beleg-akt="festschreiben">Als versendet markieren</button>' : ''}
+        ${rechnung && b.status !== 'ENTWURF' ? '<button class="knopf" data-beleg-akt="korrigieren">✎ Korrigieren</button>' : ''}
+        ${!rechnung && b.status !== 'ENTWURF' ? '<button class="knopf" data-beleg-akt="berichtigen">✎ Status berichtigen</button>' : ''}
         ${rechnung && b.status !== 'STORNIERT' ? '<button class="knopf text gefahr" data-beleg-akt="storno">Stornieren</button>' : ''}
         ${b.status === 'ENTWURF' ? '<button class="knopf text gefahr" data-beleg-akt="loeschen">Löschen</button>' : ''}</div></div>
     <form id="beleg-form" class="karte block">
@@ -3140,6 +3187,70 @@ function zahlungDialog(b) {
   };
 }
 
+/** Welche Status ein bestehender Beleg von Hand bekommen kann. */
+function belegStatusWahl(b) {
+  const ersetzt = b.ersetztDurch && S.belege[b.ersetztDurch] && !S.belege[b.ersetztDurch].geloescht && S.belege[b.ersetztDurch].status !== 'STORNIERT' ? S.belege[b.ersetztDurch] : null;
+  const zurEntwurf = !(b.bezahltCent > 0) && !gutschriftenZu(b).length && !ersetzt && !b.extern;
+  const l = b.art === 'ANGEBOT' ? [['OFFEN', 'Offen'], ['ANGENOMMEN', 'Angenommen'], ['ABGELEHNT', 'Abgelehnt']]
+    : b.art === 'GUTSCHRIFT' ? [['OFFEN', 'Erstellt (noch nicht ausgezahlt)'], ['BEZAHLT', 'Ausgezahlt / verrechnet'], ['STORNIERT', 'Storniert']]
+    : [['GUELTIG', 'Gültig – Status ergibt sich aus dem bezahlten Betrag'], ['STORNIERT', 'Storniert']];
+  if (zurEntwurf || b.status === 'ENTWURF') l.push(['ENTWURF', 'Entwurf (noch nicht versendet)']);
+  return { liste: l, ersetzt };
+}
+/** Status, Zahlung und Mahnstufe eines bestehenden Belegs berichtigen. */
+function belegBerichtigenDialog(b) {
+  const { liste, ersetzt } = belegStatusWahl(b), rechnung = b.art === 'RECHNUNG';
+  const aktuell = rechnung ? (b.status === 'STORNIERT' ? 'STORNIERT' : b.status === 'ENTWURF' ? 'ENTWURF' : 'GUELTIG') : b.status;
+  const soll = rechnung ? zuZahlenCent(b) : belegSummen(b).brutto;
+  dialog(`<form method="dialog" id="berichtigen-form"><h2>${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)} berichtigen</h2>
+    <p class="leise">Für Belege, die schon im System sind – z. B. versehentlich als bezahlt markiert, Zahlung mit falschem Betrag oder Datum, Storno aus Versehen. Die Änderung wird im Verlauf der Firma vermerkt.</p>
+    ${ersetzt ? `<p class="leise">⚠ Diese Rechnung wurde ersetzt durch die Korrekturrechnung <a href="#/beleg/${ersetzt.id}">${esc(ersetzt.nummer)}</a>. Um sie wieder gültig zu machen, zuerst die Korrekturrechnung stornieren.</p>` : ''}
+    <label class="feld">Status<select name="status" ${ersetzt ? 'disabled' : ''}>${liste.map(([w, l]) => `<option value="${w}" ${w === aktuell ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+    ${rechnung ? `<div id="br-zahlung"><h3>Zahlung</h3>
+      <div class="zeile"><label class="feld fuell">Bereits bezahlt (€)<input name="bezahlt" inputmode="decimal" value="${esc(geldOhneSymbol(b.bezahltCent || 0))}"><span class="fehlertext" id="br-fehler" hidden>Bitte einen Betrag wie 89,50 eingeben.</span></label>
+        <label class="feld fuell">Bezahlt am<input type="date" name="am" value="${esc(b.bezahltAm || '')}"></label></div>
+      <div class="zeile"><button type="button" class="knopf" data-br-betrag="0">Als unbezahlt markieren</button><button type="button" class="knopf" data-br-betrag="${soll}">Voll bezahlt (${geld(soll)})</button></div>
+      <p class="leise">Zu zahlen: ${geld(soll)}${gutgeschriebenCent(b) ? ` (nach Gutschriften über ${geld(gutgeschriebenCent(b))})` : ''}</p></div>
+      <label class="feld">Mahnstufe<select name="mahnstufe">${['Keine Mahnung'].concat(MAHNSTUFEN).map((l, i) => `<option value="${i}" ${(b.mahnstufe || 0) === i ? 'selected' : ''}>${esc(l)}${i ? ' verschickt' : ''}</option>`).join('')}</select></label>`
+      : b.art === 'GUTSCHRIFT' ? `<label class="feld">Ausgezahlt / verrechnet am<input type="date" name="am" value="${esc(b.bezahltAm || '')}"></label>` : ''}
+    <label class="feld">Grund (für den Verlauf, optional)<input name="grund" placeholder="z. B. Zahlung war von anderer Rechnung"></label>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll" id="br-ok">Übernehmen</button></div></form>`);
+  const f = $('#berichtigen-form');
+  f.addEventListener('click', e => { const k = e.target.closest('[data-br-betrag]'); if (!k) return;
+    const c = Number(k.dataset.brBetrag); f.elements.bezahlt.value = geldOhneSymbol(c); if (c && !f.elements.am.value) f.elements.am.value = heute(); if (!c) f.elements.am.value = ''; });
+  f.onsubmit = ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries(new FormData(f)), st = w.status || aktuell, x = S.belege[b.id] || b, a = {};
+    if (rechnung) {
+      const c = geldLesen(String(w.bezahlt || '0').trim() || '0');
+      if (c == null || c < 0) { $('#br-fehler').hidden = false; return; }
+      a.bezahltCent = c; a.bezahltAm = c ? (w.am || x.bezahltAm || heute()) : null; a.mahnstufe = Number(w.mahnstufe) || 0;
+      a.status = st === 'GUELTIG' ? zahlStatus({ ...x, ...a }) : st;
+      if (st === 'ENTWURF') { a.bezahltCent = 0; a.bezahltAm = null; a.mahnstufe = 0; }
+    } else if (b.art === 'GUTSCHRIFT') {
+      a.status = st;
+      if (st === 'BEZAHLT') { a.bezahltCent = belegSummen(x).brutto; a.bezahltAm = w.am || x.bezahltAm || heute(); } else { a.bezahltCent = 0; a.bezahltAm = null; }
+    } else a.status = st;
+    if (x.ersetztDurch && a.status !== 'STORNIERT' && !ersetzt) a.ersetztDurch = '';
+    const n = BelegAktionen.berichtigen(x, a, String(w.grund || '').trim());
+    $('#dialog').close(); toast(n ? 'Berichtigt – im Verlauf der Firma vermerkt' : 'Keine Änderung');
+  };
+}
+/** Was tun mit einer fehlerhaften Rechnung? Korrekturrechnung, Gutschrift oder nur Status berichtigen. */
+function rechnungKorrigierenDialog(b) {
+  const offen = alle('belege').find(k => k.korrekturVon === b.id && k.status === 'ENTWURF' && !k.geloescht), gs = gutschriftenZu(b);
+  dialog(`<h2>${esc(b.nummer)} korrigieren</h2>
+    ${offen ? `<p class="leise">ℹ Es gibt schon einen Entwurf der Korrekturrechnung: <a href="#/beleg/${offen.id}" data-zu>${esc(offen.nummer)}</a></p>` : ''}
+    ${b.extern ? '' : `<button class="vorlage" id="kr-neu"><b>Korrekturrechnung schreiben</b><br><span class="leise">Falsche Positionen, Beträge, Anschrift, Datum oder Steuersatz: Es entsteht eine neue Rechnung mit allen Angaben zum Bearbeiten. Sobald sie versendet ist, wird ${esc(b.nummer)} storniert; Zahlungen${gs.length ? ', Gutschriften' : ''} und Touren gehen auf die neue Rechnung über.</span></button>`}
+    ${b.status !== 'STORNIERT' ? `<button class="vorlage" id="kr-gs"><b>Gutschrift über einen Teilbetrag</b><br><span class="leise">Preisnachlass, Reklamation, doppelt berechnet – die Rechnung bleibt bestehen.</span></button>` : ''}
+    <button class="vorlage" id="kr-status"><b>Nur Status / Zahlung berichtigen</b><br><span class="leise">Z. B. versehentlich als bezahlt markiert, falscher Zahlbetrag, Storno oder Mahnung aus Versehen.</span></button>
+    <div class="dialog-knoepfe"><button class="knopf text" data-zu>Abbrechen</button></div>`);
+  const neu = $('#kr-neu'), gsk = $('#kr-gs');
+  if (neu) neu.onclick = () => { $('#dialog').close(); const id = BelegAktionen.korrektur(b); gehe('#/beleg/' + id); toast('Korrekturrechnung als Entwurf angelegt – anpassen und versenden', 6000); };
+  if (gsk) gsk.onclick = () => { $('#dialog').close(); gehe('#/beleg/' + BelegAktionen.gutschrift(b, false)); toast('Gutschrift als Entwurf angelegt – prüfen und „Als versendet markieren“'); };
+  $('#kr-status').onclick = () => { $('#dialog').close(); belegBerichtigenDialog(S.belege[b.id] || b); };
+}
+
 $('#detail').addEventListener('click', async e => {
   const r = route(); if (r.art !== 'beleg') return;
   const b = S.belege[r.id]; if (!b) return;
@@ -3157,6 +3268,8 @@ $('#detail').addEventListener('click', async e => {
     case 'mail': belegMail(aktuell); break;
     case 'mahnung': belegMail(aktuell, 'mahnung'); break;
     case 'zahlung': zahlungDialog(aktuell); break;
+    case 'korrigieren': rechnungKorrigierenDialog(aktuell); break;
+    case 'berichtigen': belegBerichtigenDialog(aktuell); break;
     case 'zurechnung': gehe('#/beleg/' + BelegAktionen.zuRechnung(aktuell)); break;
     case 'abgelehnt': BelegAktionen.speichern({ ...aktuell, status: 'ABGELEHNT' }); break;
     case 'festschreiben': BelegAktionen.speichern({ ...aktuell, status: 'OFFEN' }); break;
@@ -9755,13 +9868,13 @@ function eRechnungXml(b) {
 <ram:SpecifiedLineTradeDelivery><ram:BilledQuantity unitCode="${erEinheit(p.einheit)}">${Number(p.menge) || 0}</ram:BilledQuantity></ram:SpecifiedLineTradeDelivery>
 <ram:SpecifiedLineTradeSettlement>${steuer(null, null)}<ram:SpecifiedTradeSettlementLineMonetarySummation><ram:LineTotalAmount>${erBetrag(summe)}</ram:LineTotalAmount></ram:SpecifiedTradeSettlementLineMonetarySummation></ram:SpecifiedLineTradeSettlement></ram:IncludedSupplyChainTradeLineItem>`;
   }).join('\n');
-  const zr = leistungszeitraum(b), bezug = b.art === 'GUTSCHRIFT' && b.bezug && S.belege[b.bezug];
+  const zr = leistungszeitraum(b), bezug = (b.art === 'GUTSCHRIFT' && b.bezug && S.belege[b.bezug]) || (b.korrekturVon && S.belege[b.korrekturVon]);
   const bezahlt = Math.min(b.bezahltCent || 0, s.brutto);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100" xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100" xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100" xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">
 <rsm:ExchangedDocumentContext><ram:BusinessProcessSpecifiedDocumentContextParameter><ram:ID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</ram:ID></ram:BusinessProcessSpecifiedDocumentContextParameter>
 <ram:GuidelineSpecifiedDocumentContextParameter><ram:ID>urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0</ram:ID></ram:GuidelineSpecifiedDocumentContextParameter></rsm:ExchangedDocumentContext>
-<rsm:ExchangedDocument><ram:ID>${x(b.nummer)}</ram:ID><ram:TypeCode>${b.art === 'GUTSCHRIFT' ? 381 : 380}</ram:TypeCode><ram:IssueDateTime>${d(b.datum)}</ram:IssueDateTime>${b.einleitung ? `<ram:IncludedNote><ram:Content>${x(String(b.einleitung).replace('{FAELLIG}', datumText(b.faelligAm)))}</ram:Content></ram:IncludedNote>` : ''}</rsm:ExchangedDocument>
+<rsm:ExchangedDocument><ram:ID>${x(b.nummer)}</ram:ID><ram:TypeCode>${b.art === 'GUTSCHRIFT' ? 381 : b.korrekturVon ? 384 : 380}</ram:TypeCode><ram:IssueDateTime>${d(b.datum)}</ram:IssueDateTime>${b.einleitung ? `<ram:IncludedNote><ram:Content>${x(String(b.einleitung).replace('{FAELLIG}', datumText(b.faelligAm)))}</ram:Content></ram:IncludedNote>` : ''}</rsm:ExchangedDocument>
 <rsm:SupplyChainTradeTransaction>
 ${zeilen}
 <ram:ApplicableHeaderTradeAgreement><ram:BuyerReference>${x(erReferenz(b, f))}</ram:BuyerReference>

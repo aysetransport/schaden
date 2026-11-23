@@ -30,7 +30,7 @@ var SPERRE_MINUTEN = 60;
 
 var MAX_ANLAGE_BYTES = 25 * 1024 * 1024;
 var MAX_TEXT = 20000;
-var API_VERSION = 14; // 14: Selbst-Update, E-Rechnung (Leitweg-ID), externe Rechnungen/Leistungszeitraum; 13: Hauptadmin, Cloud-PIN abschaltbar; 12: Auftragsnummer, Betrag und Ankunftszeit an Stopps (Rollkarte); 11: Stopps (mehrere Kunden je Tour); 10: Statuslink, Lieferavis-Felder und Kundenbewertung an Touren; 9: Benutzer-Logins mit Rollen; 8: Zeiterfassung, Aufgaben, Tour-Status und Fahrtenbuch; 7: Tourenplanung und Personal; 6: Fuhrpark; 2: Kontaktdaten des Auftraggebers und Auftraggeber-Liste; 3: Zeichen des Auftraggebers; 4: CRM; 5: Verkaufschancen, Schlagworte
+var API_VERSION = 15; // 15: Korrekturrechnungen (korrekturVon/ersetztDurch); 14: Selbst-Update, E-Rechnung (Leitweg-ID), externe Rechnungen/Leistungszeitraum; 13: Hauptadmin, Cloud-PIN abschaltbar; 12: Auftragsnummer, Betrag und Ankunftszeit an Stopps (Rollkarte); 11: Stopps (mehrere Kunden je Tour); 10: Statuslink, Lieferavis-Felder und Kundenbewertung an Touren; 9: Benutzer-Logins mit Rollen; 8: Zeiterfassung, Aufgaben, Tour-Status und Fahrtenbuch; 7: Tourenplanung und Personal; 6: Fuhrpark; 2: Kontaktdaten des Auftraggebers und Auftraggeber-Liste; 3: Zeichen des Auftraggebers; 4: CRM; 5: Verkaufschancen, Schlagworte
 
 /**
  * CRM-Tabellen: alle hängen über firmaId an einem Auftraggeber (Tabelle „auftraggeber“).
@@ -46,7 +46,7 @@ var CRM_TABELLEN = {
   chancen: { titel: 'text', wertCent: 'cent', phase: 'wort:ANFRAGE', erwartetAm: 'datum', notiz: 'text' },
   // Angebote und Rechnungen (bisher nur Web-/Windows-App); positionen als JSON-Text
   belege: { art: 'wort:RECHNUNG', nummer: 'text', datum: 'datum', faelligAm: 'datum', status: 'wort:OFFEN', positionen: 'text', mwstProzent: 'cent',
-    einleitung: 'text', schluss: 'text', bezahltCent: 'cent', bezahltAm: 'datum', mahnstufe: 'cent', bezug: 'text', notiz: 'text', fallId: 'text', unterzeichner: 'text', extern: 'bool', leistungVon: 'datum', leistungBis: 'datum', bestellnummer: 'text' },
+    einleitung: 'text', schluss: 'text', bezahltCent: 'cent', bezahltAm: 'datum', mahnstufe: 'cent', bezug: 'text', notiz: 'text', fallId: 'text', unterzeichner: 'text', extern: 'bool', leistungVon: 'datum', leistungBis: 'datum', bestellnummer: 'text', korrekturVon: 'text', ersetztDurch: 'text' },
   // Fuhrpark (ohne Firma): Fahrzeuge mit den Angaben aus dem Fahrzeugschein, Fristen und Fahrzeugakte.
   // Zahlen (km, kg, kW, Cent, Liter × 100) als ganze Zahlen.
   fahrzeuge: { kennzeichen: 'text', bezeichnung: 'text', art: 'wort:TRANSPORTER', status: 'wort:AKTIV', fahrer: 'text', kmStand: 'cent', wartungKm: 'cent',
