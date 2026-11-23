@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795434034; window.WEB_VERSION = '4.16.0';
+window.WEB_STAND = 1795439006; window.WEB_VERSION = '4.16.1';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -144,7 +144,6 @@ kbd{font:600 12px ui-monospace,monospace;background:var(--flaeche2);border:1px s
   #neu-knopf .lang{display:none}
   .werkzeuge{gap:5px}.werkzeuge .knopf{padding:6px 10px;font-size:13px}
   .seitenkopf h1{font-size:20px}
-  .fab{position:fixed;right:calc(16px + env(safe-area-inset-right));bottom:calc(76px + env(safe-area-inset-bottom));z-index:4;box-shadow:0 3px 10px rgba(0,0,0,.25);padding:14px 20px;border-radius:16px}
 }
 /* Kopf eines Bereichs */
 .seitenkopf{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 10px}
@@ -223,7 +222,6 @@ pre.vorschau{white-space:pre-wrap;font:inherit;background:var(--flaeche2);paddin
 .balken.neg{background:var(--rot-t)}
 .tabelle.kreuz td,.tabelle.kreuz th{white-space:nowrap}
 .rangliste{margin:0;padding-left:22px}.rangliste li{margin:0}.rangliste .vorlage{padding:6px 4px}
-.mail-karte.ungelesen .titel{font-weight:700}
 /* Kalender */
 .kal-gitter{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
 .kal-wt{font-size:12px;font-weight:600;color:var(--leise);text-align:center;padding:2px 0}
@@ -356,7 +354,7 @@ dialog h3{font-size:13px;color:var(--primaer);margin:14px 0 8px}
   #sync{font-size:11px;max-width:92px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:4px 8px}
   #toast{left:12px;right:12px;transform:none;max-width:none;bottom:calc(84px + env(safe-area-inset-bottom))}
 }
-@media (hover:none){.nav-knopf,.knopf,.chip,.vorlage,.kachel{min-height:40px}}.mail-karte.ungelesen{border-left:4px solid var(--primaer)}
+@media (hover:none){.nav-knopf,.knopf,.chip,.vorlage,.kachel{min-height:40px}}
 /* ================= Postfach (Outlook-Aufbau: Ordner | Liste | Lesebereich) ================= */
 @media (min-width:900px){
   body.postfach:not(.breit) main{grid-template-columns:minmax(560px,min(52%,760px)) minmax(0,1fr)}
@@ -396,7 +394,6 @@ body.postfach #liste .pf-datum{background:inherit}
 .pf-zeile.ungelesen .pf-von,.pf-zeile.ungelesen .pf-betreff{font-weight:700}
 .pf-zeile.ungelesen .pf-betreff{color:var(--primaer)}
 .pf-zeile.gewaehlt.ungelesen .pf-betreff{color:inherit}
-.pf-zeile.markiert-zeile{background:color-mix(in srgb,#E3A400 12%,transparent)}
 .pf-zeile input[type=checkbox]{margin:10px 0 0 2px;opacity:0;cursor:pointer}
 .pf-zeile:hover input[type=checkbox],.pf-zeile input[type=checkbox]:checked,.pf-zeile input[type=checkbox]:focus,.pf.mehrfach .pf-zeile input[type=checkbox]{opacity:1}
 .pf-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff;flex:none;margin-top:2px}
@@ -1504,12 +1501,9 @@ const FAHRER_BEREICHE = new Set(['fahrer', 'kalender', 'aufgaben', 'zeiten', 'fa
 // Alles, was nach außen geht (Kunden-SMS/WhatsApp, Statusseite, Belege, Briefe, PDFs, Excel), bleibt bewusst deutsch.
 const SPRACHEN = { de: ['Deutsch', 'de-DE'], tr: ['Türkçe', 'tr-TR'], ar: ['العربية', 'ar-u-nu-latn', 1], fa: ['فارسی / دری', 'fa-u-nu-latn', 1], ru: ['Русский', 'ru-RU'], uk: ['Українська', 'uk-UA'],
   pl: ['Polski', 'pl-PL'], ro: ['Română', 'ro-RO'], bg: ['Български', 'bg-BG'], sq: ['Shqip', 'sq-AL'], bs: ['Bosanski / Hrvatski / Srpski', 'bs-Latn-BA'], en: ['English', 'en-GB'], ku: ['Kurdî (Kurmancî)', 'ku'] };
-const UI_DE = ["Meine Touren", "Hallo", "Arbeitszeit heute", "noch nichts erfasst", "läuft seit", "Pause seit", "Arbeitsbeginn", "Pause beenden", "Pause", "Feierabend", "Meine Touren (7 Tage)", "Keine Touren eingeplant", "Sobald die Disposition dich einteilt, erscheint die Tour hier.", "Urlaub beantragen", "Krank melden", "Heute", "ab", "Team", "Fahrer", "Unterschrift liegt vor", "Losfahren", "Abliefern", "Navigation", "Foto", "Schaden", "Problem melden", "Disposition", "Person wechseln", "Wer nutzt dieses Gerät?", "Einmal auswählen – danach zeigt die App hier die eigenen Touren, die Stempeluhr und das Abliefern mit Unterschrift.", "Name des Empfängers", "Unterschrift des Empfängers", "Unterschrift löschen", "km-Stand am Ende (optional)", "Bemerkung (z. B. Schaden, Fehlmenge)", "Fotos hinzufügen", "Abbrechen", "Abgeliefert", "Foto(s)", "Abgeliefert mit Bemerkung – die Disposition wurde informiert", "Foto gespeichert", "Problem gemeldet", "Stopp erledigt", "Alle Stopps erledigt – jetzt die Tour abliefern", "km-Stand bei Abfahrt (optional):", "Was ist los?", "erledigt – Name des Empfängers (optional):", "Stopp", "Anmelden", "Mit den Zugangsdaten, die du vom Büro bekommen hast.", "Bitte erneut anmelden.", "Benutzername", "Passwort", "Später", "Angemeldet als", "geplant", "unterwegs", "erledigt", "Problem", "storniert", "Auftrag", "Krankmeldung eingetragen – gute Besserung!", "Feierabend gespeichert ✓", "Abwesenheit eintragen", "Von", "Bis", "Grund", "Notiz", "Speichern", "Sprache", "Zeiten", "Aufgaben", "Kalender", "Schäden", "Urlaub", "Krank", "Abwesend"];
-const UI_TEXTE = {"tr": ["Turlarım", "Merhaba", "Bugünkü çalışma süresi", "henüz kayıt yok", "başlangıç", "mola başlangıcı", "İşe başla", "Molayı bitir", "Mola", "Mesai bitti", "Turlarım (7 gün)", "Planlanmış tur yok", "Sevkiyat seni bir tura atadığında tur burada görünecek.", "İzin talep et", "Hastalık bildir", "Bugün", "saat", "Ekip", "Şoför", "İmza mevcut", "Yola çık", "Teslim et", "Navigasyon", "Fotoğraf", "Hasar", "Sorun bildir", "Sevkiyat", "Kişiyi değiştir", "Bu cihazı kim kullanıyor?", "Bir kez seç – sonra uygulama burada kendi turlarını, mesai saatini ve imzalı teslimatı gösterir.", "Teslim alanın adı", "Teslim alanın imzası", "İmzayı sil", "Bitiş km'si (isteğe bağlı)", "Not (ör. hasar, eksik ürün)", "Fotoğraf ekle", "İptal", "Teslim edildi", "fotoğraf", "Notla teslim edildi – sevkiyata bilgi verildi", "Fotoğraf kaydedildi", "Sorun bildirildi", "Durak tamamlandı", "Tüm duraklar tamamlandı – şimdi turu teslim et", "Çıkıştaki km (isteğe bağlı):", "Ne oldu?", "tamamlandı – teslim alanın adı (isteğe bağlı):", "Durak", "Giriş yap", "Ofisten aldığın giriş bilgileriyle.", "Lütfen tekrar giriş yap.", "Kullanıcı adı", "Şifre", "Sonra", "Giriş yapıldı:", "planlandı", "yolda", "tamamlandı", "Sorun", "iptal", "Sipariş", "Hastalık bildirildi – geçmiş olsun!", "Mesai bitişi kaydedildi ✓", "Devamsızlık gir", "Başlangıç", "Bitiş", "Sebep", "Not", "Kaydet", "Dil", "Saatler", "Görevler", "Takvim", "Hasarlar", "İzin", "Hasta", "Yok"], "ar": ["جولاتي", "مرحبًا", "وقت العمل اليوم", "لم يُسجَّل شيء بعد", "بدأ منذ", "استراحة منذ", "بدء العمل", "إنهاء الاستراحة", "استراحة", "نهاية الدوام", "جولاتي (7 أيام)", "لا توجد جولات مخططة", "عندما يعيّنك قسم التوزيع، ستظهر الجولة هنا.", "طلب إجازة", "الإبلاغ عن مرض", "اليوم", "من الساعة", "الفريق", "السائق", "التوقيع موجود", "انطلق", "تسليم", "الملاحة", "صورة", "ضرر", "الإبلاغ عن مشكلة", "قسم التوزيع", "تغيير الشخص", "من يستخدم هذا الجهاز؟", "اختر مرة واحدة – بعدها يعرض التطبيق هنا جولاتك وساعة الدوام والتسليم مع التوقيع.", "اسم المستلم", "توقيع المستلم", "مسح التوقيع", "عداد الكيلومترات في النهاية (اختياري)", "ملاحظة (مثلًا ضرر، نقص)", "إضافة صور", "إلغاء", "تم التسليم", "صورة/صور", "تم التسليم مع ملاحظة – تم إبلاغ قسم التوزيع", "تم حفظ الصورة", "تم الإبلاغ عن المشكلة", "تم إنجاز المحطة", "تم إنجاز كل المحطات – سلّم الجولة الآن", "عداد الكيلومترات عند الانطلاق (اختياري):", "ما المشكلة؟", "تم – اسم المستلم (اختياري):", "محطة", "تسجيل الدخول", "ببيانات الدخول التي حصلت عليها من المكتب.", "يرجى تسجيل الدخول مرة أخرى.", "اسم المستخدم", "كلمة المرور", "لاحقًا", "تم تسجيل الدخول باسم", "مخطط", "في الطريق", "منجز", "مشكلة", "ملغى", "الطلب", "تم تسجيل الإجازة المرضية – نتمنى لك الشفاء!", "تم حفظ نهاية الدوام ✓", "تسجيل غياب", "من", "إلى", "السبب", "ملاحظة", "حفظ", "اللغة", "الأوقات", "المهام", "التقويم", "الأضرار", "إجازة", "مريض", "غائب"], "fa": ["تورهای من", "سلام", "ساعت کاری امروز", "هنوز چیزی ثبت نشده", "از", "استراحت از", "شروع کار", "پایان استراحت", "استراحت", "پایان کار", "تورهای من (7 روز)", "توری برنامه‌ریزی نشده", "وقتی بخش توزیع تو را تعیین کند، تور اینجا نمایش داده می‌شود.", "درخواست مرخصی", "اعلام بیماری", "امروز", "از ساعت", "تیم", "راننده", "امضا موجود است", "حرکت", "تحویل", "مسیریابی", "عکس", "خسارت", "گزارش مشکل", "بخش توزیع", "تغییر شخص", "چه کسی از این دستگاه استفاده می‌کند؟", "یک بار انتخاب کن – بعد برنامه اینجا تورها، ساعت کار و تحویل با امضا را نشان می‌دهد.", "نام تحویل‌گیرنده", "امضای تحویل‌گیرنده", "پاک کردن امضا", "کیلومتر پایان (اختیاری)", "توضیح (مثلاً خسارت، کسری)", "افزودن عکس", "لغو", "تحویل شد", "عکس", "با توضیح تحویل شد – بخش توزیع مطلع شد", "عکس ذخیره شد", "مشکل گزارش شد", "توقف انجام شد", "همه توقف‌ها انجام شد – حالا تور را تحویل بده", "کیلومتر هنگام حرکت (اختیاری):", "چه اتفاقی افتاده؟", "انجام شد – نام تحویل‌گیرنده (اختیاری):", "توقف", "ورود", "با اطلاعات ورودی که از دفتر گرفته‌ای.", "لطفاً دوباره وارد شو.", "نام کاربری", "رمز عبور", "بعداً", "وارد شدی به عنوان", "برنامه‌ریزی شده", "در راه", "انجام شده", "مشکل", "لغو شده", "سفارش", "بیماری ثبت شد – سلامت باشی!", "پایان کار ذخیره شد ✓", "ثبت غیبت", "از", "تا", "دلیل", "یادداشت", "ذخیره", "زبان", "ساعت‌ها", "کارها", "تقویم", "خسارت‌ها", "مرخصی", "بیمار", "غایب"], "ru": ["Мои рейсы", "Привет", "Рабочее время сегодня", "пока ничего не записано", "идёт с", "перерыв с", "Начало работы", "Закончить перерыв", "Перерыв", "Конец работы", "Мои рейсы (7 дней)", "Рейсов не запланировано", "Как только диспетчер назначит тебя, рейс появится здесь.", "Запросить отпуск", "Сообщить о болезни", "Сегодня", "с", "Команда", "Водитель", "Подпись есть", "Поехали", "Сдать доставку", "Навигация", "Фото", "Повреждение", "Сообщить о проблеме", "Диспетчер", "Сменить человека", "Кто пользуется этим устройством?", "Выбери один раз – потом приложение покажет здесь твои рейсы, учёт времени и доставку с подписью.", "Имя получателя", "Подпись получателя", "Стереть подпись", "Пробег в конце (необязательно)", "Примечание (напр. повреждение, недостача)", "Добавить фото", "Отмена", "Доставлено", "фото", "Доставлено с примечанием – диспетчер уведомлён", "Фото сохранено", "Проблема отправлена", "Остановка выполнена", "Все остановки выполнены – теперь сдай рейс", "Пробег при выезде (необязательно):", "Что случилось?", "выполнена – имя получателя (необязательно):", "Остановка", "Войти", "С данными для входа, которые ты получил в офисе.", "Пожалуйста, войди снова.", "Имя пользователя", "Пароль", "Позже", "Вход выполнен:", "запланирован", "в пути", "выполнен", "Проблема", "отменён", "Заказ", "Больничный записан – выздоравливай!", "Конец работы сохранён ✓", "Отметить отсутствие", "С", "По", "Причина", "Заметка", "Сохранить", "Язык", "Время", "Задачи", "Календарь", "Повреждения", "Отпуск", "Болен", "Отсутствует"], "uk": ["Мої рейси", "Привіт", "Робочий час сьогодні", "ще нічого не записано", "триває з", "перерва з", "Початок роботи", "Завершити перерву", "Перерва", "Кінець роботи", "Мої рейси (7 днів)", "Рейсів не заплановано", "Щойно диспетчер призначить тебе, рейс з’явиться тут.", "Подати заявку на відпустку", "Повідомити про хворобу", "Сьогодні", "з", "Команда", "Водій", "Підпис є", "Вирушити", "Здати доставку", "Навігація", "Фото", "Пошкодження", "Повідомити про проблему", "Диспетчер", "Змінити особу", "Хто користується цим пристроєм?", "Обери один раз – потім застосунок покаже тут твої рейси, облік часу та доставку з підписом.", "Ім’я отримувача", "Підпис отримувача", "Стерти підпис", "Пробіг наприкінці (необов’язково)", "Примітка (напр. пошкодження, нестача)", "Додати фото", "Скасувати", "Доставлено", "фото", "Доставлено з приміткою – диспетчера повідомлено", "Фото збережено", "Проблему надіслано", "Зупинку виконано", "Усі зупинки виконано – тепер здай рейс", "Пробіг при виїзді (необов’язково):", "Що сталося?", "виконано – ім’я отримувача (необов’язково):", "Зупинка", "Увійти", "З даними для входу, які ти отримав в офісі.", "Будь ласка, увійди знову.", "Ім’я користувача", "Пароль", "Пізніше", "Вхід виконано:", "заплановано", "у дорозі", "виконано", "Проблема", "скасовано", "Замовлення", "Лікарняний записано – одужуй!", "Кінець роботи збережено ✓", "Позначити відсутність", "З", "По", "Причина", "Нотатка", "Зберегти", "Мова", "Час", "Завдання", "Календар", "Пошкодження", "Відпустка", "Хворий", "Відсутній"], "pl": ["Moje trasy", "Cześć", "Czas pracy dzisiaj", "jeszcze nic nie zapisano", "trwa od", "przerwa od", "Początek pracy", "Zakończ przerwę", "Przerwa", "Koniec pracy", "Moje trasy (7 dni)", "Brak zaplanowanych tras", "Gdy dyspozytor cię przydzieli, trasa pojawi się tutaj.", "Wniosek o urlop", "Zgłoś chorobę", "Dziś", "od", "Zespół", "Kierowca", "Podpis jest", "Ruszam", "Dostarcz", "Nawigacja", "Zdjęcie", "Szkoda", "Zgłoś problem", "Dyspozycja", "Zmień osobę", "Kto używa tego urządzenia?", "Wybierz raz – potem aplikacja pokaże tu twoje trasy, czas pracy i dostawę z podpisem.", "Imię i nazwisko odbiorcy", "Podpis odbiorcy", "Usuń podpis", "Stan licznika na końcu (opcjonalnie)", "Uwagi (np. szkoda, brak towaru)", "Dodaj zdjęcia", "Anuluj", "Dostarczono", "zdjęć", "Dostarczono z uwagą – dyspozycja została poinformowana", "Zdjęcie zapisane", "Problem zgłoszony", "Przystanek wykonany", "Wszystkie przystanki wykonane – teraz zakończ trasę", "Stan licznika przy wyjeździe (opcjonalnie):", "Co się stało?", "wykonany – imię odbiorcy (opcjonalnie):", "Przystanek", "Zaloguj", "Danymi logowania, które dostałeś w biurze.", "Zaloguj się ponownie.", "Nazwa użytkownika", "Hasło", "Później", "Zalogowano jako", "zaplanowana", "w drodze", "wykonana", "Problem", "anulowana", "Zlecenie", "Choroba zgłoszona – zdrowia!", "Koniec pracy zapisany ✓", "Wpisz nieobecność", "Od", "Do", "Powód", "Notatka", "Zapisz", "Język", "Godziny", "Zadania", "Kalendarz", "Szkody", "Urlop", "Chory", "Nieobecny"], "ro": ["Turele mele", "Salut", "Timp de lucru azi", "încă nimic înregistrat", "de la", "pauză de la", "Început de lucru", "Termină pauza", "Pauză", "Sfârșit de program", "Turele mele (7 zile)", "Nicio tură planificată", "Când dispeceratul te repartizează, tura apare aici.", "Cere concediu", "Anunță boala", "Azi", "de la", "Echipa", "Șofer", "Semnătura există", "Pornește", "Predă livrarea", "Navigație", "Foto", "Daună", "Raportează o problemă", "Dispecerat", "Schimbă persoana", "Cine folosește acest dispozitiv?", "Alege o dată – apoi aplicația îți arată aici turele, pontajul și livrarea cu semnătură.", "Numele destinatarului", "Semnătura destinatarului", "Șterge semnătura", "Kilometraj la final (opțional)", "Observație (ex. daună, lipsă)", "Adaugă poze", "Anulează", "Livrat", "poze", "Livrat cu observație – dispeceratul a fost anunțat", "Poza a fost salvată", "Problema a fost raportată", "Oprire efectuată", "Toate opririle efectuate – acum predă tura", "Kilometraj la plecare (opțional):", "Ce s-a întâmplat?", "efectuată – numele destinatarului (opțional):", "Oprire", "Autentificare", "Cu datele de acces primite de la birou.", "Te rugăm să te autentifici din nou.", "Nume de utilizator", "Parolă", "Mai târziu", "Autentificat ca", "planificată", "pe drum", "efectuată", "Problemă", "anulată", "Comandă", "Concediu medical înregistrat – însănătoșire grabnică!", "Sfârșitul programului salvat ✓", "Înregistrează absența", "De la", "Până la", "Motiv", "Notă", "Salvează", "Limba", "Ore", "Sarcini", "Calendar", "Daune", "Concediu", "Bolnav", "Absent"], "bg": ["Моите курсове", "Здравей", "Работно време днес", "още нищо не е записано", "тече от", "почивка от", "Начало на работа", "Край на почивката", "Почивка", "Край на работния ден", "Моите курсове (7 дни)", "Няма планирани курсове", "Щом диспечерът те разпредели, курсът ще се появи тук.", "Заяви отпуск", "Съобщи за болест", "Днес", "от", "Екип", "Шофьор", "Има подпис", "Тръгвам", "Предай доставката", "Навигация", "Снимка", "Щета", "Съобщи за проблем", "Диспечер", "Смени човека", "Кой използва това устройство?", "Избери веднъж – след това приложението показва тук твоите курсове, отчитането на времето и доставката с подпис.", "Име на получателя", "Подпис на получателя", "Изтрий подписа", "Километраж в края (по желание)", "Бележка (напр. щета, липса)", "Добави снимки", "Отказ", "Доставено", "снимки", "Доставено с бележка – диспечерът е уведомен", "Снимката е запазена", "Проблемът е съобщен", "Спирката е изпълнена", "Всички спирки са изпълнени – сега предай курса", "Километраж при тръгване (по желание):", "Какво се случи?", "изпълнена – име на получателя (по желание):", "Спирка", "Вход", "С данните за вход, които получи от офиса.", "Моля, влез отново.", "Потребителско име", "Парола", "По-късно", "Влезе като", "планиран", "на път", "изпълнен", "Проблем", "отменен", "Поръчка", "Болничният е записан – оздравявай!", "Краят на работния ден е запазен ✓", "Отбележи отсъствие", "От", "До", "Причина", "Бележка", "Запази", "Език", "Часове", "Задачи", "Календар", "Щети", "Отпуск", "Болен", "Отсъства"], "sq": ["Turet e mia", "Përshëndetje", "Koha e punës sot", "ende asgjë e regjistruar", "nga", "pushim nga", "Fillimi i punës", "Mbaro pushimin", "Pushim", "Mbarimi i punës", "Turet e mia (7 ditë)", "Asnjë tur i planifikuar", "Sapo dispeçeria të caktojë, turi shfaqet këtu.", "Kërko pushim vjetor", "Njofto sëmundjen", "Sot", "nga ora", "Ekipi", "Shofer", "Nënshkrimi ekziston", "Nisu", "Dorëzo", "Navigimi", "Foto", "Dëm", "Njofto një problem", "Dispeçeria", "Ndrysho personin", "Kush e përdor këtë pajisje?", "Zgjidh një herë – pastaj aplikacioni tregon këtu turet e tua, orarin e punës dhe dorëzimin me nënshkrim.", "Emri i marrësit", "Nënshkrimi i marrësit", "Fshi nënshkrimin", "Kilometrat në fund (opsionale)", "Shënim (p.sh. dëm, mungesë)", "Shto foto", "Anulo", "U dorëzua", "foto", "U dorëzua me shënim – dispeçeria u njoftua", "Fotoja u ruajt", "Problemi u njoftua", "Ndalesa u krye", "Të gjitha ndalesat u kryen – tani dorëzo turin", "Kilometrat në nisje (opsionale):", "Çfarë ndodhi?", "u krye – emri i marrësit (opsionale):", "Ndalesa", "Hyr", "Me të dhënat e hyrjes që more nga zyra.", "Të lutem hyr përsëri.", "Emri i përdoruesit", "Fjalëkalimi", "Më vonë", "Hyre si", "i planifikuar", "në rrugë", "i kryer", "Problem", "i anuluar", "Porosia", "Sëmundja u regjistrua – shërim të shpejtë!", "Mbarimi i punës u ruajt ✓", "Regjistro mungesën", "Nga", "Deri", "Arsyeja", "Shënim", "Ruaj", "Gjuha", "Orët", "Detyrat", "Kalendari", "Dëmet", "Pushim", "I sëmurë", "Mungon"], "bs": ["Moje ture", "Zdravo", "Radno vrijeme danas", "još ništa nije upisano", "traje od", "pauza od", "Početak rada", "Završi pauzu", "Pauza", "Kraj radnog vremena", "Moje ture (7 dana)", "Nema planiranih tura", "Čim te dispečer rasporedi, tura će se pojaviti ovdje.", "Zatraži godišnji odmor", "Prijavi bolovanje", "Danas", "od", "Tim", "Vozač", "Potpis postoji", "Kreni", "Predaj isporuku", "Navigacija", "Foto", "Šteta", "Prijavi problem", "Dispečer", "Promijeni osobu", "Ko koristi ovaj uređaj?", "Odaberi jednom – nakon toga aplikacija ovdje prikazuje tvoje ture, evidenciju vremena i isporuku s potpisom.", "Ime primaoca", "Potpis primaoca", "Obriši potpis", "Kilometraža na kraju (neobavezno)", "Napomena (npr. šteta, manjak)", "Dodaj fotografije", "Otkaži", "Isporučeno", "foto", "Isporučeno s napomenom – dispečer je obaviješten", "Fotografija sačuvana", "Problem prijavljen", "Stanica završena", "Sve stanice završene – sada predaj turu", "Kilometraža pri polasku (neobavezno):", "Šta se desilo?", "završena – ime primaoca (neobavezno):", "Stanica", "Prijava", "Podacima za prijavu koje si dobio u kancelariji.", "Molimo prijavi se ponovo.", "Korisničko ime", "Lozinka", "Kasnije", "Prijavljen kao", "planirana", "na putu", "završena", "Problem", "otkazana", "Nalog", "Bolovanje upisano – brzo ozdravi!", "Kraj radnog vremena sačuvan ✓", "Upiši odsustvo", "Od", "Do", "Razlog", "Napomena", "Sačuvaj", "Jezik", "Vrijeme", "Zadaci", "Kalendar", "Štete", "Godišnji odmor", "Bolestan", "Odsutan"], "en": ["My tours", "Hello", "Working time today", "nothing recorded yet", "running since", "break since", "Start work", "End break", "Break", "Finish work", "My tours (7 days)", "No tours planned", "As soon as dispatch assigns you, the tour will appear here.", "Request leave", "Report sick", "Today", "from", "Team", "Driver", "Signature available", "Start driving", "Deliver", "Navigation", "Photo", "Damage", "Report a problem", "Dispatch", "Switch person", "Who uses this device?", "Choose once – then the app shows your tours, time clock and delivery with signature here.", "Recipient's name", "Recipient's signature", "Clear signature", "Odometer at the end (optional)", "Remark (e.g. damage, missing items)", "Add photos", "Cancel", "Delivered", "photo(s)", "Delivered with remark – dispatch has been informed", "Photo saved", "Problem reported", "Stop done", "All stops done – now complete the tour", "Odometer at departure (optional):", "What's wrong?", "done – recipient's name (optional):", "Stop", "Sign in", "With the login details you received from the office.", "Please sign in again.", "Username", "Password", "Later", "Signed in as", "planned", "on the way", "done", "Problem", "cancelled", "Order", "Sick leave recorded – get well soon!", "End of work saved ✓", "Enter absence", "From", "To", "Reason", "Note", "Save", "Language", "Times", "Tasks", "Calendar", "Damages", "Leave", "Sick", "Absent"], "ku": ["Turên min", "Silav", "Dema xebatê ya îro", "hîn tiştek nehatiye tomarkirin", "ji", "navber ji", "Destpêka kar", "Navberê biqedîne", "Navber", "Dawiya kar", "Turên min (7 roj)", "Tu tur nehatiye plankirin", "Gava ku dîspeçer te destnîşan bike, tur li vir xuya dibe.", "Destûr bixwaze", "Nexweşiyê ragihîne", "Îro", "ji saet", "Tîm", "Şofêr", "Îmze heye", "Bajo", "Teslîm bike", "Navîgasyon", "Wêne", "Zirar", "Pirsgirêkê ragihîne", "Dîspeçer", "Kesî biguherîne", "Kî vê amûrê bi kar tîne?", "Carekê hilbijêre – paşê sepan li vir turên te, demjimêra kar û teslîmkirina bi îmzeyê nîşan dide.", "Navê wergir", "Îmzeya wergir", "Îmzeyê jê bibe", "Kîlometre di dawiyê de (vebijarkî)", "Têbînî (mînak zirar, kêmasî)", "Wêne lê zêde bike", "Betal bike", "Hate teslîmkirin", "wêne", "Bi têbînî hate teslîmkirin – dîspeçer hate agahdarkirin", "Wêne hate tomarkirin", "Pirsgirêk hate ragihandin", "Rawestgeh qediya", "Hemû rawestgeh qediyan – niha turê teslîm bike", "Kîlometre di destpêkê de (vebijarkî):", "Çi bû?", "qediya – navê wergir (vebijarkî):", "Rawestgeh", "Têkeve", "Bi agahiyên têketinê yên ku te ji ofîsê wergirtine.", "Ji kerema xwe dîsa têkeve.", "Navê bikarhêner", "Şîfre", "Paşê", "Têketî wek", "plankirî", "di rê de", "qediya", "Pirsgirêk", "betal", "Ferman", "Nexweşî hate tomarkirin – zû baş bibî!", "Dawiya kar hate tomarkirin ✓", "Tunebûnê tomar bike", "Ji", "Heta", "Sedem", "Têbînî", "Tomar bike", "Ziman", "Dem", "Erk", "Salname", "Zirar", "Destûr", "Nexweş", "Tune"]};
-const UI_INDEX = new Map(UI_DE.map((x, i) => [x, i]));
 const sprache = () => (SPRACHEN[S.einstellungen && S.einstellungen.sprache] ? S.einstellungen.sprache : 'de');
-/** Übersetzt einen deutschen Bedientext (unbekannte Texte bleiben deutsch). */
-const t = de => { const l = sprache(); if (l === 'de') return de; const i = UI_INDEX.get(de); return (i != null && UI_TEXTE[l] && UI_TEXTE[l][i]) || de; };
+/** Übersetzt einen deutschen Bedientext aus sprachen.json (vor dem Laden und bei unbekannten Texten bleibt er deutsch). */
+const t = de => uebersetzeText(de);
 const T = t; // für Stellen, an denen „t“ lokal schon belegt ist
 const datumUI = iso => (sprache() === 'de' ? datumMitTag(iso) : alsTag(iso).toLocaleDateString(SPRACHEN[sprache()][1], { weekday: 'short', day: 'numeric', month: 'short' }));
 function spracheAnwenden() {
@@ -1523,14 +1517,13 @@ function spracheDialog(nachher = null) {
   $('#sprach-wahl').onclick = e => { const b = e.target.closest('[data-sprache]'); if (!b) return; S.einstellungen.sprache = b.dataset.sprache; speichere(); spracheAnwenden(); $('#dialog').close(); zeichne(); if (nachher) nachher(); };
 }
 
-// ---------- Übersetzung der ganzen Bedienoberfläche (Wörterbuch in sprachen.js, nur bei Bedarf geladen) ----------
+// ---------- Übersetzung der ganzen Bedienoberfläche (Wörterbuch in sprachen.json, nur bei Bedarf geladen) ----------
 // Übersetzt angezeigte Texte, Platzhalter, Tooltips und Meldungen. Nicht angefasst: alles mit translate="no",
 // Eingabefelder, Textbereiche, Vorschauen (pre) – und alles, was die App nach außen schickt (wird nie im DOM übersetzt erzeugt).
 const UE = { geladen: false, laedt: null, wb: {}, uebersetzt: new WeakMap(), attr: new WeakMap(), fehlend: null };
 function woerterbuch(l) {
   if (UE.wb[l]) return UE.wb[l];
   const m = new Map();
-  UI_DE.forEach((k, i) => { if (UI_TEXTE[l] && UI_TEXTE[l][i]) m.set(k.replace(/\d+([.,]\d+)?/g, '#'), UI_TEXTE[l][i]); });
   const S2 = window.UI_SCHLUESSEL, U2 = window.UI_UEBERSETZUNG && window.UI_UEBERSETZUNG[l];
   if (S2 && U2) S2.forEach((k, i) => { if (U2[i]) m.set(k, U2[i]); });
   if (window.UI_UEBERSETZUNG) UE.wb[l] = m;
@@ -1590,7 +1583,7 @@ function woerterbuchUebernehmen(d) {
 }
 async function woerterbuchAktualisieren() {
   try { woerterbuchUebernehmen(JSON.parse(localStorage.getItem('crm-sprachen') || 'null')); } catch {}
-  if (location.protocol.startsWith('http') && location.hostname === 'aysetransport.github.io') return; // die Web-App lädt sprachen.js ohnehin frisch
+  if (location.protocol.startsWith('http') && location.hostname === 'aysetransport.github.io') return; // die Web-App lädt sprachen.json ohnehin frisch
   try {
     const r = await fetch(SPRACHEN_ONLINE, { cache: 'no-cache' }); if (!r.ok) return;
     const d = await r.json();
@@ -1601,7 +1594,7 @@ async function woerterbuchAktualisieren() {
 function oberflaecheUebersetzen() {
   if (sprache() === 'de') return;
   if (!UE.laedt) {
-    UE.laedt = new Promise(ok => { if (window.UI_UEBERSETZUNG) return ok(); const sc = document.createElement('script'); sc.src = 'sprachen.js'; sc.onload = ok; sc.onerror = ok; document.head.appendChild(sc); })
+    UE.laedt = (window.UI_UEBERSETZUNG ? Promise.resolve() : fetch('sprachen.json').then(r => r.json()).then(woerterbuchUebernehmen).catch(() => {}))
       .then(() => { UE.wb = {}; zeichne(); oberflaecheUebersetzen(); return woerterbuchAktualisieren(); });
   }
   UE_BEOBACHTER.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['placeholder', 'aria-label', 'title'] });
@@ -1864,8 +1857,8 @@ document.addEventListener('click', e => { if (e.target.closest('[data-zu]')) $('
 /** Datenexporte (Sicherung, CSV, Excel, Buchhaltung, Lohn) und Importe – für Disposition und Fahrer gesperrt (ausgeblendet und blockiert). */
 const NUR_ADMIN = ['#crm-csv', '#sicherung-knopf', '#csv', '#belege-leeren', '[data-buchhaltung]', '[data-belege-csv]', '[data-personal-csv]', '[data-ma="tacho-xlsx"]', '[data-statistik-csv]',
   '[data-statistik-druck]', '[data-aufgaben-csv]', '[data-zeit-csv]', '[data-zeit-xlsx]', '[data-zeit-xlsx-ma]', '[data-zeit-druck-alle]', '[data-fuhrpark-csv]', '[data-schaden-csv]', '[data-auswertung-csv]',
-  '[data-auswertung-druck]', '#tp-import-knopf', 'label:has(#sicherung-import)', 'label:has(#crm-import)', 'label:has(#personal-import)', 'label:has(#fuhrpark-import)', 'label:has(#firmen-csv-import)'];
-const NUR_ADMIN_DATEI = ['#sicherung-import', '#crm-import', '#personal-import', '#fuhrpark-import', '#firmen-csv-import'];
+  '[data-auswertung-druck]', 'label:has(#sicherung-import)', 'label:has(#personal-import)', 'label:has(#fuhrpark-import)', 'label:has(#firmen-csv-import)'];
+const NUR_ADMIN_DATEI = ['#sicherung-import', '#personal-import', '#fuhrpark-import', '#firmen-csv-import'];
 const istAdmin = () => rolle() === 'ADMIN';
 /** Hauptadmin: angemeldet mit der Cloud-PIN oder als Login mit Hauptadmin-Kennzeichen. */
 const istHauptadmin = () => istAdmin() && (!String(PIN || '').startsWith('T:') || !!(S.zugang && S.zugang.hauptadmin));
@@ -2280,17 +2273,15 @@ function zeichneEinstellungenVoll() {
         ['bank', 'Bank'], ['iban', 'IBAN'], ['bic', 'BIC'], ['zahlungsziel', 'Zahlungsziel (Tage)'], ['mwst', 'MwSt.-Satz (%)'], ['fuss', 'Zusatz in der Fußzeile'], ['hinweisElektronisch', 'Hinweis unter der Unterschrift (leer = kein Hinweis)'],
         ['startRechnung', 'Startnummer Rechnungen (z. B. 1001 → R' + new Date().getFullYear() + '-1001)'], ['startAngebot', 'Startnummer Angebote (z. B. 1 → A' + new Date().getFullYear() + '-0001)']]
         .map(([k, l]) => `<label class="feld">${l}<input data-rechnung="${k}" value="${esc(rechnungsDaten()[k])}"></label>`).join('')}</div>
-    <div class="karte block"><h3>CRM</h3><p class="leise" style="margin-bottom:8px">Die Sicherung des bisherigen Browser-CRM (JSON) einlesen. Firmen mit gleichem Namen werden zusammengeführt, nichts wird doppelt angelegt.</p>
-      <div class="zeile"><label class="knopf" id="crm-import-knopf">Sicherung des Browser-CRM importieren<input type="file" id="crm-import" accept=".json,application/json" hidden></label>
-      <button class="knopf" id="crm-csv">CRM für Excel exportieren (6 CSV-Dateien)</button></div></div>
+    <div class="karte block"><h3>CRM</h3>
+      <div class="zeile"><button class="knopf" id="crm-csv">CRM für Excel exportieren (6 CSV-Dateien)</button></div></div>
     ${mitCloud() && PIN ? `<div class="karte block"><h3>Anmeldung</h3><p>Angemeldet als <b>${esc((S.zugang || {}).name || 'Admin')}</b> · ${esc(ROLLEN_TEXT[rolle()])}</p>
       ${rolle() === 'ADMIN' ? `<p class="leise" style="margin:6px 0">Fahrer und Büro bekommen eigene Logins. Fahrer sehen nur ihre eigenen Touren, Zeiten, Abwesenheiten und Aufgaben – keine Löhne, Preise, Rechnungen oder Daten anderer. Die Cloud setzt das durch.</p>
         <div class="zeile"><button class="knopf voll" id="benutzer-knopf">👤 Benutzer und Logins verwalten</button></div>` : ''}
       ${istHauptadmin() ? `<p class="leise" style="margin:10px 0 6px">${S.zugang && S.zugang.hauptadmin ? '👑 Du bist Hauptadmin.' : 'Angemeldet mit der Cloud-PIN.'} Ist ein Hauptadmin festgelegt (Benutzer → Admin → „👑 Hauptadmin“), kann er die Anmeldung mit der Cloud-PIN abschalten – dann gibt es nur noch persönliche Logins. Notfalls schaltet die Funktion „notfallPinAnmeldungEinschalten“ im Apps-Script-Editor sie wieder ein.</p>
         <div class="zeile"><button class="knopf" id="pin-schalter">🔐 Anmeldung mit Cloud-PIN …</button></div>` : ''}</div>` : ''}
     <div class="karte block"><h3>Tourenplanung und Personal</h3>
-      <p class="leise" style="margin-bottom:8px">Daten der bisherigen Tourenplanung (Fahrzeuge, Personal, Einsatzarten, Auftraggeber, Abwesenheiten, Touren) übernehmen. Gefahrlos wiederholbar bis zum Umstieg.</p>
-      <div class="zeile"><button class="knopf voll" id="tp-import-knopf">Aus der bisherigen Tourenplanung übernehmen</button><button class="knopf" id="ea-knopf">Einsatzarten</button></div>
+      <div class="zeile"><button class="knopf" id="ea-knopf">Einsatzarten</button></div>
       <p class="leise" style="margin:10px 0 6px">Arbeitstage pro Woche (für Urlaub und Auswertungen)</p>
       <div class="chips">${[[5, 'Mo–Fr'], [6, 'Mo–Sa']].map(([t, l]) => `<button class="chip" data-arbeitstage="${t}" aria-pressed="${(Number(e.arbeitstageWoche) || 5) === t}">${l}</button>`).join('')}</div></div>
     <div class="karte block"><h3>E-Mail: Signatur und Textbausteine</h3>
@@ -2339,14 +2330,6 @@ $('#detail').addEventListener('change', e => {
   const w = e.target.dataset.einstWahl; if (!w) return;
   S.einstellungen[w] = e.target.value; speichere(); feiertage.cache = {}; themaSetzen(); spracheAnwenden(); zeichne();
 });
-$('#detail').addEventListener('change', async e => {
-  if (e.target.id !== 'crm-import' || !e.target.files.length) return;
-  try {
-    const r = crmImportieren(await e.target.files[0].text());
-    toast(`Importiert: ${r.neu} neue Firma(n), ${r.zusammen} mit vorhandenen zusammengeführt, ${r.eintraege} Einträge`, 6000);
-  } catch (fehler) { toast(fehler.message, 6000); }
-  e.target.value = '';
-});
 $('#detail').addEventListener('click', e => {
   const tage = e.target.closest('[data-wv-tage]');
   if (tage) { S.einstellungen.wiedervorlageTage = Number(tage.dataset.wvTage); speichere(); zeichneEinstellungen(); return; }
@@ -2358,7 +2341,6 @@ $('#detail').addEventListener('click', e => {
     S.einstellungen.navUnten = l.length ? l : NAV_UNTEN_VORGABE; speichere(); zeichneEinstellungen(); zeichneNavi(); return;
   }
   switch (e.target.id) {
-    case 'tp-import-knopf': tpImportDialog(); break;
     case 'benutzer-knopf': benutzerVerwaltung(); break;
     case 'sicherung-knopf': sicherungErstellen(); zeichneEinstellungen(); break;
     case 'ea-knopf': einsatzartenDialog(); break;
@@ -2481,7 +2463,7 @@ function zeichneFirmenliste(r) {
   }).join('');
   const faelleTreffer = such ? filtereUndSortiere(faelle(), 'ALLE', such) : [];
   const leer = !alle('auftraggeber').length
-    ? '<div class="leer">🏢<b>Noch keine Auftraggeber</b>Lege die erste Firma an oder importiere die Sicherung des Browser-CRM unter ⚙ → CRM. Auftraggeber aus Schadensfällen kommen automatisch dazu.</div>'
+    ? '<div class="leer">🏢<b>Noch keine Auftraggeber</b>Lege die erste Firma an oder importiere eine Liste (CSV/Excel). Auftraggeber aus Schadensfällen kommen automatisch dazu.</div>'
     : `<div class="leer"><b>Keine Treffer</b>${such ? `Zu „${esc(ANSICHT.firmenSuche.trim())}“ wurde nichts gefunden.` : 'In dieser Ansicht gibt es keine Firmen.'}</div>`;
   return seitenkopf('Firmen', '<button class="knopf voll" data-neue-firma>＋ Firma</button>', `<button class="knopf" data-firmen-akt="interessent">🎯 ＋ Interessent</button>
       <button class="knopf" data-firmen-akt="anrufliste">📞 Anrufliste</button><button class="knopf" data-firmen-akt="serienmail">✉ Serienmail</button>
@@ -2693,46 +2675,6 @@ function crmDialog(tabelle, eintrag, firmaId, danach) {
   if (!neu) $('#crm-loeschen').onclick = () => (tabelle === 'auftraggeber'
     ? bestaetige(`„${eintrag.name}“ löschen?`, 'Mit Ansprechpartnern, Adressen, Preisen, Kontakthistorie und Dokumenten – auf allen Geräten. Schadensfälle bleiben erhalten.', 'Löschen', () => { Aktionen.firmaLoeschen(eintrag); gehe('#/'); })
     : bestaetige('Eintrag löschen?', `„${eintrag.name || eintrag.titel || eintrag.bezeichnung || eintrag.text || ADRESS_ART[eintrag.art] || ''}“ wird gelöscht.`, 'Löschen', () => Aktionen.crmLoeschen(tabelle, eintrag)));
-}
-
-// ---------- Import der Sicherung des Browser-CRM ----------
-function crmImportieren(text) {
-  let d; try { d = JSON.parse(String(text).replace(/^﻿/, '')); } catch { d = null; }
-  if (!d || !Array.isArray(d.firmen)) throw new Error('Die Datei ist keine Sicherung des Browser-CRM (es fehlt die Liste „firmen“).');
-  const t = x => String(x ?? '').trim(), jetzt = jetztIso();
-  const tag = x => (/^\d{4}-\d{2}-\d{2}/.test(t(x)) ? t(x).slice(0, 10) : null);
-  const status = x => ({ interessent: 'INTERESSENT', lead: 'INTERESSENT', pausiert: 'PAUSIERT', ehemalig: 'EHEMALIG', inaktiv: 'EHEMALIG' }[t(x).toLowerCase()] || (FIRMEN_STATUS[t(x).toUpperCase()] ? t(x).toUpperCase() : 'AKTIV'));
-  const adressArt = x => { const v = t(x).toLowerCase(); return v.startsWith('haupt') ? 'HAUPTSITZ' : v.startsWith('lager') ? 'LAGER' : v.startsWith('filial') ? 'FILIALE' : v.startsWith('rechnung') ? 'RECHNUNG' : ADRESS_ART[v.toUpperCase()] ? v.toUpperCase() : 'SONSTIGE'; };
-  const aktArt = x => { const v = t(x).toLowerCase(); return v.startsWith('anruf') || v.startsWith('telefon') ? 'ANRUF' : v.includes('mail') ? 'EMAIL' : /^(treffen|termin|besuch)/.test(v) ? 'TREFFEN' : v.startsWith('angebot') ? 'ANGEBOT' : 'SONSTIGES'; };
-  const cent = x => (x == null || x === '' ? null : typeof x === 'number' ? Math.round(x * 100) : geldLesen(String(x)));
-  let neu = 0, zusammen = 0, eintraege = 0;
-  for (const f of d.firmen) {
-    const name = t(f && f.name); if (!name) continue;
-    let firma = firmaZumNamen(name);
-    if (!firma) {
-      neu++;
-      firma = merke('auftraggeber', { id: uuid(), name, rechtsform: t(f.rechtsform), status: status(f.status), telefon: t(f.telefon), email: t(f.email), website: t(f.website), notizen: t(f.notizen), geaendertAm: jetzt });
-    } else {
-      zusammen++;
-      const notiz = t(f.notizen);
-      const erg = { ...firma, rechtsform: firma.rechtsform || t(f.rechtsform), telefon: firma.telefon || t(f.telefon), email: firma.email || t(f.email), website: firma.website || t(f.website),
-        notizen: !notiz || (firma.notizen || '').includes(notiz) ? firma.notizen || '' : [firma.notizen, notiz].filter(Boolean).join('\n\n'),
-        status: (firma.status || 'AKTIV') === 'AKTIV' && t(f.status) ? status(f.status) : firma.status };
-      if (JSON.stringify(ohneLokales(erg)) !== JSON.stringify(ohneLokales(firma))) merke('auftraggeber', { ...erg, geaendertAm: jetzt });
-    }
-    const id = firma.id, liste = x => (Array.isArray(x) ? x.filter(Boolean) : []);
-    const dazu = (tabelle, e, gleich) => { if (vonFirma(tabelle, id).some(gleich)) return; merke(tabelle, { id: uuid(), firmaId: id, ...e, geaendertAm: jetzt }); eintraege++; };
-    for (const k of liste(f.kontakte)) { const n = t(k.name) || t(k.email); if (n) dazu('ansprechpartner', { name: n, thema: t(k.thema), telefon: t(k.telefon), email: t(k.email), notiz: t(k.notiz) }, x => normal(x.name) === normal(n)); }
-    for (const a of liste(f.adressen)) { if (!t(a.strasse) && !t(a.ort) && !t(a.plz)) continue; dazu('adressen', { art: adressArt(a.art), strasse: t(a.strasse), plz: t(a.plz), ort: t(a.ort), notiz: t(a.notiz) }, x => normal(x.strasse) === normal(a.strasse) && normal(x.ort) === normal(a.ort)); }
-    for (const p of liste(f.preise)) { const b = t(p.bez || p.bezeichnung); if (!b) continue; const c = cent(p.betrag), ab = tag(p.ab); dazu('preise', { bezeichnung: b, betragCent: c, einheit: t(p.einheit), gueltigAb: ab, notiz: t(p.notiz) }, x => normal(x.bezeichnung) === normal(b) && x.gueltigAb === ab && x.betragCent === c); }
-    for (const a of liste(f.aktivitaeten)) { const text = t(a.text); if (!text) continue; const dt = tag(a.datum) || heute(); dazu('aktivitaeten', { datum: dt, art: aktArt(a.art), text, kontakt: t(a.kontakt) }, x => x.datum === dt && x.text === text); }
-    for (const a of liste(f.aufgaben)) { const text = t(a.text); if (!text) continue; const fa = tag(a.faellig); dazu('aufgaben', { faelligAm: fa, text, kontakt: t(a.kontakt), erledigt: a.erledigt === true }, x => x.text === text && (x.faelligAm || null) === fa); }
-    for (const x of liste(f.dokumente)) { const ti = t(x.titel) || t(x.link); if (!ti) continue; dazu('dokumente', { titel: ti, link: t(x.link), notiz: t(x.notiz) }, y => y.titel === ti && (y.link || '') === t(x.link)); }
-  }
-  // Fälle, deren Auftraggeber jetzt als Firma existiert, verbinden.
-  for (const f of faelle().filter(f => !f.auftraggeberUuid && (f.auftraggeber || '').trim())) { const firma = firmaZumNamen(f.auftraggeber); if (firma) fallMerken({ ...f, auftraggeberUuid: firma.id }); }
-  nachAenderung();
-  return { neu, zusammen, eintraege };
 }
 
 // ---------- CSV-Export des CRM ----------
@@ -3515,7 +3457,7 @@ function zeichnePersonal(r) {
     <input class="suche" id="personal-suche" type="search" placeholder="Name, Telefon, Personalnummer, Führerschein …" aria-label="Personal durchsuchen" value="${esc(ANSICHT.personalSuche || '')}">
     <div class="chips" role="group" aria-label="Ansicht">${Object.entries(PERSONAL_FILTER).map(([k, l]) => `<button class="chip" data-personal-filter="${k}" aria-pressed="${f === k && !such}">${l}</button>`).join('')}</div>
     <div id="personal">${karten || (alleMa.length ? '<div class="leer"><b>Keine Treffer</b>In dieser Ansicht gibt es niemanden.</div>'
-      : '<div class="leer">👥<b>Noch kein Personal</b>Lege Mitarbeiter an, übernimm sie aus der bisherigen Tourenplanung (⚙ → Tourenplanung) oder importiere die Lohnabrechnungen.</div>')}</div>`;
+      : '<div class="leer">👥<b>Noch kein Personal</b>Lege Mitarbeiter an oder importiere die Lohnabrechnungen.</div>')}</div>`;
 }
 
 // ---------- Mitarbeiter ----------
@@ -5677,123 +5619,12 @@ $('#liste').addEventListener('change', e => {
   if (a) setzeStatistik({ ...a, titel: '' });
 });
 
-// ============================== Übernahme aus der bisherigen Tourenplanung ==============================
-/**
- * Die bisherige Tourenplanung (eigene Seite mit Google-Tabelle) wird einmalig – oder wiederholt bis zum Umstieg – übernommen:
- * Fahrzeuge → Fuhrpark, Personal → Mitarbeiter, Einsatzarten, Auftraggeber → Firmen, Abwesenheiten und alle Touren im Zeitraum.
- * Wiederholen ist gefahrlos: gleiche Kennzeichen, Namen und Tage werden zusammengeführt, nichts doppelt angelegt.
- */
-const TP = { url: 'https://script.google.com/macros/s/AKfycby5KUa5VlCeza6mLZCDt1hajWjMGLXFjD_fW847ERpWn12DC2xZZfOlezVpBUv63WTG2g/exec' };
-async function tpApi(pin, name, args) {
-  const r = await (await fetch(TP.url, { method: 'POST', body: JSON.stringify({ pin, name, args }) })).json();
-  if (r.error) throw new Error(/PIN/i.test(r.error) && !/GESPERRT/.test(r.error) ? 'Die PIN der Tourenplanung war falsch.' : String(r.error).replace(/^.*GESPERRT: /, ''));
-  return r.ok;
-}
-/** Feste Kennung aus einem Text (gleiche Tour bei erneutem Import = gleiche Kennung). */
+/** Feste Kennung aus einem Text (gleicher Text = gleiche Kennung, z. B. beim erneuten Einlesen einer Fahrerkarte). */
 function kennungAus(text) {
   let h1 = 0x811c9dc5, h2 = 0x01000193, h3 = 0x12345678, h4 = 0x9e3779b9;
   for (let i = 0; i < text.length; i++) { const c = text.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = Math.imul(h2 ^ c, 2246822519); h3 = Math.imul(h3 ^ c, 3266489917); h4 = Math.imul(h4 ^ c, 668265263); }
   const x = [h1, h2, h3, h4].map(h => (h >>> 0).toString(16).padStart(8, '0')).join('');
   return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20, 32)}`;
-}
-const jaNein = v => /^(ja|j|x|1|true|yes)$/i.test(String(v || '').trim());
-function tpImportDialog() {
-  const j = new Date();
-  dialog(`<form method="dialog" id="tp-import"><h2>Daten der bisherigen Tourenplanung übernehmen</h2>
-    <p class="leise">Übernimmt Fahrzeuge, Personal, Einsatzarten, Auftraggeber, Abwesenheiten und alle Touren im Zeitraum ins CRM. Die bisherige Tourenplanung bleibt unverändert. Mehrfaches Übernehmen ist gefahrlos – bis zum Umstieg einfach wiederholen.</p>
-    <label class="feld">PIN der Tourenplanung<input name="pin" type="password" inputmode="numeric" autocomplete="off" required></label>
-    <div class="zeile"><label class="feld fuell">Touren ab<input name="von" type="date" value="${isoTag(new Date(j.getFullYear() - 1, 0, 1))}" required></label>
-      <label class="feld fuell">bis<input name="bis" type="date" value="${plusTage(heute(), 60)}" required></label></div>
-    <p class="fehlertext" id="tpi-fehler" hidden></p><div id="tpi-stand" class="leise"></div><progress id="tpi-fortschritt" max="1" value="0" hidden style="width:100%"></progress>
-    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu id="tpi-abbrechen">Abbrechen</button><button class="knopf voll" id="tpi-los">Übernehmen</button></div></form>`, { schliessbar: false });
-  let abbrechen = false;
-  $('#tpi-abbrechen').onclick = () => { abbrechen = true; };
-  $('#tp-import').onsubmit = async ev => {
-    ev.preventDefault();
-    const w = Object.fromEntries(new FormData(ev.target)), stand = $('#tpi-stand'), balken = $('#tpi-fortschritt'), fehler = $('#tpi-fehler');
-    $('#tpi-los').disabled = true; fehler.hidden = true; balken.hidden = false;
-    try {
-      stand.textContent = 'Lade Stammdaten …';
-      const d = await tpApi(w.pin, 'getDay', [heute()]);
-      const r = tpStammdatenUebernehmen(d);
-      const tage = []; for (let t = w.von; t <= w.bis; t = plusTage(t, 1)) tage.push(t);
-      let fertig = 0, touren = 0, mitTouren = 0;
-      const arbeite = async () => {
-        while (tage.length && !abbrechen) {
-          const tag = tage.shift();
-          let liste = null;
-          for (let versuch = 0; versuch < 3 && liste == null; versuch++) { try { liste = await tpApi(w.pin, 'getTag', [tag]); } catch (x) { if (versuch === 2) throw x; await new Promise(z => setTimeout(z, 1500)); } }
-          const n = tpTagUebernehmen(tag, liste || []); touren += n; if (n) mitTouren++;
-          fertig++; balken.max = fertig + tage.length; balken.value = fertig;
-          stand.textContent = `Touren: ${fertig} von ${fertig + tage.length} Tagen geprüft · ${touren} Touren an ${mitTouren} Tagen übernommen`;
-        }
-      };
-      await Promise.all(Array.from({ length: 6 }, arbeite));
-      speichere(); planeAbgleich();
-      $('#dialog').close(); zeichne();
-      toast(`${abbrechen ? 'Abgebrochen. ' : ''}Übernommen: ${r.fahrzeuge} Fahrzeuge, ${r.personal} Mitarbeiter, ${r.einsatzarten} Einsatzarten, ${r.firmen} Firmen, ${r.abwesenheiten} Abwesenheiten, ${touren} Touren`, 9000);
-    } catch (x) { fehler.textContent = x.message; fehler.hidden = false; $('#tpi-los').disabled = false; balken.hidden = true; }
-  };
-}
-function tpStammdatenUebernehmen(d) {
-  const r = { fahrzeuge: 0, personal: 0, einsatzarten: 0, firmen: 0, abwesenheiten: 0 }, jetzt = jetztIso();
-  const rest = (o, ohne) => Object.entries(o).filter(([k, v]) => !ohne.includes(k) && v !== '' && v != null).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(', ');
-  for (const f of d.fahrzeuge || []) {
-    const kz = String(f.Kennzeichen || '').trim(); if (!kz) continue;
-    const zgg = Number(String(f.zGG_kg || '').replace(/\D/g, '')) || null, leih = jaNein(f.Leihfahrzeug), alt = fahrzeugZumKz(kz);
-    if (!alt) { merke('fahrzeuge', { id: uuid(), firmaId: '', kennzeichen: kz.toUpperCase(), art: zgg && zgg > 3500 ? 'LKW' : 'TRANSPORTER', status: 'AKTIV', zgg, leihfahrzeug: leih, notiz: rest(f, ['Kennzeichen', 'zGG_kg', 'Leihfahrzeug']) ? 'Aus der Tourenplanung – ' + rest(f, ['Kennzeichen', 'zGG_kg', 'Leihfahrzeug']) : '', geaendertAm: jetzt }); r.fahrzeuge++; }
-    else if ((!alt.zgg && zgg) || (leih && !alt.leihfahrzeug)) { merke('fahrzeuge', { ...alt, zgg: alt.zgg || zgg, leihfahrzeug: alt.leihfahrzeug || leih, geaendertAm: jetzt }); r.fahrzeuge++; }
-  }
-  for (const a of d.einsatzarten || []) {
-    const name = String(a.Einsatzart || '').trim(); if (!name) continue;
-    const alt = einsatzartZu(name), neu = { beifahrer: Math.min(BEIFAHRER_MAX, Number(a.Beifahrer) || 0), monteurNoetig: jaNein(a.Monteur_noetig) };
-    if (!alt) { merke('einsatzarten', { id: kennungAus('ea|' + normal(name)), firmaId: '', name, ...neu, notiz: '', geaendertAm: jetzt }); r.einsatzarten++; }
-  }
-  for (const a of d.auftraggeber || []) {
-    const name = String(a.Auftraggeber || '').trim(); if (!name) continue;
-    let f = firmaZumNamen(name);
-    if (!f) { f = merke('auftraggeber', { id: uuid(), name, status: 'AKTIV', notizen: 'Aus der Tourenplanung übernommen', geaendertAm: jetzt }); r.firmen++; }
-    if (a.Adresse && !vonFirma('adressen', f.id).length) {
-      const m = String(a.Adresse).match(/^(.*?),?\s*(\d{5})\s+(.+)$/);
-      merke('adressen', { id: uuid(), firmaId: f.id, art: 'HAUPTSITZ', strasse: m ? m[1].trim() : String(a.Adresse), plz: m ? m[2] : '', ort: m ? m[3].trim() : '', notiz: '', geaendertAm: jetzt });
-    }
-  }
-  for (const p of d.personal || []) {
-    const name = String(p.Name || '').trim(); if (!name) continue;
-    const rolle = /beides/i.test(p.Rolle) ? 'BEIDES' : /beifahrer/i.test(p.Rolle) ? 'BEIFAHRER' : 'FAHRER', alt = maZumNamen(name);
-    const daten = { rolle, telefon: p.Telefon ? String(p.Telefon) : '', monteur: jaNein(p.Monteur), nichtBei: String(p.Nicht_bei || '').trim(), aktiv: !/^nein$/i.test(String(p.Aktiv || '').trim()) };
-    if (!alt) { merke('mitarbeiter', { id: kennungAus('ma|' + nameSchluessel(name)), firmaId: '', name, ...daten, notiz: rest(p, ['Name', 'Rolle', 'Telefon', 'Monteur', 'Nicht_bei', 'Aktiv']), geaendertAm: jetzt }); r.personal++; }
-    else {
-      const dazu = Object.fromEntries(Object.entries(daten).filter(([k, v]) => (alt[k] == null || alt[k] === '') && v !== ''));
-      if (Object.keys(dazu).length) { merke('mitarbeiter', { ...alt, ...dazu, geaendertAm: jetzt }); r.personal++; }
-    }
-  }
-  for (const a of d.abwesenheiten || []) {
-    const m = maZumNamen(a.Name); if (!m || !a.Von) continue;
-    const id = kennungAus(`abw|${m.id}|${a.Von}|${a.Bis || a.Von}`);
-    if (S.abwesenheiten[id] || abwesenheitenVon(m.id).some(x => x.von === a.Von && (x.bis || x.von) === (a.Bis || a.Von))) continue;
-    merke('abwesenheiten', { id, firmaId: '', mitarbeiterId: m.id, von: a.Von, bis: a.Bis || a.Von, grund: a.Grund || '', notiz: '', geaendertAm: jetzt }); r.abwesenheiten++;
-  }
-  return r;
-}
-/** Touren eines Tages übernehmen; feste Kennungen je Tag und Zeile, Überzähliges vom letzten Import wird entfernt. */
-function tpTagUebernehmen(tag, liste) {
-  const person = n => { n = String(n || '').trim(); if (!n) return ''; const m = maZumNamen(n); return m ? m.id : PersonalAktionen.schnellAnlegen(n); };
-  const ids = new Set(), jetzt = jetztIso();
-  liste.filter(t => ['Kennzeichen', 'Fahrer', 'TourNr', 'Name', 'Auftraggeber', 'Beifahrer1'].some(k => String(t[k] || '').trim())).forEach((t, i) => {
-    const id = kennungAus(`tour|${tag}|${i}`); ids.add(id);
-    const agName = String(t.Auftraggeber || '').trim(), f = agName ? firmaZumNamen(agName) : null, z = fahrzeugZumKz(t.Kennzeichen);
-    const neu = { id, firmaId: '', datum: tag, reihenfolge: i + 1, kennzeichen: z ? z.kennzeichen : String(t.Kennzeichen || '').trim().toUpperCase(), tourNr: String(t.TourNr || '').trim(),
-      auftraggeberId: f ? f.id : '', auftraggeber: f ? f.name : agName, name: String(t.Name || '').trim(), uhrzeit: String(t.Uhrzeit || '').trim(), einsatzart: String(t.Einsatzart || '').trim(),
-      fahrerId: person(t.Fahrer), beifahrerIds: [1, 2, 3, 4, 5].map(k => person(t['Beifahrer' + k])).filter(Boolean).join(','), notiz: '' };
-    const alt = S.touren[id];
-    if (alt && ['kennzeichen', 'tourNr', 'auftraggeber', 'name', 'uhrzeit', 'einsatzart', 'fahrerId', 'beifahrerIds'].every(k => (alt[k] || '') === (neu[k] || ''))) return;
-    merke('touren', { ...(alt || {}), ...neu, belegId: alt ? alt.belegId || '' : '', notiz: alt ? alt.notiz || '' : '', geaendertAm: jetzt });
-  });
-  // Touren aus einem früheren Import, die es in der Tourenplanung nicht mehr gibt (selbst angelegte Touren bleiben)
-  const importiert = new Set(Array.from({ length: 200 }, (_, k) => kennungAus(`tour|${tag}|${k}`)));
-  for (const t of tourenAm(tag)) if (importiert.has(t.id) && !ids.has(t.id)) entferne('touren', t, { firmaId: '', geaendertAm: jetzt });
-  return ids.size;
 }
 
 // ============================== Feiertage ==============================
