@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795452103; window.WEB_VERSION = '4.17.0';
+window.WEB_STAND = 1795455480; window.WEB_VERSION = '4.17.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -2889,7 +2889,10 @@ const BelegAktionen = {
     this.speichern({ ...angebot, status: 'ANGENOMMEN' });
     return id;
   },
-  loeschen(b) { entferne('belege', b, { firmaId: b.firmaId, geaendertAm: jetztIso() }); nachAenderung(); },
+  loeschen(b) {
+    for (const t of alle('touren').filter(t => t.belegId === b.id)) merke('touren', { ...t, belegId: '', geaendertAm: jetztIso() }); // Touren wieder abrechenbar
+    entferne('belege', b, { firmaId: b.firmaId, geaendertAm: jetztIso() }); nachAenderung();
+  },
   /** Alle Angebote und Rechnungen samt der erfassten Zahlungen entfernen (z. B. nach Tests). @return Anzahl */
   alleLoeschen() {
     const belege = alle('belege'), nummern = new Set(belege.map(b => b.nummer));
@@ -2987,6 +2990,7 @@ function externeRechnungDialog() {
 }
 document.addEventListener('click', e => {
   if (e.target.closest('[data-externe-rechnung]')) externeRechnungDialog();
+  if (e.target.closest('[data-versand-pruefen]')) versandPruefenDialog();
   const dok = e.target.closest('[data-beleg-dok],[data-eingang-dok]'); if (dok) oeffneAnlage(S.anlagen[dok.dataset.belegDok || dok.dataset.eingangDok]);
   const ein = e.target.closest('[data-eingang]'); if (ein) eingangDialog(S.eingangsrechnungen[ein.dataset.eingang]);
   if (e.target.closest('[data-neue-eingangsrechnung]')) eingangDialog(null);
@@ -3146,13 +3150,33 @@ $('#detail').addEventListener('change', e => {
   if (k === 'leistungVon' && neu.leistungVon && (!neu.leistungBis || neu.leistungBis < neu.leistungVon)) neu.leistungBis = neu.leistungVon;
   BelegAktionen.speichern(neu); toast('Leistungszeitraum gespeichert');
 });
-/** Wer eine Rechnung/Gutschrift ausdruckt oder als PDF speichert, gibt sie heraus: Entwurf → offen (zählt dann zum Umsatz). */
-function alsVersendet(b, still = false) {
-  const x = S.belege[b.id];
-  if (!x || x.status !== 'ENTWURF' || !['RECHNUNG', 'GUTSCHRIFT'].includes(x.art)) return false;
-  BelegAktionen.speichern({ ...x, status: 'OFFEN' });
-  if (!still) toast(`${BELEG_ART[x.art][0]} ${x.nummer} als versendet markiert – zählt jetzt zum Umsatz`, 5000);
-  return true;
+/**
+ * Versendet (Entwurf → offen, zählt zum Umsatz) ist eine Rechnung/Gutschrift erst mit dem Versand per E-Mail – nicht schon mit
+ * Drucken oder PDF. Nachweis ist die Kontakthistorie der Firma (wird abgeglichen): „E-Mail gesendet“ mit der Nummer oder
+ * „als versendet markiert“ (von Hand, z. B. per Post).
+ */
+const versandBelegt = b => alle('aktivitaeten').some(a => a.firmaId === b.firmaId && String(a.text || '').includes(b.nummer) && /^E-Mail gesendet|als versendet markiert/.test(String(a.text || '')));
+/** Stornierte Rechnung, die nie rausging (kein Versandnachweis) und auf die nichts verweist: gilt als verworfener Entwurf, darf gelöscht werden.
+ *  Versendete bleiben (Aufbewahrung 10 Jahre, Nummer bleibt vergeben). */
+const stornoLoeschbar = b => b.status === 'STORNIERT' && b.art !== 'ANGEBOT' && !b.extern && !b.ersetztDurch && !(b.bezahltCent > 0) && !versandBelegt(b)
+  && !alle('belege').some(x => x.id !== b.id && (x.korrekturVon === b.id || x.bezug === b.id));
+const versandVermerken = (b, wie) => Aktionen.crmSpeichern('aktivitaeten', { firmaId: b.firmaId, datum: heute(), art: 'SONSTIGES', kontakt: '', text: `${BELEG_ART[b.art][0]} ${b.nummer} als versendet markiert (${wie})` });
+/** Als versendet geführt, aber nie per E-Mail verschickt (z. B. früher nur gedruckt) – und noch unberührt (keine Zahlung, Mahnung, Gutschrift, Korrektur). */
+const ohneVersandnachweis = () => alle('belege').filter(b => ['RECHNUNG', 'GUTSCHRIFT'].includes(b.art) && b.status === 'OFFEN' && !b.extern && !b.korrekturVon && !b.ersetztDurch
+  && !(b.bezahltCent > 0) && !b.mahnstufe && !(b.art === 'RECHNUNG' && gutschriftenZu(b).length) && !versandBelegt(b));
+function versandPruefenDialog() {
+  const l = ohneVersandnachweis().sort((a, b) => String(a.datum).localeCompare(String(b.datum)));
+  dialog(`<form method="dialog" id="versand-form"><h2>Nur gedruckt, nicht per E-Mail versendet</h2>
+    <p>Diese Belege gelten als versendet, wurden aber nie per E-Mail verschickt (nur gedruckt oder als PDF gespeichert). Angehakte werden wieder <b>Entwurf</b> und zählen erst nach dem Versand per E-Mail.</p>
+    <p class="leise">Haken weg bei allem, was wirklich rausging (z. B. per Post) – das bleibt versendet und wird vermerkt.</p>
+    <div>${l.map(b => `<label class="auswahl"><input type="checkbox" name="b" value="${b.id}" checked> ${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)} · ${esc((S.auftraggeber[b.firmaId] || {}).name || '')} · ${datumText(b.datum)} · ${geld(belegSummen(b).brutto)}</label>`).join('')}</div>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Übernehmen</button></div></form>`);
+  $('#versand-form').onsubmit = ev => {
+    ev.preventDefault();
+    const zurueck = new Set(new FormData(ev.target).getAll('b'));
+    for (const b of l) if (zurueck.has(b.id)) BelegAktionen.speichern({ ...S.belege[b.id], status: 'ENTWURF' }); else versandVermerken(b, 'ohne E-Mail, z. B. per Post');
+    $('#dialog').close(); toast(`${zurueck.size} Beleg(e) wieder Entwurf, ${l.length - zurueck.size} bleiben versendet`, 6000);
+  };
 }
 const belegDateiname = b => `${BELEG_ART[b.art][0]}_${b.nummer}_${(S.auftraggeber[b.firmaId] || {}).name || ''}.pdf`.replace(/\s+/g, '_');
 async function belegPdf(b) {
@@ -3191,7 +3215,7 @@ function finanzKennzahlen() {
     topFirmen: Object.entries(proFirma).sort((x, y) => y[1] - x[1]).slice(0, 5),
   };
 }
-const BELEG_FILTER = { OFFEN: 'Offen', UEBERFAELLIG: 'Überfällig', BEZAHLT: 'Bezahlt', ANGEBOTE: 'Angebote', GUTSCHRIFTEN: 'Gutschriften', ENTWURF: 'Entwürfe', ALLE: 'Alle', EINGANG: 'Eingangsrechnungen' };
+const BELEG_FILTER = { OFFEN: 'Offen', UEBERFAELLIG: 'Überfällig', BEZAHLT: 'Bezahlt', ANGEBOTE: 'Angebote', GUTSCHRIFTEN: 'Gutschriften', ENTWURF: 'Entwürfe', ALLE: 'Alle', STORNIERT: 'Storniert', EINGANG: 'Eingangsrechnungen' };
 function belegKarte(b, r) {
   const m = belegMarke(b), s = belegSummen(b);
   return `<button class="karte klickbar ${r && r.art === 'beleg' && r.id === b.id ? 'gewaehlt' : ''}" data-beleg="${b.id}">
@@ -3203,7 +3227,7 @@ function zeichneFinanzen(r) {
   const k = finanzKennzahlen(), f = ANSICHT.belegFilter || 'OFFEN', such = String(ANSICHT.belegSuche || '').trim().toLowerCase();
   const liste = alle('belege').filter(b => {
     if (such) return [b.nummer, (S.auftraggeber[b.firmaId] || {}).name, b.notiz, positionen(b).map(p => p.bez).join(' ')].join(' ').toLowerCase().includes(such);
-    return f === 'ALLE' ? true : f === 'ANGEBOTE' ? b.art === 'ANGEBOT' : f === 'GUTSCHRIFTEN' ? b.art === 'GUTSCHRIFT' : f === 'ENTWURF' ? b.status === 'ENTWURF'
+    return f === 'ALLE' ? b.status !== 'STORNIERT' : f === 'STORNIERT' ? b.status === 'STORNIERT' : f === 'ANGEBOTE' ? b.art === 'ANGEBOT' : f === 'GUTSCHRIFTEN' ? b.art === 'GUTSCHRIFT' : f === 'ENTWURF' ? b.status === 'ENTWURF'
       : f === 'BEZAHLT' ? b.status === 'BEZAHLT' : f === 'UEBERFAELLIG' ? istUeberfaellig(b) : istRechnungOffen(b);
   }).sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || String(b.nummer).localeCompare(String(a.nummer)));
   const eingaenge = alle('eingangsrechnungen').filter(e => !such || [e.lieferant, e.nummer, e.notiz, EINGANG_KATEGORIE[e.kategorie]].join(' ').toLowerCase().includes(such))
@@ -3215,6 +3239,7 @@ function zeichneFinanzen(r) {
       <button class="kennzahl" data-beleg-filter="OFFEN"><b>${geld(k.offen)}</b><span>Offen (${k.offenAnzahl} Rechnungen)</span></button>
       <button class="kennzahl ${k.ueberfaelligAnzahl ? 'rot' : ''}" data-beleg-filter="UEBERFAELLIG"><b>${geld(k.ueberfaellig)}</b><span>Überfällig (${k.ueberfaelligAnzahl})</span></button>
       <div class="kennzahl"><b>${geld(k.monat)}</b><span>Umsatz diesen Monat (netto)</span></div><div class="kennzahl"><b>${geld(k.jahr)}</b><span>Umsatz ${heute().slice(0, 4)} (netto)</span></div></div>
+    ${ohneVersandnachweis().length ? `<p class="hinweis-box" style="margin-bottom:10px">⚠ ${ohneVersandnachweis().length} Beleg(e) gelten als versendet, wurden aber nur gedruckt bzw. als PDF gespeichert – nicht per E-Mail. <button class="knopf text" data-versand-pruefen>Prüfen</button></p>` : ''}
     ${k.topFirmen.length ? `<div class="karte block"><h3>Umsatz je Firma ${heute().slice(0, 4)}</h3><dl>${k.topFirmen.map(([id, c]) => `<dt>${esc((S.auftraggeber[id] || {}).name || '–')}</dt><dd>${geld(c)}</dd>`).join('')}</dl></div>` : ''}
 
     <input class="suche" id="beleg-suche" type="search" placeholder="Nummer, Firma, Leistung …" value="${esc(ANSICHT.belegSuche || '')}">
@@ -3240,11 +3265,11 @@ function zeichneBeleg(id) {
         ${rechnung && !['ENTWURF', 'STORNIERT'].includes(b.status) ? '<button class="knopf" data-beleg-akt="gutschrift">↩ Gutschrift</button>' : ''}
         ${b.art === 'GUTSCHRIFT' && b.status === 'OFFEN' ? '<button class="knopf" data-beleg-akt="ausgezahlt">Als ausgezahlt / verrechnet markieren</button>' : ''}
         ${b.art === 'ANGEBOT' && !['ANGENOMMEN', 'ABGELEHNT'].includes(b.status) ? '<button class="knopf" data-beleg-akt="zurechnung">In Rechnung umwandeln</button><button class="knopf" data-beleg-akt="abgelehnt">Abgelehnt</button>' : ''}
-        ${b.status === 'ENTWURF' ? '<button class="knopf" data-beleg-akt="festschreiben">Als versendet markieren</button>' : ''}
+        ${b.status === 'ENTWURF' ? '<button class="knopf" data-beleg-akt="festschreiben" title="Nur wenn der Beleg ohne E-Mail rausging, z. B. per Post – per E-Mail wird er beim Senden automatisch versendet">Als versendet markieren (Post)</button>' : ''}
         ${rechnung && b.status !== 'ENTWURF' ? '<button class="knopf" data-beleg-akt="korrigieren">✎ Korrigieren</button>' : ''}
         ${!rechnung && b.status !== 'ENTWURF' ? '<button class="knopf" data-beleg-akt="berichtigen">✎ Status berichtigen</button>' : ''}
         ${rechnung && b.status !== 'STORNIERT' ? '<button class="knopf text gefahr" data-beleg-akt="storno">Stornieren</button>' : ''}
-        ${b.status === 'ENTWURF' ? '<button class="knopf text gefahr" data-beleg-akt="loeschen">Löschen</button>' : ''}</div></div>
+        ${b.status === 'ENTWURF' || stornoLoeschbar(b) ? '<button class="knopf text gefahr" data-beleg-akt="loeschen">Löschen</button>' : ''}</div></div>
     <form id="beleg-form" class="karte block">
       <div class="zeile"><label class="feld fuell">Datum<input type="date" name="datum" value="${esc(b.datum || '')}" ${gesperrt ? 'disabled' : ''}></label>
         <label class="feld fuell">${rechnung ? 'Fällig am' : b.art === 'GUTSCHRIFT' ? 'Auszahlung bis' : 'Gültig bis'}<input type="date" name="faelligAm" value="${esc(b.faelligAm || '')}" ${gesperrt ? 'disabled' : ''}></label>
@@ -3401,10 +3426,11 @@ $('#detail').addEventListener('click', async e => {
   const aktuell = ['BEZAHLT', 'STORNIERT'].includes(b.status) ? b : belegAusFormular(b);
   if (aktuell !== b) BelegAktionen.speichern(aktuell);
   switch (akt.dataset.belegAkt) {
-    case 'pdf': try { const pfad = await window.desktop.speichere(belegDateiname(aktuell), await belegPdf(aktuell)); if (pfad) { const v = alsVersendet(aktuell, true); toast('Gespeichert: ' + pfad + (v ? ' – als versendet markiert' : ''), v ? 6000 : 3500); } }
-      catch (fehler) { if (!window.desktop) { belegDrucken(aktuell); alsVersendet(aktuell); } else toast(fehler.message); } break;
-    case 'drucken': belegDrucken(aktuell); alsVersendet(aktuell); break;
-    case 'erechnung': { const l = eRechnungLuecken(aktuell); if (l.length) { eRechnungLueckenDialog(aktuell, l); break; } ladeHerunter(eRechnungDateiname(aktuell), eRechnungXml(aktuell), 'application/xml;charset=utf-8'); alsVersendet(aktuell); break; }
+    // Drucken, PDF und E-Rechnung als Datei geben den Beleg nicht heraus – versendet ist er erst per E-Mail (oder von Hand markiert).
+    case 'pdf': try { const pfad = await window.desktop.speichere(belegDateiname(aktuell), await belegPdf(aktuell)); if (pfad) toast('Gespeichert: ' + pfad, 3500); }
+      catch (fehler) { if (!window.desktop) belegDrucken(aktuell); else toast(fehler.message); } break;
+    case 'drucken': belegDrucken(aktuell); break;
+    case 'erechnung': { const l = eRechnungLuecken(aktuell); if (l.length) { eRechnungLueckenDialog(aktuell, l); break; } ladeHerunter(eRechnungDateiname(aktuell), eRechnungXml(aktuell), 'application/xml;charset=utf-8'); break; }
     case 'mail': belegMail(aktuell); break;
     case 'mahnung': belegMail(aktuell, 'mahnung'); break;
     case 'zahlung': zahlungDialog(aktuell); break;
@@ -3412,7 +3438,7 @@ $('#detail').addEventListener('click', async e => {
     case 'berichtigen': belegBerichtigenDialog(aktuell); break;
     case 'zurechnung': gehe('#/beleg/' + BelegAktionen.zuRechnung(aktuell)); break;
     case 'abgelehnt': BelegAktionen.speichern({ ...aktuell, status: 'ABGELEHNT' }); break;
-    case 'festschreiben': BelegAktionen.speichern({ ...aktuell, status: 'OFFEN' }); break;
+    case 'festschreiben': BelegAktionen.speichern({ ...aktuell, status: 'OFFEN' }); versandVermerken(aktuell, 'ohne E-Mail, z. B. per Post'); break;
     case 'ausgezahlt': BelegAktionen.speichern({ ...aktuell, status: 'BEZAHLT', bezahltAm: heute(), bezahltCent: belegSummen(aktuell).brutto }); break;
     case 'gutschrift': {
       const offen = offenCent(aktuell);
@@ -3425,7 +3451,7 @@ $('#detail').addEventListener('click', async e => {
       break;
     }
     case 'storno': bestaetige(`${aktuell.nummer} stornieren?`, 'Die Rechnung bleibt erhalten, zählt aber nicht mehr zum Umsatz und zu den offenen Posten.', 'Stornieren', () => BelegAktionen.speichern({ ...aktuell, status: 'STORNIERT' })); break;
-    case 'loeschen': bestaetige(`${aktuell.nummer} löschen?`, 'Der Entwurf wird gelöscht.', 'Löschen', () => { BelegAktionen.loeschen(aktuell); gehe('#/firma/' + aktuell.firmaId); }); break;
+    case 'loeschen': bestaetige(`${aktuell.nummer} löschen?`, aktuell.status === 'STORNIERT' ? 'Die stornierte Rechnung wurde nie versendet und wird endgültig gelöscht. Ihre Nummer wird wieder frei.' : 'Der Entwurf wird gelöscht.', 'Löschen', () => { BelegAktionen.loeschen(aktuell); gehe('#/firma/' + aktuell.firmaId); }); break;
   }
 });
 $('#detail').addEventListener('change', e => {
@@ -5785,7 +5811,7 @@ function guvHtml(zr) {
   const umsatzSumme = umsatz.reduce((n, b) => n + umsatzNetto(b), 0);
   const entwuerfe = alle('belege').filter(b => b.status === 'ENTWURF' && ['RECHNUNG', 'GUTSCHRIFT'].includes(b.art) && b.datum >= zr.von && b.datum <= zr.bis);
   const kz = (w, l, rot) => `<div class="kennzahl ${rot ? 'rot' : ''}"><b>${esc(w)}</b><span>${esc(l)}</span></div>`;
-  return `${finanzHinweis(zr)}${entwuerfe.length ? `<p class="hinweis-box" style="margin-bottom:10px">⚠ ${entwuerfe.length} Entwurf/Entwürfe zählen nicht zum Umsatz – im Beleg „Als versendet markieren“ (oder drucken bzw. als PDF speichern): ${entwuerfe.map(b => `<a href="#/beleg/${b.id}" translate="no">${esc(b.nummer)} (${esc(geld(belegSummen(b).netto))})</a>`).join(', ')}</p>` : ''}<div class="kennzahlen vier">${kz(geld(s.erloes || 0), s.sonstig ? 'Erlös (Touren + Rechnungen ohne Tour)' : 'Erlös aus Touren')}${kz(geld((s.personal || 0) + (s.fahrzeug || 0) + (s.schaeden || 0) + (s.gemein || 0)), 'Kosten der Touren')}
+  return `${finanzHinweis(zr)}${entwuerfe.length ? `<p class="hinweis-box" style="margin-bottom:10px">⚠ ${entwuerfe.length} Entwurf/Entwürfe zählen nicht zum Umsatz – per E-Mail versenden (oder im Beleg „Als versendet markieren (Post)“): ${entwuerfe.map(b => `<a href="#/beleg/${b.id}" translate="no">${esc(b.nummer)} (${esc(geld(belegSummen(b).netto))})</a>`).join(', ')}</p>` : ''}<div class="kennzahlen vier">${kz(geld(s.erloes || 0), s.sonstig ? 'Erlös (Touren + Rechnungen ohne Tour)' : 'Erlös aus Touren')}${kz(geld((s.personal || 0) + (s.fahrzeug || 0) + (s.schaeden || 0) + (s.gemein || 0)), 'Kosten der Touren')}
       ${kz(geld(ergebnis), ergebnis >= 0 ? 'Gewinn (Deckungsbeitrag)' : 'Verlust', ergebnis < 0)}${kz(s.erloes ? (ergebnis / s.erloes * 100).toFixed(1).replace('.', ',') + ' %' : '–', 'Marge')}</div>
     <div class="tabelle-rahmen" tabindex="0"><table class="tabelle" id="guv"><tr><th>Monat</th><th class="r">Touren</th><th class="r">Erlös</th><th class="r">Personal</th><th class="r">Fahrzeuge</th><th class="r">Schäden</th>${kostenAnnahmen().gemein ? '<th class="r">Gemeinkosten</th>' : ''}<th class="r">Ergebnis</th><th class="r">je Tour</th></tr>
       ${Object.keys(monate).sort().map(m => { const x = monate[m], e = x.erloes - x.personal - x.fahrzeug - x.schaeden - x.gemein;
