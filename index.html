@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795455480; window.WEB_VERSION = '4.17.0';
+window.WEB_STAND = 1795459911; window.WEB_VERSION = '4.18.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -972,6 +972,9 @@ function csvErstellen(faelle, anlagenJeFall) {
 
 // ============================== Daten im Browser ==============================
 const SPEICHER = 'schadensfaelle-v1', PIN_SPEICHER = 'schadensfaelle-pin';
+/** Unterfenster der Windows-App: eigener Bereich, gleicher Datenstand. Abgleich, Mailabruf und Updates laufen nur im Hauptfenster. */
+const NEBENFENSTER = /[?&]neben=1(&|$)/.test(location.search);
+const fensterNeu = (bereich, ziel = '') => { const f = window.desktop && window.desktop.fenster && window.desktop.fenster.neu; if (!f) return false; f(bereich, ziel).catch(e => toast(e.message)); return true; };
 const CRM_TABELLEN = ['adressen', 'ansprechpartner', 'preise', 'aktivitaeten', 'aufgaben', 'dokumente', 'chancen', 'belege', 'fahrzeuge', 'fahrzeugeintraege',
   'mitarbeiter', 'personaleintraege', 'abwesenheiten', 'einsatzarten', 'touren', 'zeiten', 'aufgabenIntern', 'tachotage', 'stopps', 'eingangsrechnungen'];
 const LEER = () => ({ faelle: {}, verlauf: {}, anlagen: {}, auftraggeber: {}, ...Object.fromEntries(CRM_TABELLEN.map(t => [t, {}])), seit: 0, kennung: '', apiUrl: '', nurLokal: false,
@@ -1235,7 +1238,7 @@ const offene = tabelle => Object.values(S[tabelle]).filter(d => d._dirty);
 function planeAbgleich(ms = 1200) { if (!mitCloud()) return; clearTimeout(SYNC.timer); SYNC.timer = setTimeout(abgleich, ms); zeichneSync(); }
 
 async function abgleich() {
-  if (!mitCloud()) return;
+  if (!mitCloud() || NEBENFENSTER) return; // das Hauptfenster gleicht für alle Fenster ab
   if (!PIN) { anmeldung(); return; }
   if (SYNC.laeuft) { SYNC.nochmal = true; return; }
   SYNC.laeuft = true; SYNC.nochmal = false; zeichneSync();
@@ -1669,6 +1672,7 @@ function zeichneNavi() {
   $('#navi').innerHTML = `<div class="nav-gross">${gruppen.map(g => `<div class="nav-gruppe">${esc(g)}</div>${Object.keys(BEREICHE).filter(k => BEREICHE[k][2] === g && bereichSichtbar(k)).map(k => knopf(k)).join('')}`).join('')}
       <div class="nav-gruppe"></div><button class="nav-knopf" data-nav-einstellungen><span class="nav-symbol" aria-hidden="true">${winSymbol('einstellungen', '⚙')}</span><span class="nav-text">Einstellungen</span></button>
       <button class="nav-knopf" data-nav-thema><span class="nav-symbol" aria-hidden="true">${winSymbol('thema', { hell: '☀', dunkel: '🌙' }[S.einstellungen.thema] || '🌓')}</span><span class="nav-text">Darstellung: ${{ hell: 'hell', dunkel: 'dunkel' }[S.einstellungen.thema] || 'automatisch'}</span></button>
+      ${window.desktop && window.desktop.fenster && window.desktop.fenster.neu ? `<button class="nav-knopf" data-nav-fenster title="Aktuelle Ansicht in einem eigenen Fenster (Strg+Umschalt+N) – Strg-Klick auf einen Bereich öffnet ihn dort"><span class="nav-symbol" aria-hidden="true">⧉</span><span class="nav-text">Neues Fenster</span></button>` : ''}
       <button class="nav-knopf" data-nav-hilfe><span class="nav-symbol" aria-hidden="true">${winSymbol('hilfe', '⌨')}</span><span class="nav-text">Tastenkürzel</span></button></div>
     <div class="nav-klein">${unten.filter(bereichSichtbar).map(k => knopf(k)).join('')}
       <button class="nav-knopf" data-nav-mehr aria-current="${mehrAktiv ? 'page' : 'false'}"><span class="nav-symbol" aria-hidden="true">☰</span><span class="nav-text">${mehrAktiv ? esc(t(BEREICHE[aktiv][0])) : 'Mehr'}</span>
@@ -1676,13 +1680,15 @@ function zeichneNavi() {
 }
 function bereichWechseln(k) {
   if (!formularSchliessen()) return;
-  ANSICHT.bereich = k; try { localStorage.setItem('crm-bereich', k); } catch {}
+  ANSICHT.bereich = k; try { if (!NEBENFENSTER) localStorage.setItem('crm-bereich', k); } catch {}
   if (k === 'touren' && !ANSICHT.tourTag) ANSICHT.tourTag = heute();
   if (route().art) gehe('#/'); else zeichne();
   window.scrollTo(0, 0);
 }
 $('#navi').addEventListener('click', e => {
   const b = e.target.closest('[data-bereich]');
+  if (b && (e.ctrlKey || e.shiftKey || e.metaKey) && fensterNeu(b.dataset.bereich)) return;
+  if (e.target.closest('[data-nav-fenster]')) { fensterNeu(ANSICHT.bereich, location.hash.startsWith('#/') ? location.hash : ''); return; }
   if (b) { document.body.classList.remove('nav-offen'); bereichWechseln(b.dataset.bereich); return; }
   if (e.target.closest('[data-nav-mehr]')) { document.body.classList.add('nav-offen'); return; }
   if (e.target.closest('[data-nav-einstellungen]')) { document.body.classList.remove('nav-offen'); gehe('#/einstellungen'); return; }
@@ -1841,6 +1847,7 @@ $('#liste').addEventListener('click', e => {
 const KONTEXT = [];
 const ANSICHT = { filter: 'OFFEN', suche: '', notiz: '', bereich: 'firmen', firmenSuche: '', firmenStatus: '', firmaFuerNeuenFall: '' };
 try { const b = localStorage.getItem('crm-bereich'); if (b && b in BEREICHE) ANSICHT.bereich = b; } catch {}
+try { const b = new URLSearchParams(location.search).get('bereich'); if (NEBENFENSTER && b && b in BEREICHE) ANSICHT.bereich = b; } catch {}
 function route() {
   const [, art = '', id = ''] = location.hash.split('/');
   return { art, id };
@@ -2372,11 +2379,17 @@ $('#detail').addEventListener('click', e => {
     default: {
       const einrichten = e.target.closest('[data-mail-einrichten]'), entfernen = e.target.closest('[data-mail-entfernen]');
       if (einrichten) mailKontoDialog(einrichten.dataset.mailEinrichten);
+      else if (e.target.closest('[data-mail-konto-neu]')) mailKontoNeuDialog();
       else if (e.target.closest('[data-mail-abrufen]')) postfachAbrufen(true);
       else if (entfernen) {
         const art = entfernen.dataset.mailEntfernen;
         bestaetige('E-Mail-Konto entfernen?', 'Konto und Passwort werden von diesem Rechner entfernt. Bereits zugeordnete Mails bleiben im Verlauf.', 'Entfernen',
-          async () => { await window.desktop.mail.trennen(art); MAIL.konten[art] = null; aktualisiereKonto(); zeichne(); toast('E-Mail-Konto entfernt'); });
+          async () => {
+            await window.desktop.mail.trennen(art); MAIL.konten[art] = null;
+            // weiteres Konto: ganz aus der Liste (Schäden und Allgemein bleiben als leere Karte)
+            if (!['SCHADEN', 'ALLGEMEIN'].includes(art)) { S.einstellungen.mailKontenWeitere = weitereKonten().filter(k => k.art !== art); delete MAIL.konten[art]; delete MAIL_KONTEN[art]; speichere(); }
+            aktualisiereKonto(); zeichne(); toast('E-Mail-Konto entfernt');
+          });
       }
       break;
     }
@@ -4861,15 +4874,18 @@ function alleSenden(tag) {
     <div class="dialog-knoepfe">${smsMassen && mitNr.length ? `<button class="knopf tonal" id="tp-sms">📱 Alle per SMS (${mitNr.length})</button>` : ''}<button class="knopf" id="tp-csv">CSV für Sammel-SMS</button><button class="knopf voll" data-zu>Fertig</button></div>`);
   if ($('#tp-sms')) $('#tp-sms').onclick = async () => {
     const b = $('#tp-sms'), ziel = eintraege.map((x, i) => ({ x, i })).filter(({ x }) => x.m.telefon);
-    b.disabled = true; b.textContent = 'Sende …';
+    b.disabled = true; b.textContent = `Sende … 0 / ${ziel.length}`;
+    let fertig = 0;
+    const markiere = (k, fehler) => {
+      const feld = $(`[data-alle-sms="${ziel[k].i}"]`); if (!feld || feld.dataset.fertig) return;
+      feld.dataset.fertig = '1'; b.textContent = `Sende … ${++fertig} / ${ziel.length}`;
+      feld.innerHTML = !fehler ? '<br><span class="marke gruen">✓ SMS gesendet</span>' : `<br><span class="marke rot">SMS nicht angekommen – bitte per WhatsApp kontaktieren</span> <span class="leise">${esc(fehler)}</span>`;
+    };
+    window.__smsStand = markiere; // die Android-App meldet jede SMS, sobald sie raus ist
     try {
       const r = await smsMassen(ziel.map(({ x }) => ({ nummer: intNummer(x.m.telefon), text: nachricht(x) })));
       let fehlt = 0;
-      ziel.forEach(({ i }, k) => {
-        const ok = r[k] && r[k].ok, feld = $(`[data-alle-sms="${i}"]`);
-        if (!ok) fehlt++;
-        feld.innerHTML = ok ? '<br><span class="marke gruen">✓ SMS gesendet</span>' : `<br><span class="marke rot">SMS nicht angekommen – bitte per WhatsApp kontaktieren</span> <span class="leise">${esc((r[k] && r[k].fehler) || '')}</span>`;
-      });
+      ziel.forEach((_, k) => { const ok = r[k] && r[k].ok; if (!ok) fehlt++; markiere(k, ok ? '' : (r[k] && r[k].fehler) || 'unbekannt'); });
       const e = $('#tp-sms-ergebnis'); e.hidden = false; e.className = fehlt ? 'hinweis-box' : 'leise';
       e.textContent = `${ziel.length - fehlt} von ${ziel.length} SMS gesendet.` + (fehlt ? ` ${fehlt} Person(en) bitte per WhatsApp kontaktieren (rot markiert, 💬).` : '') + (eintraege.length > ziel.length ? ` ${eintraege.length - ziel.length} ohne Telefonnummer.` : '');
       b.textContent = '📱 SMS gesendet';
@@ -7374,6 +7390,9 @@ function termineIcs() {
 //   5. sonst → „Nicht zugeordnet“ (im Postfach von Hand zuordnen)
 const MAIL = { konten: { SCHADEN: null, ALLGEMEIN: null }, konto: null, anbieter: {}, laeuft: false, timer: 0 };
 const MAIL_KONTEN = { SCHADEN: 'Schäden', ALLGEMEIN: 'Allgemein' };
+/** Weitere Postfächer (frei benannt, Liste auf diesem Gerät wie die Zugangsdaten): [{ art, name, signatur }]. */
+const weitereKonten = () => (Array.isArray(S.einstellungen.mailKontenWeitere) ? S.einstellungen.mailKontenWeitere : []);
+function kontenListe() { for (const k of weitereKonten()) { MAIL_KONTEN[k.art] = k.name; if (!(k.art in MAIL.konten)) MAIL.konten[k.art] = null; } }
 const FALLNUMMER = /\[Fall (\d{4}-\d+)]/;
 const mitFallnummer = (betreff, nr) => (FALLNUMMER.test(betreff) ? betreff : `${String(betreff).trim()} [Fall ${nr}]`.trim());
 const mails = () => (S.mails = S.mails || {});
@@ -7382,8 +7401,8 @@ const blobAusBase64 = (b64, typ) => new Blob([Uint8Array.from(atob(b64), z => z.
 /** Das Postfach, über das gesendet wird: das gewünschte, sonst das andere. */
 const kontoFuer = gewuenscht => (MAIL.konten[gewuenscht] ? gewuenscht : Object.keys(MAIL.konten).find(a => MAIL.konten[a]) || null);
 const eigeneAdressen = () => Object.values(MAIL.konten).filter(Boolean).map(k => k.adresse.toLowerCase());
-const mailStand = art => (art === 'ALLGEMEIN' ? S.mailStandAllgemein : S.mailStand) || {};
-function setzeMailStand(art, wert) { if (art === 'ALLGEMEIN') S.mailStandAllgemein = wert; else S.mailStand = wert; }
+const mailStand = art => (art === 'ALLGEMEIN' ? S.mailStandAllgemein : art === 'SCHADEN' ? S.mailStand : (S.mailStandKonten || {})[art]) || {};
+function setzeMailStand(art, wert) { if (art === 'ALLGEMEIN') S.mailStandAllgemein = wert; else if (art === 'SCHADEN') S.mailStand = wert; else (S.mailStandKonten = S.mailStandKonten || {})[art] = wert; }
 const istZugeordnet = m => !!(m.fallId || m.firmaId || String(m.kundeRef || '').trim());
 function aktualisiereKonto() { MAIL.konto = MAIL.konten.SCHADEN || MAIL.konten.ALLGEMEIN || null; }
 
@@ -7416,7 +7435,7 @@ function ordneZu(m, art) {
     if (alt && alt.fallId && S.faelle[alt.fallId] && !S.faelle[alt.fallId].geloescht) return { fallId: alt.fallId };
     if (alt && alt.firmaId && S.auftraggeber[alt.firmaId]) return { firmaId: alt.firmaId };
   }
-  if (art !== 'ALLGEMEIN') {
+  if (art === 'SCHADEN') {
     const passend = faelle().filter(f => status(f).offen && [f.kundeEmail, f.auftraggeberEmail].some(a => (a || '').trim().toLowerCase() === m.von));
     if (passend.length === 1) return { fallId: passend[0].id };
   }
@@ -7994,7 +8013,7 @@ function zeichneOrdner() {
     'V:ZURUECK': l.filter(zurueckgestellt).length, 'V:ENTWUERFE': Object.keys(entwuerfe()).length, 'V:GEPLANT': Object.keys(geplanteMails()).length };
   const favoriten = Object.entries(PF_FAVORITEN).filter(([k]) => !['V:ZURUECK', 'V:ENTWUERFE', 'V:GEPLANT'].includes(k) || zahl[k] || aktiv === k)
     .map(([k, [name, sym]]) => knopf(k, sym, name, zahl[k])).join('');
-  const konten = mailKonten().map(art => `<div class="pf-gruppe" title="${esc(MAIL.konten[art].adresse)}">${esc(MAIL.konten[art].adresse)}
+  const konten = mailKonten().map(art => `<div class="pf-gruppe" title="${esc(MAIL.konten[art].adresse)}">${esc(MAIL_KONTEN[art] || art)} · ${esc(MAIL.konten[art].adresse)}${(n => (n ? ` (${n})` : ''))(l.filter(m => ungelesen(m) && kontoVon(m) === art).length)}
       ${MAIL_V2() ? `<button class="symbol" data-pf-ordner-neu="${art}" title="${esc(t('Neuer Ordner'))}" aria-label="${esc(t('Neuer Ordner'))}">＋</button>` : ''}</div>
     ${ordnerBaum(art).map(({ o, tiefe }) => { const key = `K:${art}|${o.pfad}`, n = o.spezial === 'INBOX' ? l.filter(m => ungelesen(m) && kontoVon(m) === art).length
       : o.spezial === 'DRAFTS' || o.spezial === 'JUNK' ? l.filter(m => inOrdner(m, art, o)).length : l.filter(m => inOrdner(m, art, o) && m.eingehend && !m.gelesen).length;
@@ -8232,6 +8251,8 @@ async function zeichneMail(id) {
   if (m.lesebestaetigung && m.eingehend && !m.lesebestaetigungErledigt && S.einstellungen.mailLesebest !== 'NIE' && ordnerTyp !== 'JUNK')
     infos.push(`<div class="pf-info blau"><span class="fuell">📨 ${esc(t('Der Absender bittet um eine Lesebestätigung.'))}</span>${knopf('lesebest-ja', esc(t('Senden')))}${knopf('lesebest-nein', esc(t('Nicht senden')))}</div>`);
   if (m.abmelden && ordnerTyp !== 'JUNK') infos.push(`<div class="pf-info"><span class="fuell">📰 ${esc(t('Newsletter bzw. Verteiler.'))}</span>${knopf('abmelden', esc(t('Abbestellen')))}</div>`);
+  if (m.eingehend && ordnerTyp !== 'JUNK' && sichtbareAnh.some(a => /xml|pdf/i.test(a.mimeType + a.name))) infos.push('<div class="pf-info gelb" id="pf-erechnung" hidden></div>');
+  infos.push(absenderInfo(m), erkannteVerweise(m));
   if (sichtbareAnh.some(a => /calendar|\.ics$/i.test(a.mimeType + a.name))) infos.push(`<div class="pf-info blau" id="pf-einladung"><span class="fuell">📅 ${esc(t('Kalendereinladung wird gelesen …'))}</span></div>`);
   el.innerHTML = `<div class="pf-lese">
     <div class="pf-leiste" role="toolbar" aria-label="${esc(t('Befehle'))}">
@@ -8267,6 +8288,62 @@ async function zeichneMail(id) {
   await koerperZeigen(id);
   const ta = $('#pf-schnell-text'); if (ta) ta.oninput = () => { const b = $('[data-mail-akt="schnell-senden"]'); if (b) b.disabled = !ta.value.trim(); };
   if (sichtbareAnh.some(a => /calendar|\.ics$/i.test(a.mimeType + a.name))) einladungZeigen(id).catch(() => { const x = $('#pf-einladung'); if (x) x.remove(); });
+  if ($('#pf-erechnung')) erechnungZeigen(id).catch(() => { const x = $('#pf-erechnung'); if (x) x.remove(); });
+}
+/** Neben der Mail: welche Firma/welcher Kontakt, offene Rechnungen, Touren, offene Schadensfälle – ohne den Bereich zu wechseln. */
+function absenderInfo(m) {
+  const f = (m.firmaId && S.auftraggeber[m.firmaId]) || firmaZuAdresse(m.eingehend ? m.von : mailAdresse(String(m.an || '').split(/[,;]/)[0]));
+  if (!f || f.geloescht) return '';
+  const offen = vonFirma('belege', f.id).filter(istRechnungOffen), ueber = offen.filter(istUeberfaellig), touren = tourenVonFirma(f);
+  const letzte = touren.filter(t => t.datum <= heute()).sort((a, b) => b.datum.localeCompare(a.datum))[0], naechste = touren.filter(t => t.datum > heute()).sort((a, b) => a.datum.localeCompare(b.datum))[0];
+  const faelleOffen = faelle().filter(x => gehoertZu(x, f) && status(x).offen).length, kontakt = kontaktZuAdressen(f.id, m.eingehend ? m.von : m.an);
+  const teile = [offen.length ? `${offen.length} offene Rechnung(en) · ${geld(offen.reduce((n, b) => n + offenCent(b), 0))}${ueber.length ? `, davon ${ueber.length} überfällig` : ''}` : 'keine offenen Rechnungen',
+    letzte && `letzte Tour ${datumText(letzte.datum)}`, naechste && `nächste Tour ${datumText(naechste.datum)}`, faelleOffen && `${faelleOffen} offene(r) Schadensfall/-fälle`].filter(Boolean);
+  return `<div class="pf-info"><span class="fuell">🏢 <a href="#/firma/${f.id}" translate="no">${esc(f.name)}</a>${kontakt ? ` · <span translate="no">${esc(kontakt)}</span>` : ''}<br><span class="leise">${esc(teile.join(' · '))}</span></span></div>`;
+}
+/** Verweise im Text erkennen: Rechnungs-/Belegnummern, Fallnummern, Kennzeichen aus dem Fuhrpark, Tournummern – ein Klick zum Datensatz. */
+function erkannteVerweise(m) {
+  const text = `${m.betreff || ''}\n${m.text || ''}`, l = [];
+  for (const b of alle('belege')) if (String(b.nummer || '').length >= 6 && text.includes(b.nummer)) l.push(`<a href="#/beleg/${b.id}">${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</a>`);
+  for (const f of faelle()) if (f.fallnummer && new RegExp(`(^|[^\\d-])${f.fallnummer.replace(/[-]/g, '\\-')}(?![\\d])`).test(text)) l.push(`<a href="#/fall/${f.id}">Fall ${esc(f.fallnummer)}</a>`);
+  for (const z of alle('fahrzeuge')) {
+    const teile = String(z.kennzeichen || '').toUpperCase().match(/[A-ZÄÖÜ]+|\d+/g) || [];
+    if (teile.length >= 2 && new RegExp(`\\b${teile.join('[\\s-]*')}\\b`, 'i').test(text)) l.push(`<a href="#/fahrzeug/${z.id}">🚚 ${esc(z.kennzeichen)}</a>`);
+  }
+  const nrn = new Set([...text.matchAll(/\bTour(?:-?Nr\.?)?[\s:]*([A-Z0-9][\w-]{0,15})/gi)].map(x => normal(x[1])));
+  const tage = new Map();
+  for (const t of alle('touren')) if (t.tourNr && nrn.has(normal(t.tourNr)) && (!tage.has(t.tourNr) || Math.abs(new Date(t.datum) - new Date(m.zeitpunkt || Date.now())) < Math.abs(new Date(tage.get(t.tourNr)) - new Date(m.zeitpunkt || Date.now())))) tage.set(t.tourNr, t.datum);
+  for (const [nr, tag] of tage) l.push(`<button class="knopf text" style="padding:0" data-tour-tag="${tag}">Tour ${esc(nr)} (${datumText(tag)})</button>`);
+  return l.length ? `<div class="pf-info"><span class="fuell">🔗 ${l.slice(0, 12).join(' · ')}</span></div>` : '';
+}
+/** E-Rechnung im Anhang einer eingehenden Mail (XML oder ZUGFeRD-PDF): erkennen, vorausgefüllt mit einem Klick übernehmen. */
+async function erechnungZeigen(id) {
+  const m = mails()[id];
+  for (const a of anhangListe(m).filter(a => /xml|pdf/i.test(a.mimeType + a.name))) {
+    const blob = await anhangBlob(id, a.i); if (!blob) continue;
+    const datei = new File([blob], a.name, { type: blob.type || a.mimeType || '' }), r = await rechnungAusDatei(datei);
+    const box = $('#pf-erechnung'); if (!r || !box) continue;
+    const rd = rechnungsDaten(), v = r.verkaeufer || {};
+    // Wir sind der Verkäufer: Gutschrift des Auftraggebers (Gutschriftverfahren) → Einnahme; sonst Rechnung/Gutschrift an uns → Eingangsrechnung
+    const wir = (v.ustId && rd.ustId && normal(v.ustId) === normal(rd.ustId)) || (v.name && normal(v.name) === normal(rd.name || S.einstellungen.firma || ''));
+    const doppelt = wir ? alle('belege').find(b => b.extern && normal(b.nummer) === normal(r.nummer))
+      : alle('eingangsrechnungen').find(e => normal(e.nummer) === normal(r.nummer) && normal(e.lieferant) === normal(v.name));
+    const von = wir ? (r.kaeufer || {}).name : v.name;
+    box.hidden = false;
+    box.innerHTML = `<span class="fuell">🧾 <b>E-Rechnung erkannt:</b> ${esc(r.art)} <span translate="no">${esc(r.nummer)}</span> ${wir ? 'von Auftraggeber' : 'von'} <span translate="no">${esc(von || '?')}</span> über ${esc(centText(r.brutto))} €${r.faellig ? ` · fällig ${esc(datumText(r.faellig))}` : ''}
+      ${doppelt ? '<br><span class="leise">Schon erfasst.</span>' : ''}</span>
+      ${doppelt ? `<button class="knopf" data-erech="offen">Öffnen</button>` : `<button class="knopf voll" data-erech="neu">${wir ? 'Als Gutschrift des Auftraggebers erfassen' : 'Als Eingangsrechnung anlegen'}</button>`}`;
+    box.onclick = ev => {
+      const b = ev.target.closest('[data-erech]'); if (!b) return;
+      if (b.dataset.erech === 'offen') { if (wir) gehe('#/beleg/' + doppelt.id); else eingangDialog(doppelt); return; }
+      if (wir) externeRechnungDialog(); else eingangDialog(null);
+      // Datei wie von Hand gewählt einsetzen – der Dialog liest sie, füllt alles aus und hängt sie beim Speichern an
+      const form = $('#dialog form'), dt = new DataTransfer(); dt.items.add(datei); form.elements.datei.files = dt.files; form.elements.datei.onchange();
+      if (form.elements.notiz) form.elements.notiz.value = `Aus E-Mail vom ${datumText(String(m.zeitpunkt || '').slice(0, 10))}: ${m.betreff || ''}`.slice(0, 200);
+    };
+    return;
+  }
+  const box = $('#pf-erechnung'); if (box) box.remove();
 }
 const mailOrdnerAnzeige = m => { if (m.ordner && !String(m.ordner).startsWith('#')) { const o = ordnerListe(kontoVon(m)).find(x => x.pfad === m.ordner); return o ? ordnerName(o) : m.ordner; } return SPEZIAL_NAME[mailOrdnerTyp(m)] || ''; };
 /** Inhalt: HTML im abgeschotteten Rahmen (Höhe passt sich an), sonst Text mit eingeklappten Zitaten. */
@@ -8450,7 +8527,7 @@ function mailAnFirma({ firmaId = '', an = '', cc = '', antwortAuf = '', allen = 
   }
   const name = firma ? kontaktZuAdressen(firma.id, empf.join(',')) : '';
   const anrede = name ? `Guten Tag ${name},` : 'Sehr geehrte Damen und Herren,';
-  const sigId = alt ? S.einstellungen.mailSignaturAntwort || S.einstellungen.mailSignaturNeu || signaturen()[0].id : S.einstellungen.mailSignaturNeu || signaturen()[0].id;
+  const sigId = (S.einstellungen.mailSignaturJeKonto || {})[art] || (alt ? S.einstellungen.mailSignaturAntwort || S.einstellungen.mailSignaturNeu || signaturen()[0].id : S.einstellungen.mailSignaturNeu || signaturen()[0].id);
   const sig = sigId === 'KEINE' ? '' : signaturHtml(sigId);
   let html = `<div>${esc(alt && weiterleiten ? '' : anrede)}</div><div><br></div><div>${inhalt ? textAlsHtml(inhalt) : '<br>'}</div><div><br></div><div data-signatur>${sig}</div>`;
   let betreff = alt && antwortAuf ? (/^(re|aw):/i.test(alt.betreff) ? alt.betreff : 'AW: ' + alt.betreff) : alt && weiterleiten ? 'WG: ' + alt.betreff : betreffVorgabe;
@@ -9685,18 +9762,39 @@ function mailSchreiben(f, { vorlage, empfaenger, antwortAufVerlauf } = {}) {
   };
 }
 
+const kontoTitel = art => (art === 'SCHADEN' ? 'E-Mail für Schadensfälle' : art === 'ALLGEMEIN' ? 'E-Mail für alles andere' : `E-Mail „${MAIL_KONTEN[art] || art}“`);
 function mailEinstellungen() {
+  kontenListe();
+  const l = mailListe(), sigs = signaturen(), jeKonto = S.einstellungen.mailSignaturJeKonto || {};
   return Object.keys(MAIL_KONTEN).map(art => {
-    const k = MAIL.konten[art], st = mailStand(art), schaden = art === 'SCHADEN';
-    const titel = schaden ? 'E-Mail für Schadensfälle' : 'E-Mail für alles andere';
-    if (!k) return `<div class="karte block"><h3>${titel}</h3><p class="leise" style="margin-bottom:8px">${schaden
+    const k = MAIL.konten[art], st = mailStand(art), schaden = art === 'SCHADEN', weiteres = !['SCHADEN', 'ALLGEMEIN'].includes(art);
+    const titel = kontoTitel(art);
+    if (!k) return `<div class="karte block"><h3>${esc(titel)}</h3><p class="leise" style="margin-bottom:8px">${schaden
       ? 'Postfach für die Schadensbearbeitung (z. B. schaden@…). Mails aus einem Fall gehen darüber; Antworten werden über die Fallnummer im Betreff dem Fall zugeordnet.'
+      : weiteres ? 'Weiteres Postfach (z. B. buchhaltung@…). Eingehende Mails werden wie beim allgemeinen Postfach Firmen zugeordnet.'
       : 'Postfach für Disposition, Angebote und Abrechnung (z. B. info@…). Mails an Firmen und Ansprechpartner gehen darüber. Ohne eigenes Konto wird das andere Postfach verwendet.'}</p>
-      <button class="knopf voll" data-mail-einrichten="${art}" id="mail-einrichten-${art}">E-Mail-Konto einrichten</button></div>`;
+      <div class="zeile"><button class="knopf voll" data-mail-einrichten="${art}" id="mail-einrichten-${art}">E-Mail-Konto einrichten</button>${weiteres ? `<button class="knopf text" data-mail-entfernen="${art}">Entfernen</button>` : ''}</div></div>`;
     const zustand = MAIL.laeuft ? 'Wird abgerufen …' : st.fehler ? `Letzter Abruf fehlgeschlagen: ${st.fehler}` : st.letzterAbruf ? `Zuletzt abgerufen ${zeitText(new Date(st.letzterAbruf).toISOString())}` : 'Noch nicht abgerufen';
-    return `<div class="karte block"><h3>${titel}</h3><p>${esc(k.adresse)}</p><p class="${st.fehler ? 'fehlertext' : 'leise'}" style="margin:4px 0 8px">${esc(zustand)}</p>
+    const eigene = l.filter(m => kontoVon(m) === art), neu = eigene.filter(ungelesen).length, offen = eigene.filter(m => m.eingehend && !istZugeordnet(m)).length;
+    return `<div class="karte block"><h3>${esc(titel)}</h3><p>${esc(k.adresse)}</p><p class="${st.fehler ? 'fehlertext' : 'leise'}" style="margin:4px 0 4px">${esc(zustand)}</p>
+      <p class="leise" style="margin:0 0 8px">${eigene.length} Mails auf diesem Gerät · ${neu} ungelesen · ${offen} nicht zugeordnet</p>
+      <label class="feld">Standard-Signatur<select data-mail-signatur-konto="${art}"><option value="">wie allgemein eingestellt</option>${sigs.map(x => `<option value="${esc(x.id)}" ${jeKonto[art] === x.id ? 'selected' : ''}>${esc(x.name || 'Signatur')}</option>`).join('')}</select></label>
       <div class="zeile"><button class="knopf" data-mail-abrufen id="mail-abrufen-${art}">Jetzt abrufen</button><button class="knopf" data-mail-einrichten="${art}">Ändern</button><button class="knopf" data-mail-entfernen="${art}">Entfernen</button></div></div>`;
-  }).join('');
+  }).join('') + `<button class="knopf" data-mail-konto-neu>＋ Weiteres E-Mail-Konto</button>`;
+}
+document.addEventListener('change', e => {
+  const k = e.target.dataset && e.target.dataset.mailSignaturKonto; if (!k) return;
+  S.einstellungen.mailSignaturJeKonto = { ...(S.einstellungen.mailSignaturJeKonto || {}), [k]: e.target.value }; speichere(); toast('Signatur gespeichert');
+});
+function mailKontoNeuDialog() {
+  dialog(`<form method="dialog" id="konto-neu-form"><h2>Weiteres E-Mail-Konto</h2><label class="feld">Name (z. B. Buchhaltung, Disposition)<input name="name" required maxlength="40"></label>
+    <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Weiter</button></div></form>`);
+  $('#konto-neu-form').onsubmit = ev => {
+    ev.preventDefault();
+    const name = new FormData(ev.target).get('name').trim(), art = 'K' + Date.now().toString(36).toUpperCase();
+    S.einstellungen.mailKontenWeitere = [...weitereKonten(), { art, name }]; kontenListe(); speichere();
+    $('#dialog').close(); mailKontoDialog(art);
+  };
 }
 
 function mailKontoDialog(art = 'SCHADEN') {
@@ -9705,7 +9803,7 @@ function mailKontoDialog(art = 'SCHADEN') {
   const male = () => {
     const eigen = wahl === 'EIGENER', a = MAIL.anbieter[wahl] || {};
     const werte = $('#konto-form') ? Object.fromEntries(new FormData($('#konto-form'))) : { adresse: k.adresse || '', benutzer: k.benutzer && k.benutzer !== k.adresse ? k.benutzer : '' };
-    dialog(`<form method="dialog" id="konto-form"><h2>${art === 'SCHADEN' ? 'E-Mail für Schadensfälle' : 'E-Mail für alles andere'}</h2>
+    dialog(`<form method="dialog" id="konto-form"><h2>${esc(kontoTitel(art))}</h2>
       <div class="chips">${Object.entries(liste).map(([id, x]) => `<button type="button" class="chip" data-anbieter="${id}" aria-pressed="${id === wahl}">${esc(x.label)}</button>`).join('')}</div>
       <label class="feld">E-Mail-Adresse<input name="adresse" type="email" required value="${esc(werte.adresse || '')}"></label>
       <label class="feld">Passwort<input name="passwort" type="password" required autocomplete="current-password"></label>
@@ -9745,12 +9843,14 @@ async function mailStart() {
   if (!window.desktop) return;
   try {
     MAIL.anbieter = await window.desktop.mail.anbieter();
+    kontenListe();
     for (const art of Object.keys(MAIL.konten)) MAIL.konten[art] = await window.desktop.mail.konto(art);
     aktualisiereKonto();
   } catch { return; }
   window.desktop.beiZiel(ziel => gehe(ziel));
   await mailsLaden();
   zeichne();
+  if (NEBENFENSTER) return; // Mails ruft nur das Hauptfenster ab
   if (MAIL.konto) { postfachAbrufen(); geplanteSenden(); }
   mailTimerSetzen();
 }
@@ -10202,8 +10302,7 @@ document.addEventListener('click', e => {
 if (updateApi()) {
   // Diese Fassung ist sauber gestartet – sonst fällt die App nach zwei Fehlstarts auf die mitgelieferte zurück.
   setTimeout(() => { updateApi().ok().catch(() => {}); updateApi().info().then(i => { UPD.info = i; }).catch(() => {}); }, 3000);
-  setTimeout(() => updatePruefen(false), 15000);
-  setInterval(() => updatePruefen(false), 4 * 3600 * 1000);
+  if (!NEBENFENSTER) { setTimeout(() => updatePruefen(false), 15000); setInterval(() => updatePruefen(false), 4 * 3600 * 1000); }
 }
 window.addEventListener('online', () => { if (SYNC.fehler === 'offline') { SYNC.fehler = ''; zeichneSync(); } toast('Wieder online – gleiche ab …'); abgleich(); });
 window.addEventListener('offline', () => { if (!mitCloud()) return; SYNC.fehler = 'offline'; zeichneSync(); toast('Offline – du kannst weiterarbeiten. Änderungen werden gespeichert und abgeglichen, sobald wieder Netz da ist.', 6000); });
@@ -10223,6 +10322,17 @@ if (anmeldeLink && anmeldeLink.neueCloud) {
 else if (anmeldeLink && mitCloud()) mitLink();
 else if (mitCloud()) abgleich();
 mailStart();
+// Mehrere Fenster: ändert ein anderes Fenster die Daten, hier übernehmen; das Hauptfenster gleicht sie dann ab.
+window.addEventListener('storage', e => {
+  if (e.key !== SPEICHER || !e.newValue) return;
+  try { const mailsHier = S.mails; S = Object.assign(LEER(), JSON.parse(e.newValue)); if (!S.mails) S.mails = mailsHier; } catch { return; }
+  zeichne(); planeAbgleich();
+});
+// Mittelklick bzw. Strg-Klick auf einen Bereich oder Verweis: in einem eigenen Fenster
+document.addEventListener('auxclick', e => { if (e.button !== 1) return; const b = e.target.closest('#navi [data-bereich]'), a = e.target.closest('a[href^="#/"]');
+  if (b && fensterNeu(b.dataset.bereich)) e.preventDefault(); else if (a && fensterNeu(ANSICHT.bereich, a.getAttribute('href'))) e.preventDefault(); });
+document.addEventListener('click', e => { const a = e.target.closest('a[href^="#/"]'); if (a && (e.ctrlKey || e.metaKey) && fensterNeu(ANSICHT.bereich, a.getAttribute('href'))) e.preventDefault(); }, true);
+document.addEventListener('keydown', e => { if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'n' && fensterNeu(ANSICHT.bereich, location.hash.startsWith('#/') ? location.hash : '')) e.preventDefault(); });
 window.__appBereit = true;
 </script>
 </body>
