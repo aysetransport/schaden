@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795459911; window.WEB_VERSION = '4.18.0';
+window.WEB_STAND = 1795460616; window.WEB_VERSION = '4.18.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -4863,6 +4863,8 @@ function tourSenden(t) {
   };
 }
 /** Alle Touren des Tages: je Person eine Nachricht (WhatsApp nacheinander) oder als CSV für Sammel-SMS. */
+/** SMS ohne Rückmeldung in der Wartezeit: kein Fehler – Android hält sie zurück (z. B. Rückfrage ab ~30 SMS), sie kann noch rausgehen. */
+const smsUnterwegs = f => /^noch unterwegs/.test(String(f || ''));
 function alleSenden(tag) {
   const eintraege = tourenAm(tag).filter(t => t.kennzeichen).flatMap(t => teamVon(t).map(id => ({ m: maVon(id), t }))).filter(x => x.m);
   const smsMassen = window.desktop && window.desktop.sms && window.desktop.sms.massen, mitNr = eintraege.filter(x => x.m.telefon);
@@ -4879,15 +4881,16 @@ function alleSenden(tag) {
     const markiere = (k, fehler) => {
       const feld = $(`[data-alle-sms="${ziel[k].i}"]`); if (!feld || feld.dataset.fertig) return;
       feld.dataset.fertig = '1'; b.textContent = `Sende … ${++fertig} / ${ziel.length}`;
-      feld.innerHTML = !fehler ? '<br><span class="marke gruen">✓ SMS gesendet</span>' : `<br><span class="marke rot">SMS nicht angekommen – bitte per WhatsApp kontaktieren</span> <span class="leise">${esc(fehler)}</span>`;
+      feld.innerHTML = !fehler ? '<br><span class="marke gruen">✓ SMS gesendet</span>' : smsUnterwegs(fehler) ? `<br><span class="marke gelb">⏳ ${esc(fehler)}</span>`
+        : `<br><span class="marke rot">SMS nicht angekommen – bitte per WhatsApp kontaktieren</span> <span class="leise">${esc(fehler)}</span>`;
     };
     window.__smsStand = markiere; // die Android-App meldet jede SMS, sobald sie raus ist
     try {
       const r = await smsMassen(ziel.map(({ x }) => ({ nummer: intNummer(x.m.telefon), text: nachricht(x) })));
-      let fehlt = 0;
-      ziel.forEach((_, k) => { const ok = r[k] && r[k].ok; if (!ok) fehlt++; markiere(k, ok ? '' : (r[k] && r[k].fehler) || 'unbekannt'); });
+      let fehlt = 0, wartet = 0;
+      ziel.forEach((_, k) => { const ok = r[k] && r[k].ok, f = ok ? '' : (r[k] && r[k].fehler) || 'unbekannt'; if (smsUnterwegs(f)) wartet++; else if (!ok) fehlt++; markiere(k, f); });
       const e = $('#tp-sms-ergebnis'); e.hidden = false; e.className = fehlt ? 'hinweis-box' : 'leise';
-      e.textContent = `${ziel.length - fehlt} von ${ziel.length} SMS gesendet.` + (fehlt ? ` ${fehlt} Person(en) bitte per WhatsApp kontaktieren (rot markiert, 💬).` : '') + (eintraege.length > ziel.length ? ` ${eintraege.length - ziel.length} ohne Telefonnummer.` : '');
+      e.textContent = `${ziel.length - fehlt - wartet} von ${ziel.length} SMS gesendet.` + (wartet ? ` ${wartet} noch unterwegs – Android fragt bei vielen SMS nach deiner Erlaubnis; nicht doppelt senden.` : '') + (fehlt ? ` ${fehlt} Person(en) bitte per WhatsApp kontaktieren (rot markiert, 💬).` : '') + (eintraege.length > ziel.length ? ` ${eintraege.length - ziel.length} ohne Telefonnummer.` : '');
       b.textContent = '📱 SMS gesendet';
     } catch (f) { b.disabled = false; b.textContent = `📱 Alle per SMS (${ziel.length})`; if (!/Abgebrochen/.test(f.message)) toast('SMS nicht möglich: ' + f.message, 6000); }
   };
@@ -7404,7 +7407,7 @@ const eigeneAdressen = () => Object.values(MAIL.konten).filter(Boolean).map(k =>
 const mailStand = art => (art === 'ALLGEMEIN' ? S.mailStandAllgemein : art === 'SCHADEN' ? S.mailStand : (S.mailStandKonten || {})[art]) || {};
 function setzeMailStand(art, wert) { if (art === 'ALLGEMEIN') S.mailStandAllgemein = wert; else if (art === 'SCHADEN') S.mailStand = wert; else (S.mailStandKonten = S.mailStandKonten || {})[art] = wert; }
 const istZugeordnet = m => !!(m.fallId || m.firmaId || String(m.kundeRef || '').trim());
-function aktualisiereKonto() { MAIL.konto = MAIL.konten.SCHADEN || MAIL.konten.ALLGEMEIN || null; }
+function aktualisiereKonto() { MAIL.konto = MAIL.konten.SCHADEN || MAIL.konten.ALLGEMEIN || MAIL.konten[mailKonten()[0]] || null; } // auch nur ein weiteres Konto zählt
 
 const FREEMAIL = new Set(['gmail.com', 'googlemail.com', 'gmx.de', 'gmx.net', 'gmx.at', 'gmx.ch', 'web.de', 't-online.de', 'outlook.com', 'outlook.de', 'hotmail.com', 'hotmail.de',
   'live.com', 'live.de', 'msn.com', 'yahoo.com', 'yahoo.de', 'icloud.com', 'me.com', 'mac.com', 'aol.com', 'aol.de', 'freenet.de', 'posteo.de', 'mail.de', 'online.de',
@@ -8319,7 +8322,8 @@ function erkannteVerweise(m) {
 /** E-Rechnung im Anhang einer eingehenden Mail (XML oder ZUGFeRD-PDF): erkennen, vorausgefüllt mit einem Klick übernehmen. */
 async function erechnungZeigen(id) {
   const m = mails()[id];
-  for (const a of anhangListe(m).filter(a => /xml|pdf/i.test(a.mimeType + a.name))) {
+  // E-Rechnungen sind klein: große Scans nicht herunterladen (mobile Daten), höchstens drei Anhänge prüfen
+  for (const a of anhangListe(m).filter(a => /xml|pdf/i.test(a.mimeType + a.name) && !(a.groesse > 3e6)).slice(0, 3)) {
     const blob = await anhangBlob(id, a.i); if (!blob) continue;
     const datei = new File([blob], a.name, { type: blob.type || a.mimeType || '' }), r = await rechnungAusDatei(datei);
     const box = $('#pf-erechnung'); if (!r || !box) continue;
@@ -8327,7 +8331,7 @@ async function erechnungZeigen(id) {
     // Wir sind der Verkäufer: Gutschrift des Auftraggebers (Gutschriftverfahren) → Einnahme; sonst Rechnung/Gutschrift an uns → Eingangsrechnung
     const wir = (v.ustId && rd.ustId && normal(v.ustId) === normal(rd.ustId)) || (v.name && normal(v.name) === normal(rd.name || S.einstellungen.firma || ''));
     const doppelt = wir ? alle('belege').find(b => b.extern && normal(b.nummer) === normal(r.nummer))
-      : alle('eingangsrechnungen').find(e => normal(e.nummer) === normal(r.nummer) && normal(e.lieferant) === normal(v.name));
+      : alle('eingangsrechnungen').find(e => normal(e.nummer) === normal(r.nummer) && (normal(e.lieferant) === normal(v.name) || eingangBrutto(e) === Math.round(Number(r.brutto) * 100)));
     const von = wir ? (r.kaeufer || {}).name : v.name;
     box.hidden = false;
     box.innerHTML = `<span class="fuell">🧾 <b>E-Rechnung erkannt:</b> ${esc(r.art)} <span translate="no">${esc(r.nummer)}</span> ${wir ? 'von Auftraggeber' : 'von'} <span translate="no">${esc(von || '?')}</span> über ${esc(centText(r.brutto))} €${r.faellig ? ` · fällig ${esc(datumText(r.faellig))}` : ''}

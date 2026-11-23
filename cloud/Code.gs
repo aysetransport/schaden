@@ -186,6 +186,7 @@ function pruefeZugang_(zugang) {
   if (s && s.b === PIN_SITZUNG) {
     // Gerät hat sich mit der Cloud-PIN angemeldet: gilt, solange die PIN gleich und die PIN-Anmeldung eingeschaltet ist
     if (s.v !== props.getProperty('PIN_HASH') || s.bis < Date.now() || pinAus_()) { props.deleteProperty(schluessel); throw new Error(pinAus_() ? 'PIN_AUS: Die Anmeldung mit der Cloud-PIN ist abgeschaltet – bitte mit Benutzername und Passwort anmelden.' : 'Anmeldung abgelaufen – bitte erneut anmelden (Passwort bzw. PIN)'); }
+    verlaengern_(props, schluessel, s);
     return { rolle: 'ADMIN', pin: true, hauptadmin: true, sitzung: schluessel };
   }
   var b = s && benutzer_()[s.b];
@@ -193,7 +194,12 @@ function pruefeZugang_(zugang) {
     if (s) props.deleteProperty(schluessel);
     throw new Error('Anmeldung abgelaufen – bitte erneut anmelden (Passwort bzw. PIN)');
   }
+  verlaengern_(props, schluessel, s);
   return { rolle: b.rolle, benutzerId: b.id, mitarbeiterId: b.mitarbeiterId || '', name: b.name, sitzung: schluessel, hauptadmin: !!b.hauptadmin && b.rolle === 'ADMIN' };
+}
+/** Genutzte Sitzungen laufen nicht ab: ist weniger als die halbe Laufzeit übrig, wieder volle Laufzeit (ein Schreibzugriff höchstens alle 45 Tage). */
+function verlaengern_(props, schluessel, s) {
+  if (s.bis - Date.now() < SITZUNG_TAGE * 864e5 / 2) { s.bis = Date.now() + SITZUNG_TAGE * 864e5; props.setProperty(schluessel, JSON.stringify(s)); }
 }
 function nurHauptadmin_() { if (!ZUGANG_.hauptadmin) throw new Error('Nur der Hauptadmin darf das.'); }
 /** Anmeldung mit der Cloud-PIN ab- oder einschalten (nur Hauptadmin; abschalten nur angemeldet als Hauptadmin-Login). */
