@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795441952; window.WEB_VERSION = '4.16.2';
+window.WEB_STAND = 1795449615; window.WEB_VERSION = '4.17.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -973,7 +973,7 @@ function csvErstellen(faelle, anlagenJeFall) {
 // ============================== Daten im Browser ==============================
 const SPEICHER = 'schadensfaelle-v1', PIN_SPEICHER = 'schadensfaelle-pin';
 const CRM_TABELLEN = ['adressen', 'ansprechpartner', 'preise', 'aktivitaeten', 'aufgaben', 'dokumente', 'chancen', 'belege', 'fahrzeuge', 'fahrzeugeintraege',
-  'mitarbeiter', 'personaleintraege', 'abwesenheiten', 'einsatzarten', 'touren', 'zeiten', 'aufgabenIntern', 'tachotage', 'stopps'];
+  'mitarbeiter', 'personaleintraege', 'abwesenheiten', 'einsatzarten', 'touren', 'zeiten', 'aufgabenIntern', 'tachotage', 'stopps', 'eingangsrechnungen'];
 const LEER = () => ({ faelle: {}, verlauf: {}, anlagen: {}, auftraggeber: {}, ...Object.fromEntries(CRM_TABELLEN.map(t => [t, {}])), seit: 0, kennung: '', apiUrl: '', nurLokal: false,
   einstellungen: { firma: '', bearbeiter: '', funktion: '', wiedervorlageTage: 7 } });
 let S = LEER();
@@ -1216,7 +1216,7 @@ async function api(fn, ...args) {
   return j.ok;
 }
 const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber', ...CRM_TABELLEN];
-const CLOUD_API = 13;
+const CLOUD_API = 16; // 16: Eingangsrechnungen und Gutschriftverfahren – ein älteres Skript würde sie verwerfen
 const VERALTET = 'Das Cloud-Skript ist veraltet – bitte die neue Code.gs bereitstellen.';
 const offeneAnzahl = () => TABELLEN.reduce((n, t) => n + offene(t).length, 0);
 const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
@@ -1240,6 +1240,8 @@ async function abgleich() {
       if (!(st.api >= CLOUD_API)) { SYNC.versionOk = null; throw new Error(VERALTET); }
       SYNC.versionOk = { url: apiUrl(), zeit: Date.now() };
     }
+    // Geräte, die noch die PIN selbst mitschicken, tauschen sie einmal gegen ein Sitzungs-Token.
+    if (PIN && !String(PIN).startsWith('T:')) { const a = await api('anmelden', PIN); if (a.token) { PIN = a.token; try { localStorage.setItem(PIN_SPEICHER, PIN); } catch {} } }
     const gesendet = Object.fromEntries(TABELLEN.map(t => [t, offene(t)]));
     const marken = new Map(Object.values(gesendet).flat().map(d => [d.id, d._n]));
     const r = await api('sync', PIN, { seit: S.seit, kennung: S.kennung, ...Object.fromEntries(TABELLEN.map(t => [t, gesendet[t].map(ohneLokales)])) });
@@ -1342,7 +1344,7 @@ async function anmeldung(falsch = false) {
   ANSICHT.pinAus = !!stat.pinAus;
   if (!neu && (stat.pinAus || (ANSICHT.loginArt || (stat.benutzer ? 'BENUTZER' : 'PIN')) === 'BENUTZER')) { loginDialog(falsch); return; }
   dialog(`<form method="dialog" id="pin-form"><h2>${neu ? 'PIN festlegen' : 'Admin-PIN eingeben'}</h2>
-    <p class="leise">${neu ? 'Diese PIN schützt die Daten in der Cloud. Sie wird auf jedem Gerät einmal abgefragt (mindestens 4 Zeichen).' : 'Die PIN der Schadensfälle-Cloud.'}</p>
+    <p class="leise">${neu ? 'Diese PIN schützt die Daten in der Cloud. Sie wird auf jedem Gerät einmal abgefragt (mindestens 8 Zeichen).' : 'Die PIN der Schadensfälle-Cloud.'}</p>
     <p class="fehlertext" id="pin-fehler" ${falsch ? '' : 'hidden'}>Die PIN war falsch.</p>
     <label class="feld">PIN<input id="pin1" type="password" autocomplete="${neu ? 'new-password' : 'current-password'}" required minlength="${neu ? 4 : 1}"></label>
     ${neu ? '<label class="feld">PIN wiederholen<input id="pin2" type="password" autocomplete="new-password" required></label>' : ''}
@@ -1359,7 +1361,7 @@ async function anmeldung(falsch = false) {
     try {
       if (neu) await api('pinFestlegen', pin);
       const a = await api('anmelden', pin);
-      PIN = pin; try { localStorage.setItem(PIN_SPEICHER, PIN); } catch {}
+      PIN = a.token || pin; try { localStorage.setItem(PIN_SPEICHER, PIN); } catch {} // mit Token trifft eine PIN-Sperre dieses Gerät nicht mehr
       S.zugang = { rolle: a.rolle || 'ADMIN', name: 'Admin', mitarbeiterId: '', hauptadmin: true, pin: true }; speichere();
       $('#dialog').close(); SYNC.fehler = ''; SYNC.versionOk = null; abgleich();
     } catch (e) {
@@ -1393,9 +1395,14 @@ function anmeldelinkLesen() {
   history.replaceState(null, '', location.pathname + location.search);
   try {
     const d = JSON.parse(vonB64url(m[1]));
-    if (d.c && (/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(d.c) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(d.c))) { S.apiUrl = d.c; S.nurLokal = false; speichere(); }
+    const cloudOk = d.c && (/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(d.c) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(d.c));
     if (d.u) ANSICHT.loginArt = 'BENUTZER';
-    return d.u && d.p ? d : null;
+    // Eine andere Cloud als die bisherige nur nach Rückfrage – sonst könnte ein gefälschter Link die Daten umleiten.
+    // Ein frisches Gerät (keine Daten, nicht angemeldet) verbindet sich ohne Rückfrage – dort gibt es nichts umzuleiten.
+    const frisch = !PIN && !TABELLEN.some(t => Object.keys(S[t] || {}).length);
+    const neueCloud = cloudOk && d.c !== apiUrl() && !frisch ? d.c : '';
+    if (cloudOk && !neueCloud) { S.apiUrl = d.c; S.nurLokal = false; speichere(); }
+    return d.u && d.p ? { ...d, neueCloud } : neueCloud ? { neueCloud } : null;
   } catch { return null; }
 }
 function loginDialog(falsch = false) {
@@ -1845,7 +1852,18 @@ function toast(text, ms = 3500, aktion = null) {
 }
 function dialog(html, { schliessbar = true } = {}) {
   const d = $('#dialog'); d.innerHTML = html; d.oncancel = e => { if (!schliessbar) e.preventDefault(); };
-  if (!d.open) d.showModal(); return d;
+  // Tab-Weg: „Löschen“ & Co. erst nach „Speichern“ anspringen – sichtbar bleiben sie links.
+  for (const g of d.querySelectorAll('.dialog-knoepfe > .gefahr')) if (g.parentElement.querySelector('.voll')) { g.style.order = '-1'; g.parentElement.append(g); }
+  if (!d.open) {
+    d.showModal();
+    // Mit Tastatur beginnt ein Formular im ersten Feld, nicht auf einem Knopf davor (z. B. „Senden“). Touch: keine Tastatur aufklappen.
+    const f = document.activeElement;
+    if (matchMedia('(pointer: fine)').matches && (!f || f === d || f.tagName === 'BUTTON' || f.type === 'file')) {
+      const feld = [...d.querySelectorAll('input:not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio]),select,textarea')].find(e => !e.disabled && e.offsetParent);
+      if (feld) feld.focus();
+    }
+  }
+  return d;
 }
 function bestaetige(titel, text, knopf, dann) {
   dialog(`<h2>${esc(titel)}</h2><p>${esc(text)}</p><div class="dialog-knoepfe"><button class="knopf text" data-zu>Abbrechen</button><button class="knopf text gefahr" id="ja">${esc(knopf)}</button></div>`);
@@ -2620,7 +2638,7 @@ const CRM_FELDER = {
     ['rechnungBank', 'Abweichende Bankverbindung auf Rechnungen an diese Firma: Bank (leer = Standard aus den Firmendaten)'], ['rechnungIban', 'Abweichende IBAN'], ['rechnungBic', 'Abweichende BIC'], ['notizen', 'Notizen', 'lang']]],
   ansprechpartner: ['Ansprechpartner', [['name', 'Name', 'pflicht'], ['thema', 'Zuständig für (Disposition, Abrechnung, Schäden, Geschäftsführung …)'], ['telefon', 'Telefon', 'tel'], ['email', 'E-Mail', 'email'], ['notiz', 'Notiz', 'lang']]],
   adressen: ['Adresse', [['art', 'Art', ADRESS_ART], ['strasse', 'Straße und Hausnummer'], ['plz', 'PLZ'], ['ort', 'Ort', 'pflicht'], ['notiz', 'Notiz (z. B. Rampe, Öffnungszeiten)', 'lang']]],
-  preise: ['Preis', [['bezeichnung', 'Bezeichnung (Tourpauschale, Montage, Extra-km, Etage, Maut …)', 'pflicht'], ['betrag', 'Betrag in Euro', 'geld'], ['einheit', 'Einheit (pro Tour, pro km …)'], ['gueltigAb', 'Gültig ab', 'date'], ['notiz', 'Notiz', 'lang']]],
+  preise: ['Preis', [['bezeichnung', 'Bezeichnung (Einsatzart wie Tourpauschale, Montage … oder Tour/Ziel wie „Tour 12 – Hamburg“ – erscheint dann zur Auswahl in der Tourenplanung)', 'pflicht'], ['betrag', 'Betrag in Euro', 'geld'], ['einheit', 'Einheit (pro Tour, pro km …)'], ['gueltigAb', 'Gültig ab', 'date'], ['notiz', 'Notiz', 'lang']]],
   aktivitaeten: ['Kontakt', [['datum', 'Datum', 'date'], ['art', 'Art', AKTIVITAET_ART], ['kontakt', 'Ansprechpartner'], ['text', 'Was wurde besprochen?', 'lang pflicht']]],
   chancen: ['Verkaufschance', [['titel', 'Worum geht es? (z. B. Montage für neue Filiale)', 'pflicht'], ['phase', 'Phase', Object.fromEntries(Object.entries(CHANCEN_PHASE).map(([k, [l]]) => [k, l]))],
     ['betrag', 'Geschätzter Wert in Euro (z. B. pro Jahr)', 'geld'], ['erwartetAm', 'Entscheidung erwartet bis', 'date'], ['notiz', 'Notiz', 'lang']]],
@@ -2926,27 +2944,193 @@ function externeRechnungDialog() {
   const firmen = auftraggeberListe();
   if (!firmen.length) { toast('Bitte zuerst eine Firma anlegen'); return; }
   dialog(`<form method="dialog" id="extern-form"><h2>Externe Rechnung erfassen</h2>
-    <p class="leise">Für Rechnungen, die nicht hier geschrieben wurden. Sie zählen im Umsatz und in der Statistik, werden aber nicht gedruckt oder versendet.</p>
+    <p class="leise">Für Rechnungen, die nicht hier geschrieben wurden, und für Gutschriften, mit denen ein Auftraggeber abrechnet (Gutschriftverfahren). Sie zählen im Umsatz und in der Statistik, werden aber nicht gedruckt oder versendet.</p>
+    <label class="feld">Datei (PDF, Foto oder E-Rechnung) – E-Rechnungen füllen die Felder aus<input type="file" name="datei" accept=".pdf,.xml,image/*"></label>
+    <label class="feld">Art<select name="art"><option value="RECHNUNG">Rechnung</option><option value="GV">Gutschrift des Auftraggebers (Gutschriftverfahren)</option></select></label>
     <label class="feld">Firma<select name="firma">${firmen.map(f => `<option value="${f.id}">${esc(firmaName(f))}</option>`).join('')}</select></label>
-    <div class="zeile"><label class="feld fuell">Rechnungsnummer<input name="nummer" required></label><label class="feld fuell">Rechnungsdatum<input type="date" name="datum" value="${heute()}" required></label></div>
+    <div class="zeile"><label class="feld fuell">Nummer<input name="nummer" required></label><label class="feld fuell">Rechnungsdatum<input type="date" name="datum" value="${heute()}" required></label></div>
     <div class="zeile"><label class="feld fuell">Betrag netto in Euro<input name="netto" inputmode="decimal" required><span class="fehlertext" id="extern-fehler" hidden>Bitte einen Betrag wie 2500,00 eingeben.</span></label>
       <label class="feld" style="width:90px">MwSt. %<input name="mwst" inputmode="numeric" value="${esc(rechnungsDaten().mwst || 19)}"></label></div>
     <div class="zeile"><label class="feld fuell">Leistungszeitraum von<input type="date" name="von"></label><label class="feld fuell">bis<input type="date" name="bis"></label></div>
     <label class="feld">Bezeichnung (z. B. Montagen Oktober)<input name="bez"></label>
     <label class="feld">Status<select name="status"><option value="OFFEN">offen</option><option value="BEZAHLT">bezahlt</option></select></label>
     <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Erfassen</button></div></form>`);
-  $('#extern-form').onsubmit = ev => {
+  const form = $('#extern-form');
+  let faellig = '';
+  form.elements.datei.onchange = async () => {
+    const r = await rechnungAusDatei(form.elements.datei.files[0]); if (!r) return;
+    const firma = auftraggeberListe().find(f => [r.kaeufer, r.verkaeufer].some(p => p && p.name && firmaName(f).toLowerCase() === p.name.toLowerCase()));
+    formFuellen(form, { nummer: r.nummer, datum: r.datum, netto: centText(r.netto), mwst: r.mwst, firma: firma && firma.id, art: r.art === 'Gutschrift' ? 'GV' : '' });
+    faellig = r.faellig || ''; toast('Angaben aus der E-Rechnung übernommen – bitte prüfen');
+  };
+  form.onsubmit = async ev => {
     ev.preventDefault();
-    const w = Object.fromEntries(new FormData(ev.target)), netto = geldLesen(w.netto);
+    const w = Object.fromEntries(new FormData(ev.target)), netto = geldLesen(w.netto), gv = w.art === 'GV';
     if (netto == null) { $('#extern-fehler').hidden = false; return; }
     const mwst = Number(String(w.mwst).replace(',', '.')) || 0, brutto = Math.round(netto * (1 + mwst / 100));
-    const id = BelegAktionen.neu('RECHNUNG', w.firma, { extern: true, nummer: w.nummer.trim(), datum: w.datum, faelligAm: w.datum, mwstProzent: mwst, status: w.status,
-      positionen: JSON.stringify([{ bez: w.bez.trim() || 'Externe Rechnung', einheit: '', menge: 1, einzelCent: netto }]), leistungVon: w.von || null, leistungBis: w.bis || w.von || null,
+    const id = BelegAktionen.neu('RECHNUNG', w.firma, { extern: true, gutschriftverfahren: gv, nummer: w.nummer.trim(), datum: w.datum, faelligAm: faellig || w.datum, mwstProzent: mwst, status: w.status,
+      positionen: JSON.stringify([{ bez: w.bez.trim() || (gv ? 'Gutschrift des Auftraggebers' : 'Externe Rechnung'), einheit: '', menge: 1, einzelCent: netto }]), leistungVon: w.von || null, leistungBis: w.bis || w.von || null,
       einleitung: '', schluss: '', bezahltCent: w.status === 'BEZAHLT' ? brutto : 0, bezahltAm: w.status === 'BEZAHLT' ? w.datum : null });
-    $('#dialog').close(); gehe('#/beleg/' + id); toast('Externe Rechnung erfasst');
+    const datei = form.elements.datei.files[0];
+    $('#dialog').close();
+    if (datei) await legeAnlage(id, datei);
+    gehe('#/beleg/' + id); toast(gv ? 'Gutschrift (Gutschriftverfahren) erfasst' : 'Externe Rechnung erfasst');
   };
 }
-document.addEventListener('click', e => { if (e.target.closest('[data-externe-rechnung]')) externeRechnungDialog(); });
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-externe-rechnung]')) externeRechnungDialog();
+  const dok = e.target.closest('[data-beleg-dok],[data-eingang-dok]'); if (dok) oeffneAnlage(S.anlagen[dok.dataset.belegDok || dok.dataset.eingangDok]);
+  const ein = e.target.closest('[data-eingang]'); if (ein) eingangDialog(S.eingangsrechnungen[ein.dataset.eingang]);
+  if (e.target.closest('[data-neue-eingangsrechnung]')) eingangDialog(null);
+  if (e.target.closest('[data-tankbelege]')) tankbelegeDialog();
+});
+const centText = t => (t !== '' && t != null && Number.isFinite(Number(t)) ? geldOhneSymbol(Math.round(Number(t) * 100)) : '');
+const formFuellen = (form, werte) => { for (const [k, v] of Object.entries(werte)) if (v != null && v !== '' && form.elements[k]) form.elements[k].value = v; };
+/**
+ * E-Rechnung aus einer Datei lesen (XML oder ZUGFeRD-PDF). laut = Fehler melden (Anzeige),
+ * sonst null für alles ohne E-Rechnung (Erfassen: PDF oder Foto füllt dann nichts aus).
+ */
+async function rechnungAusDatei(datei, laut = false) {
+  if (!datei) return null;
+  const bytes = new Uint8Array(await datei.arrayBuffer()), pdf = /\.pdf$/i.test(datei.name) || (bytes[0] === 0x25 && bytes[1] === 0x50);
+  if (!laut && !pdf && !/\.xml$/i.test(datei.name) && !/xml/.test(datei.type)) return null;
+  try {
+    const r = eRechnungLesen(pdf ? await eRechnungAusPdf(bytes) : new TextDecoder('utf-8').decode(bytes));
+    return { ...r, mwst: Number(r.netto) ? String(Math.round(Number(r.steuer) / Number(r.netto) * 100)) : '' };
+  } catch (e) { if (laut) throw e; return null; }
+}
+
+// ============================== Eingangsrechnungen (Rechnungen an die Firma) ==============================
+const EINGANG_KATEGORIE = { KRAFTSTOFF: 'Kraftstoff', WERKSTATT: 'Werkstatt / Reparatur', SUBUNTERNEHMER: 'Subunternehmer', FAHRZEUGE: 'Leasing / Miete Fahrzeuge',
+  VERSICHERUNG: 'Versicherung', MAUT: 'Maut', MIETE: 'Miete / Nebenkosten', BUERO: 'Büro / Software / Telefon', SONSTIGES: 'Sonstiges' };
+const eingangNetto = e => (e.art === 'GUTSCHRIFT' ? -1 : 1) * (e.nettoCent || 0);
+const eingangBrutto = e => (e.nettoCent || 0) + (e.mwstCent || 0);
+const eingangFaellig = e => e.status !== 'BEZAHLT' && e.art !== 'GUTSCHRIFT' && !!e.faelligAm && e.faelligAm <= heute();
+function eingangKarte(e) {
+  const [l, farbe] = e.status === 'BEZAHLT' ? ['Bezahlt', 'gruen'] : eingangFaellig(e) ? ['Fällig', 'rot'] : ['Offen', 'blau'];
+  return `<button class="karte klickbar" data-eingang="${e.id}"><div class="zeile eng"><span class="titel fuell">${esc(e.lieferant || '–')}${e.nummer ? ' · ' + esc(e.nummer) : ''}</span><span class="marke ${farbe}">${l}</span></div>
+    <div class="zeile eng"><span class="leise fuell">${esc(EINGANG_KATEGORIE[e.kategorie] || 'Sonstiges')} · ${e.art === 'GUTSCHRIFT' ? 'Gutschrift' : 'Rechnung'} vom ${datumText(e.datum)}${e.status !== 'BEZAHLT' && e.faelligAm ? ' · fällig ' + datumText(e.faelligAm) : ''}${e.eRechnung ? ' · E-Rechnung' : ''}</span>
+      <b>${e.art === 'GUTSCHRIFT' ? '− ' : ''}${geld(eingangBrutto(e))}</b></div></button>`;
+}
+/** Eingangsrechnung erfassen oder bearbeiten: von Hand, aus PDF/Foto oder aus einer E-Rechnung (füllt alles aus). */
+function eingangDialog(x) {
+  const neu = !x, e = x || { art: 'RECHNUNG', datum: heute(), kategorie: 'SONSTIGES', status: 'OFFEN' };
+  const lieferanten = [...new Set(alle('eingangsrechnungen').map(y => y.lieferant).filter(Boolean))].sort();
+  const p = e.nettoCent ? Math.round((e.mwstCent || 0) / e.nettoCent * 100) : 19;
+  dialog(`<form method="dialog" id="eingang-form"><h2>${neu ? 'Eingangsrechnung erfassen' : 'Eingangsrechnung'}</h2>
+    <label class="feld">Datei (PDF, Foto oder E-Rechnung) – E-Rechnungen füllen die Felder aus<input type="file" name="datei" accept=".pdf,.xml,image/*"></label>
+    ${anlagenVon(e.id).map(a => `<button type="button" class="knopf" data-eingang-dok="${a.id}">📎 ${esc(a.anzeigename)}</button>`).join('')}
+    <div class="zeile"><label class="feld fuell">Lieferant<input name="lieferant" list="eingang-lieferanten" value="${esc(e.lieferant || '')}" required></label>
+      <label class="feld">Art<select name="art"><option value="RECHNUNG">Rechnung</option><option value="GUTSCHRIFT" ${e.art === 'GUTSCHRIFT' ? 'selected' : ''}>Gutschrift</option></select></label></div>
+    <datalist id="eingang-lieferanten">${lieferanten.map(l => `<option value="${esc(l)}">`).join('')}</datalist>
+    <div class="zeile"><label class="feld fuell">Nummer<input name="nummer" value="${esc(e.nummer || '')}"></label><label class="feld fuell">Datum<input type="date" name="datum" value="${esc(e.datum || '')}" required></label></div>
+    <div class="zeile"><label class="feld fuell">Betrag brutto in Euro<input name="brutto" inputmode="decimal" value="${e.nettoCent != null ? esc(geldOhneSymbol(eingangBrutto(e))) : ''}" required><span class="fehlertext" id="eingang-fehler" hidden>Bitte einen Betrag wie 89,50 eingeben.</span></label>
+      <label class="feld" style="width:90px">MwSt. %<input name="mwst" inputmode="numeric" value="${p}"></label></div>
+    <div class="zeile"><label class="feld fuell">Kategorie<select name="kategorie">${Object.entries(EINGANG_KATEGORIE).map(([k, l]) => `<option value="${k}" ${e.kategorie === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <label class="feld fuell">Fällig am<input type="date" name="faelligAm" value="${esc(e.faelligAm || '')}"></label></div>
+    <div class="zeile"><label class="feld fuell">Status<select name="status"><option value="OFFEN">offen</option><option value="BEZAHLT" ${e.status === 'BEZAHLT' ? 'selected' : ''}>bezahlt</option></select></label>
+      <label class="feld fuell">Bezahlt am<input type="date" name="bezahltAm" value="${esc(e.bezahltAm || '')}"></label></div>
+    <label class="feld">IBAN des Lieferanten<input name="iban" value="${esc(e.iban || '')}"></label>
+    <label class="feld">Notiz<input name="notiz" value="${esc(e.notiz || '')}"></label>
+    <div class="dialog-knoepfe"><span class="fuell"></span><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button>
+      ${neu ? '' : '<button type="button" class="knopf text gefahr" id="eingang-loeschen">Löschen</button>'}</div></form>`);
+  const form = $('#eingang-form');
+  // genaue Beträge (gespeichert bzw. aus der E-Rechnung) – gelten, solange der Bruttobetrag nicht geändert wird
+  let exakt = x ? { nettoCent: x.nettoCent, mwstCent: x.mwstCent, brutto: geldOhneSymbol(eingangBrutto(x)) } : null, eImport = false;
+  form.elements.lieferant.onchange = () => { // gleicher Lieferant wie früher: Kategorie und Steuersatz von dort
+    const v = alle('eingangsrechnungen').filter(y => y.lieferant === form.elements.lieferant.value).sort((a, b) => String(b.datum).localeCompare(String(a.datum)))[0];
+    if (v && neu) formFuellen(form, { kategorie: v.kategorie, mwst: v.nettoCent ? String(Math.round((v.mwstCent || 0) / v.nettoCent * 100)) : '', iban: v.iban });
+  };
+  form.elements.datei.onchange = async () => {
+    const r = await rechnungAusDatei(form.elements.datei.files[0]); if (!r) return;
+    formFuellen(form, { lieferant: r.verkaeufer && r.verkaeufer.name, nummer: r.nummer, datum: r.datum, faelligAm: r.faellig, brutto: centText(r.brutto), mwst: r.mwst, iban: r.iban, art: r.art === 'Gutschrift' ? 'GUTSCHRIFT' : 'RECHNUNG' });
+    form.elements.lieferant.onchange();
+    exakt = { nettoCent: Math.round(Number(r.netto) * 100), mwstCent: Math.round(Number(r.steuer) * 100), brutto: form.elements.brutto.value }; eImport = true;
+    toast('Angaben aus der E-Rechnung übernommen – bitte prüfen');
+  };
+  if (!neu) $('#eingang-loeschen').onclick = () => bestaetige('Eingangsrechnung löschen?', `${e.lieferant} ${e.nummer || ''} wird gelöscht.`, 'Löschen', () => {
+    for (const a of anlagenVon(e.id)) { entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id); }
+    entferne('eingangsrechnungen', e, { firmaId: '', geaendertAm: jetztIso() }); nachAenderung(); });
+  form.onsubmit = async ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries([...new FormData(form)].filter(([k]) => k !== 'datei').map(([k, v]) => [k, String(v).trim()])), brutto = geldLesen(w.brutto);
+    if (brutto == null) { $('#eingang-fehler').hidden = false; return; }
+    const proz = Number(w.mwst.replace(',', '.')) || 0, gleich = exakt && geldLesen(exakt.brutto) === brutto && (eImport || proz === p);
+    const netto = gleich ? exakt.nettoCent : Math.round(brutto / (1 + proz / 100));
+    const id = e.id || uuid(), datei = form.elements.datei.files[0];
+    merke('eingangsrechnungen', { ...e, id, firmaId: '', art: w.art, lieferant: w.lieferant, nummer: w.nummer, datum: w.datum, faelligAm: w.faelligAm || null, nettoCent: netto, mwstCent: brutto - netto,
+      kategorie: w.kategorie, status: w.status, bezahltAm: w.status === 'BEZAHLT' ? w.bezahltAm || heute() : null, iban: w.iban, notiz: w.notiz, eRechnung: eImport || !!e.eRechnung, geaendertAm: jetztIso() });
+    $('#dialog').close();
+    if (datei) await legeAnlage(id, datei);
+    nachAenderung(); toast('Eingangsrechnung gespeichert');
+  };
+}
+
+// ============================== Tankbelege in Massen (Tabelle zum Runtertippen) ==============================
+/**
+ * Eine Zeile je Beleg, Enter springt ins nächste Feld, unten kommt automatisch eine neue Zeile dazu.
+ * Mit Kennzeichen → Fahrzeugakte (Tanken), ohne → Eingangsrechnung „Kraftstoff“ (bezahlt).
+ */
+function tankbelegeDialog() {
+  const zeile = datum => `<tr><td><input type="date" data-t="datum" value="${esc(datum)}" aria-label="Datum"></td><td><input data-t="kz" list="tank-kz" aria-label="Kennzeichen (leer = ohne Fahrzeug)"></td>
+    <td><input data-t="liter" inputmode="decimal" aria-label="Liter"></td><td><input data-t="betrag" inputmode="decimal" aria-label="Betrag brutto"></td>
+    <td><input data-t="km" inputmode="numeric" aria-label="Kilometerstand"></td><td><input data-t="ort" aria-label="Tankstelle"></td></tr>`;
+  dialog(`<form method="dialog" id="tank-form"><h2>Tankbelege erfassen</h2>
+    <p class="leise">Einfach runtertippen: Enter springt weiter, unten kommt automatisch eine neue Zeile dazu. Ohne Kennzeichen zählt der Beleg als Ausgabe „Kraftstoff“ ohne Fahrzeug. Strg+Enter speichert.</p>
+    <datalist id="tank-kz">${fahrzeugListe().map(z => `<option value="${esc(z.kennzeichen)}">`).join('')}</datalist>
+    <div class="tabelle-rahmen"><table class="tabelle rk-tabelle" id="tank-tabelle"><thead><tr><th>Datum</th><th>Kennzeichen</th><th>Liter</th><th>Betrag €</th><th>km-Stand</th><th>Tankstelle</th></tr></thead>
+      <tbody>${zeile(heute())}</tbody></table></div>
+    <p class="fehlertext" id="tank-fehler" hidden></p>
+    <div class="dialog-knoepfe"><span class="leise fuell" id="tank-summe"></span><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
+  const d = $('#dialog'), form = $('#tank-form'), tb = $('#tank-tabelle tbody');
+  d.classList.add('gross'); d.addEventListener('close', () => d.classList.remove('gross'), { once: true });
+  const zeilen = () => [...tb.rows].map(r => Object.fromEntries([...r.querySelectorAll('input')].map(i => [i.dataset.t, i.value.trim()])));
+  const summe = () => { const l = zeilen().map(z => geldLesen(z.betrag)).filter(x => x != null); $('#tank-summe').textContent = l.length ? `${l.length} Belege · ${geld(l.reduce((n, x) => n + x, 0))}` : ''; };
+  form.addEventListener('input', ev => {
+    const r = ev.target.closest('tr');
+    if (r && r === tb.rows[tb.rows.length - 1] && ev.target.value) tb.insertAdjacentHTML('beforeend', zeile(r.querySelector('[data-t=datum]').value));
+    summe();
+  });
+  form.addEventListener('keydown', ev => {
+    if (ev.key !== 'Enter' || !ev.target.matches('#tank-tabelle input')) return;
+    ev.preventDefault();
+    if (ev.ctrlKey || ev.metaKey) { form.requestSubmit(); return; }
+    const alle = [...tb.querySelectorAll('input')], i = alle.indexOf(ev.target);
+    if (alle[i + 1]) alle[i + 1].focus();
+  });
+  form.onsubmit = ev => {
+    ev.preventDefault();
+    const fehler = [], fertig = [];
+    [...tb.rows].forEach((r, n) => {
+      const z = Object.fromEntries([...r.querySelectorAll('input')].map(i => [i.dataset.t, i.value.trim()]));
+      for (const i of r.querySelectorAll('input')) i.removeAttribute('aria-invalid');
+      if (!z.betrag && !z.liter && !z.kz && !z.km && !z.ort) return; // leere Zeile
+      const betrag = z.betrag ? geldLesen(z.betrag) : null, liter = z.liter ? Number(z.liter.replace(',', '.')) : null, km = z.km ? Number(z.km.replace(/[.\s]/g, '')) : null;
+      const fz = z.kz ? fahrzeugZumKz(z.kz) : null, falsch = [];
+      if (betrag == null) falsch.push('betrag');
+      if (z.liter && !(liter > 0)) falsch.push('liter');
+      if (z.km && !(km >= 0)) falsch.push('km');
+      if (z.kz && !fz) falsch.push('kz');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(z.datum)) falsch.push('datum');
+      if (falsch.length) { falsch.forEach(t => r.querySelector(`[data-t=${t}]`).setAttribute('aria-invalid', 'true')); fehler.push(n + 1); return; }
+      fertig.push({ ...z, betrag, liter, km, fz });
+    });
+    const f = $('#tank-fehler');
+    if (fehler.length) { f.textContent = `Bitte Zeile ${fehler.join(', ')} prüfen (rot markiert): Betrag wie 89,50, Liter wie 62,5, bekanntes Kennzeichen.`; f.hidden = false; tb.querySelector('[aria-invalid]').focus(); return; }
+    if (!fertig.length) { $('#dialog').close(); return; }
+    for (const x of fertig) {
+      if (x.fz) FuhrparkAktionen.eintragSpeichern({ fahrzeugId: x.fz.id, art: 'TANKEN', datum: x.datum, kmStand: x.km != null ? Math.round(x.km) : null, betragCent: x.betrag,
+        menge: x.liter ? Math.round(x.liter * 100) : null, werkstatt: x.ort, text: '' }, true);
+      else { const netto = Math.round(x.betrag / 1.19);
+        merke('eingangsrechnungen', { id: uuid(), firmaId: '', art: 'RECHNUNG', lieferant: x.ort || 'Tankstelle', nummer: '', datum: x.datum, faelligAm: null, nettoCent: netto, mwstCent: x.betrag - netto,
+          kategorie: 'KRAFTSTOFF', status: 'BEZAHLT', bezahltAm: x.datum, iban: '', notiz: x.liter ? `${String(x.liter).replace('.', ',')} l` : '', eRechnung: false, geaendertAm: jetztIso() }); }
+    }
+    $('#dialog').close(); nachAenderung();
+    const mitFz = fertig.filter(x => x.fz).length;
+    toast(`${fertig.length} Tankbelege gespeichert${mitFz < fertig.length ? ` (${fertig.length - mitFz} ohne Fahrzeug als Ausgabe „Kraftstoff“)` : ''}`);
+  };
+  setTimeout(() => tb.querySelector('input').focus(), 30);
+}
 $('#detail').addEventListener('change', e => {
   const k = e.target.dataset && e.target.dataset.leistung; if (!k) return;
   const r = route(), b = r.art === 'beleg' && S.belege[r.id]; if (!b) return;
@@ -2999,12 +3183,12 @@ function finanzKennzahlen() {
     topFirmen: Object.entries(proFirma).sort((x, y) => y[1] - x[1]).slice(0, 5),
   };
 }
-const BELEG_FILTER = { OFFEN: 'Offen', UEBERFAELLIG: 'Überfällig', BEZAHLT: 'Bezahlt', ANGEBOTE: 'Angebote', GUTSCHRIFTEN: 'Gutschriften', ENTWURF: 'Entwürfe', ALLE: 'Alle' };
+const BELEG_FILTER = { OFFEN: 'Offen', UEBERFAELLIG: 'Überfällig', BEZAHLT: 'Bezahlt', ANGEBOTE: 'Angebote', GUTSCHRIFTEN: 'Gutschriften', ENTWURF: 'Entwürfe', ALLE: 'Alle', EINGANG: 'Eingangsrechnungen' };
 function belegKarte(b, r) {
   const m = belegMarke(b), s = belegSummen(b);
   return `<button class="karte klickbar ${r && r.art === 'beleg' && r.id === b.id ? 'gewaehlt' : ''}" data-beleg="${b.id}">
     <div class="zeile eng"><span class="titel fuell">${esc(b.nummer)} · ${esc((S.auftraggeber[b.firmaId] || {}).name || '')}</span><span class="marke ${m[1]}">${esc(m[0])}</span></div>
-    <div class="zeile eng"><span class="leise fuell">${esc(BELEG_ART[b.art][0])} vom ${datumText(b.datum)}${istRechnungOffen(b) ? ' · fällig ' + datumText(b.faelligAm) : ''}</span>
+    <div class="zeile eng"><span class="leise fuell">${esc(b.gutschriftverfahren ? 'Gutschrift (Gutschriftverfahren)' : BELEG_ART[b.art][0])} vom ${datumText(b.datum)}${istRechnungOffen(b) ? ' · fällig ' + datumText(b.faelligAm) : ''}</span>
       <b>${b.art === 'GUTSCHRIFT' ? '− ' : ''}${geld(s.brutto)}</b></div>${istRechnungOffen(b) && b.bezahltCent ? `<div class="leise">offen ${geld(offenCent(b))}</div>` : ''}</button>`;
 }
 function zeichneFinanzen(r) {
@@ -3014,8 +3198,11 @@ function zeichneFinanzen(r) {
     return f === 'ALLE' ? true : f === 'ANGEBOTE' ? b.art === 'ANGEBOT' : f === 'GUTSCHRIFTEN' ? b.art === 'GUTSCHRIFT' : f === 'ENTWURF' ? b.status === 'ENTWURF'
       : f === 'BEZAHLT' ? b.status === 'BEZAHLT' : f === 'UEBERFAELLIG' ? istUeberfaellig(b) : istRechnungOffen(b);
   }).sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || String(b.nummer).localeCompare(String(a.nummer)));
+  const eingaenge = alle('eingangsrechnungen').filter(e => !such || [e.lieferant, e.nummer, e.notiz, EINGANG_KATEGORIE[e.kategorie]].join(' ').toLowerCase().includes(such))
+    .sort((a, b) => Number(eingangFaellig(b)) - Number(eingangFaellig(a)) || String(b.datum).localeCompare(String(a.datum)));
+  const faelligeEingaenge = alle('eingangsrechnungen').filter(eingangFaellig).length;
   return seitenkopf('Finanzen', '<button class="knopf voll" data-neuer-beleg="RECHNUNG">＋ Rechnung</button>', `<button class="knopf" data-neuer-beleg="ANGEBOT">＋ Angebot</button>
-      <button class="knopf" data-monatsabrechnung>🧾 Monatsabrechnung</button><button class="knopf" data-rechnung-touren="">Rechnung aus Touren</button><button class="knopf" data-externe-rechnung>＋ Externe Rechnung</button><button class="knopf" data-erechnung-oeffnen>📥 E-Rechnung öffnen</button><input type="file" id="er-datei" accept=".xml,.pdf,application/xml,text/xml,application/pdf" hidden><button class="knopf" data-kalkulator>🧮 Kalkulator</button><button class="knopf" data-belege-csv>CSV</button>
+      <button class="knopf" data-monatsabrechnung>🧾 Monatsabrechnung</button><button class="knopf" data-rechnung-touren="">Rechnung aus Touren</button><button class="knopf" data-externe-rechnung>＋ Externe Rechnung / Gutschrift</button><button class="knopf" data-neue-eingangsrechnung>＋ Eingangsrechnung</button><button class="knopf" data-tankbelege>⛽ Tankbelege</button><button class="knopf" data-erechnung-oeffnen>📥 E-Rechnung öffnen</button><input type="file" id="er-datei" accept=".xml,.pdf,application/xml,text/xml,application/pdf" hidden><button class="knopf" data-kalkulator>🧮 Kalkulator</button><button class="knopf" data-belege-csv>CSV</button>
       <button class="knopf" data-buchhaltung>📒 Buchhaltung (CSV)</button>`) + `<div class="kennzahlen" style="grid-template-columns:1fr 1fr">
       <button class="kennzahl" data-beleg-filter="OFFEN"><b>${geld(k.offen)}</b><span>Offen (${k.offenAnzahl} Rechnungen)</span></button>
       <button class="kennzahl ${k.ueberfaelligAnzahl ? 'rot' : ''}" data-beleg-filter="UEBERFAELLIG"><b>${geld(k.ueberfaellig)}</b><span>Überfällig (${k.ueberfaelligAnzahl})</span></button>
@@ -3023,8 +3210,9 @@ function zeichneFinanzen(r) {
     ${k.topFirmen.length ? `<div class="karte block"><h3>Umsatz je Firma ${heute().slice(0, 4)}</h3><dl>${k.topFirmen.map(([id, c]) => `<dt>${esc((S.auftraggeber[id] || {}).name || '–')}</dt><dd>${geld(c)}</dd>`).join('')}</dl></div>` : ''}
 
     <input class="suche" id="beleg-suche" type="search" placeholder="Nummer, Firma, Leistung …" value="${esc(ANSICHT.belegSuche || '')}">
-    <div class="chips">${Object.entries(BELEG_FILTER).map(([x, l]) => `<button class="chip" data-beleg-filter="${x}" aria-pressed="${f === x && !such}">${l}</button>`).join('')}</div>
-    <div id="belege">${liste.map(b => belegKarte(b, r)).join('') || '<div class="leer"><b>Keine Belege in dieser Ansicht</b>Rechnungen und Angebote lassen sich hier oder in der Firma anlegen.</div>'}</div>`;
+    <div class="chips">${Object.entries(BELEG_FILTER).map(([x, l]) => `<button class="chip" data-beleg-filter="${x}" aria-pressed="${f === x && (!such || x === 'EINGANG')}">${l}${x === 'EINGANG' && faelligeEingaenge ? ` (${faelligeEingaenge} fällig)` : ''}</button>`).join('')}</div>
+    ${f === 'EINGANG' ? `<div id="eingaenge">${eingaenge.map(eingangKarte).join('') || '<div class="leer"><b>Keine Eingangsrechnungen</b>Mit „＋ Eingangsrechnung“ erfassen – PDF, Foto oder E-Rechnung.</div>'}</div>`
+      : `<div id="belege">${liste.map(b => belegKarte(b, r)).join('') || '<div class="leer"><b>Keine Belege in dieser Ansicht</b>Rechnungen und Angebote lassen sich hier oder in der Firma anlegen.</div>'}</div>`}`;
 }
 // ---------- Beleg bearbeiten (Detail) ----------
 function zeichneBeleg(id) {
@@ -3037,7 +3225,7 @@ function zeichneBeleg(id) {
   el.innerHTML = `<div class="karte"><div class="zeile eng"><h2 class="gross fuell">${esc(BELEG_ART[b.art][0])} ${esc(b.nummer)}</h2><span class="marke ${m[1]}">${esc(m[0])}</span></div>
       <p class="leise"><a href="#/firma/${b.firmaId}">${esc(firmaName(firma))}</a>${b.bezug && S.belege[b.bezug] ? ` · ${b.art === 'GUTSCHRIFT' ? 'zu' : 'aus'} <a href="#/beleg/${b.bezug}">${esc(S.belege[b.bezug].nummer)}</a>` : ''}${b.korrekturVon && S.belege[b.korrekturVon] ? ` · Korrektur zu <a href="#/beleg/${b.korrekturVon}">${esc(S.belege[b.korrekturVon].nummer)}</a>${b.status === 'ENTWURF' ? ' (ersetzt sie beim Versenden)' : ''}` : ''}${b.ersetztDurch && S.belege[b.ersetztDurch] ? ` · ersetzt durch <a href="#/beleg/${b.ersetztDurch}">${esc(S.belege[b.ersetztDurch].nummer)}</a>` : ''}${rechnung && gutschriftenZu(b).length ? ` · Gutschriften: ${gutschriftenZu(b).map(g => `<a href="#/beleg/${g.id}">${esc(g.nummer)}</a>`).join(', ')}` : ''}</p>
       <div class="zeile" style="margin-top:8px">
-        ${b.extern ? '<span class="marke grau">Externe Rechnung – nicht im System erstellt</span>' : `<button class="knopf voll" data-beleg-akt="pdf">PDF speichern</button><button class="knopf" data-beleg-akt="drucken">Drucken</button>${['RECHNUNG', 'GUTSCHRIFT'].includes(b.art) ? '<button class="knopf" data-beleg-akt="erechnung">E-Rechnung (XRechnung)</button>' : ''}
+        ${b.extern ? `<span class="marke grau">${b.gutschriftverfahren ? 'Gutschrift des Auftraggebers (Gutschriftverfahren)' : 'Externe Rechnung'} – nicht im System erstellt</span>${anlagenVon(b.id).map(a => `<button class="knopf" data-beleg-dok="${a.id}">📎 ${esc(a.anzeigename)}</button>`).join('')}` : `<button class="knopf voll" data-beleg-akt="pdf">PDF speichern</button><button class="knopf" data-beleg-akt="drucken">Drucken</button>${['RECHNUNG', 'GUTSCHRIFT'].includes(b.art) ? '<button class="knopf" data-beleg-akt="erechnung">E-Rechnung (XRechnung)</button>' : ''}
         ${MAIL.konto ? '<button class="knopf" data-beleg-akt="mail">Per E-Mail senden</button>' : ''}`}
         ${rechnung && istRechnungOffen(b) ? '<button class="knopf" data-beleg-akt="zahlung">Zahlung erfassen</button>' : ''}
         ${rechnung && istUeberfaellig(b) && MAIL.konto ? `<button class="knopf" data-beleg-akt="mahnung">${esc(MAHNSTUFEN[Math.min(b.mahnstufe || 0, 3)])} senden</button>` : ''}
@@ -4081,6 +4269,9 @@ function tourHinweise(t, lage = tagesLage(t.datum)) {
     if (!z) h.push(['grau', 'nicht im Fuhrpark']);
   }
   if (t.kennzeichen && !t.fahrerId) h.push(['gelb', 'Fahrer fehlt']);
+  const ziele = zieleZum(t.auftraggeberId, t.datum);
+  if (ziele.length && t.name && !zielPreis(ziele, t)) h.push(['gelb', 'Ziel nicht in den Stammdaten']);
+  else if (ziele.length && !t.name && t.kennzeichen) h.push(['gelb', 'Ziel fehlt']);
   for (const id of teamVon(t)) {
     const m = maVon(id); if (!m) { h.push(['rot', 'Mitarbeiter gelöscht']); continue; }
     const vorn = m.name.split(' ')[0];
@@ -4169,12 +4360,14 @@ function zeichneTouren() {
     const h = tourHinweise(t, lage), bf = beifahrerVon(t), art = einsatzartZu(t.einsatzart);
     const plaetze = Math.min(BEIFAHRER_MAX, Math.max(bf.length + 1, art ? art.beifahrer || 0 : 1));
     const schaeden = schaedenVonTour(t), beleg = t.belegId && S.belege[t.belegId] && !S.belege[t.belegId].geloescht ? S.belege[t.belegId] : null;
+    const ziele = zieleZum(t.auftraggeberId, t.datum);
     return `<div class="tour ${t.kennzeichen ? '' : 'leer'}" data-tour-zeile="${t.id}">
       <div class="tour-nr">${i + 1}</div>
       <label class="tf kz"><span>Fahrzeug</span><input data-feld="kennzeichen" list="tp-kz" value="${esc(t.kennzeichen || '')}" placeholder="Kennzeichen" autocomplete="off"></label>
       <label class="tf nr"><span>Tour-Nr.</span><input data-feld="tourNr" value="${esc(t.tourNr || '')}"></label>
       <label class="tf ag"><span>Auftraggeber</span><input data-feld="auftraggeber" list="tp-ag" value="${esc(tourAuftraggeberName(t))}" autocomplete="off"></label>
-      <label class="tf name"><span>Tour / Ziel</span><input data-feld="name" value="${esc(t.name || '')}"></label>
+      <label class="tf name"><span>Tour / Ziel</span>${ziele.length ? `<select data-feld="name"><option value=""></option>${ziele.map(p => `<option ${normal(p.bezeichnung) === normal(t.name) ? 'selected' : ''}>${esc(p.bezeichnung)}</option>`).join('')}
+        ${t.name && !zielPreis(ziele, t) ? `<option selected>${esc(t.name)}</option>` : ''}</select>` : `<input data-feld="name" value="${esc(t.name || '')}" placeholder="Ziele: Firma → Preise">`}</label>
       <label class="tf zeit"><span>Ladezeit</span><input data-feld="uhrzeit" value="${esc(t.uhrzeit || '')}" placeholder="07:00"></label>
       <label class="tf art"><span>Einsatzart</span><select data-feld="einsatzart"><option value=""></option>${arten.map(a => `<option ${normal(a.name) === normal(t.einsatzart) ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
         ${t.einsatzart && !art ? `<option selected>${esc(t.einsatzart)}</option>` : ''}</select></label>
@@ -4903,6 +5096,11 @@ function preiseZum(firmaId, stichtag) {
   return [...beste.values()].sort((a, b) => a.bezeichnung.localeCompare(b.bezeichnung, 'de'));
 }
 /** Passender Preis für eine Einsatzart: gleiche Bezeichnung, dann enthalten, sonst die einzige Tourpauschale. */
+/** Touren/Ziele einer Firma (Stammdaten): Einträge ihrer Preisliste, die keine Einsatzart sind – Name = Ziel, Betrag = Preis je Tour. */
+const zieleZum = (firmaId, tag) => (firmaId && S.auftraggeber[firmaId] ? preiseZum(firmaId, tag).filter(p => !einsatzartZu(p.bezeichnung)) : []);
+const zielPreis = (preise, t) => (t.name && preise.find(p => normal(p.bezeichnung) === normal(t.name) && !einsatzartZu(p.bezeichnung))) || null;
+/** Preis einer Tour: der ihres Ziels, sonst der ihrer Einsatzart. */
+const preisFuerTour = (preise, t) => zielPreis(preise, t) || preisFuerArt(preise, t.einsatzart);
 function preisFuerArt(preise, art) {
   const a = normal(art);
   return (a && (preise.find(p => normal(p.bezeichnung) === a) || preise.find(p => normal(p.bezeichnung).includes(a) || a.includes(normal(p.bezeichnung)))))
@@ -4918,7 +5116,7 @@ function rechnungAusTouren(firmaId, von, bis) {
     <p class="leise">Zählt die gefahrenen, noch nicht abgerechneten Touren der Firma im Zeitraum und setzt die Preise aus ihrer Preisliste ein.</p>
     <label class="feld">Firma<select name="firma">${firmen.map(f => `<option value="${f.id}" ${f.id === firmaId ? 'selected' : ''}>${esc(firmaName(f))} (${tourenVonFirma(f).filter(t => tourGefahren(t) && !t.belegId).length} offen)</option>`).join('')}</select></label>
     <div class="zeile"><label class="feld fuell">Von<input name="von" type="date" value="${von || zr.von}" required></label><label class="feld fuell">Bis<input name="bis" type="date" value="${bis || zr.bis}" required></label></div>
-    <label class="feld">Positionen<select name="aufteilung"><option value="ART">je Einsatzart (Anzahl × Preis)</option><option value="TOUR">je Tour (mit Tagen)</option></select></label>
+    <label class="feld">Positionen<select name="aufteilung"><option value="ART">je Einsatzart (Anzahl × Preis)</option><option value="TOUR">je Tour (mit Tagen)</option><option value="EINZELN">jede Tour einzeln (mit Datum)</option></select></label>
     <p class="fehlertext" id="tpr-fehler" hidden></p>
     <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Weiter</button></div></form>`);
   $('#tpr-form').onsubmit = ev => {
@@ -4934,17 +5132,22 @@ function rechnungAusTourenVorschau(firma, von, bis, aufteilung) {
   const preise = preiseZum(firma.id, bis);
   const gruppen = {};
   for (const t of touren) {
-    const k = aufteilung === 'TOUR' ? [t.tourNr, t.name, t.einsatzart].join('|') : t.einsatzart || '';
-    (gruppen[k] = gruppen[k] || { art: t.einsatzart || '', text: aufteilung === 'TOUR' ? [t.tourNr && 'Tour ' + t.tourNr, t.name].filter(Boolean).join(' – ') + (t.einsatzart ? ` (${t.einsatzart})` : '') : t.einsatzart || 'Touren', touren: [] }).touren.push(t);
+    const zp = zielPreis(preise, t);
+    const k = aufteilung === 'EINZELN' ? t.id : aufteilung === 'TOUR' ? [t.tourNr, t.name, t.einsatzart].join('|') : zp ? 'Z|' + zp.id : t.einsatzart || '';
+    const tourBez = [t.tourNr && 'Tour ' + t.tourNr, t.name].filter(Boolean).join(' – ') + (t.einsatzart ? ` (${t.einsatzart})` : '');
+    (gruppen[k] = gruppen[k] || { art: t.einsatzart || '', ziel: zp, datum: t.datum,
+      text: aufteilung === 'EINZELN' ? [datumText(t.datum), tourBez || t.einsatzart || 'Tour'].join(' · ') : aufteilung === 'TOUR' ? tourBez : t.einsatzart || 'Touren', touren: [] }).touren.push(t);
   }
-  const liste = Object.values(gruppen).sort((a, b) => a.text.localeCompare(b.text, 'de')).map(g => ({ ...g, menge: g.touren.length, tage: aufteilung === 'TOUR' ? tageText([...new Set(g.touren.map(t => t.datum))]) : '', preis: preisFuerArt(preise, g.art) }));
+  // einzeln: nach Datum (am selben Tag in Planungsreihenfolge), sonst alphabetisch
+  const reihe = g => [g.datum, String(g.touren[0].reihenfolge || 0).padStart(6, '0')].join('|');
+  const liste = Object.values(gruppen).sort((a, b) => (aufteilung === 'EINZELN' ? reihe(a).localeCompare(reihe(b)) : 0) || a.text.localeCompare(b.text, 'de')).map(g => ({ ...g, menge: g.touren.length, tage: aufteilung === 'TOUR' ? tageText([...new Set(g.touren.map(t => t.datum))]) : '', preis: g.ziel || preisFuerArt(preise, g.art) }));
   const zeitraumText = `${datumText(von)} – ${datumText(bis)}`;
   const preisWahl = (z, i) => `<select data-tpr-preis="${i}" aria-label="Preis für ${esc(z.text)}"><option value="">ohne Preis (später eintragen)</option>${preise.map(p => `<option value="${p.id}" ${z.preis && z.preis.id === p.id ? 'selected' : ''}>${esc(p.bezeichnung)} · ${p.betragCent != null ? geld(p.betragCent) : '–'}${p.einheit ? ' ' + esc(p.einheit) : ''}</option>`).join('')}</select>`;
   dialog(`<form method="dialog" id="tpr-vorschau"><h2>Rechnung an ${esc(firmaName(firma))}</h2><p class="leise">Leistungszeitraum ${esc(zeitraumText)} · ${touren.length} Touren${alleT.length > touren.length ? ` (${alleT.length - touren.length} schon abgerechnet)` : ''}</p>
     ${!liste.length ? '<p class="leise">Keine gefahrenen, offenen Touren im Zeitraum.</p>'
       : `<div id="tpr-zeilen">${liste.map((z, i) => `<div class="karte block" style="padding:10px;margin:8px 0"><div class="zeile eng"><b class="fuell">${esc(z.text)}</b><span>${z.menge}×</span></div>${z.tage ? `<small class="leise">${esc(z.tage)}</small>` : ''}
           <div class="zeile eng" style="margin-top:6px"><label class="feld fuell" style="margin:0">${preisWahl(z, i)}</label><b data-tpr-betrag="${i}" style="min-width:90px;text-align:right"></b></div></div>`).join('')}</div>
-        <p><b>Netto: <span id="tpr-summe"></span></b></p>${preise.length ? '' : '<p class="leise">Diese Firma hat noch keine Preise – unter „Preise und Konditionen“ anlegen (Name = Einsatzart) oder in der Rechnung eintragen.</p>'}`}
+        <p><b>Netto: <span id="tpr-summe"></span></b></p>${preise.length ? '' : '<p class="leise">Diese Firma hat noch keine Preise – unter „Preise und Konditionen“ anlegen (Name = Einsatzart oder Tour/Ziel) oder in der Rechnung eintragen.</p>'}`}
     <div class="dialog-knoepfe"><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll" ${liste.length ? '' : 'disabled'}>Rechnung anlegen</button></div></form>`);
   const gewaehlt = i => S.preise[$(`[data-tpr-preis="${i}"]`).value] || null;
   const rechne = () => {
@@ -4957,7 +5160,7 @@ function rechnungAusTourenVorschau(firma, von, bis, aufteilung) {
     ev.preventDefault();
     const pos = liste.map((z, i) => {
       const p = gewaehlt(i);
-      const bez = aufteilung === 'TOUR' || !p ? z.text : p.bezeichnung + (normal(p.bezeichnung) === normal(z.art) || !z.art ? '' : ` – ${z.art}`);
+      const bez = aufteilung !== 'ART' || !p ? z.text : p.bezeichnung + (normal(p.bezeichnung) === normal(z.art) || !z.art || z.ziel ? '' : ` – ${z.art}`);
       return { bez, einheit: [p && p.einheit, z.tage].filter(Boolean).join(' · '), menge: z.menge, einzelCent: p && p.betragCent != null ? p.betragCent : 0 };
     });
     const id = BelegAktionen.neu('RECHNUNG', firma.id, { positionen: JSON.stringify(pos), notiz: `Aus der Tourenplanung: ${zeitraumText} (${touren.length} Touren)`,
@@ -5119,7 +5322,7 @@ function ergebnisKern() {
   const a = kostenAnnahmen(), pt = tourenProTag();
   const touren = alle('touren'), jeBeleg = new Map();
   for (const t of touren) if (t.belegId) (jeBeleg.get(t.belegId) || jeBeleg.set(t.belegId, []).get(t.belegId)).push(t);
-  const listenpreis = x => { if (c.preis.has(x.id)) return c.preis.get(x.id); const p = x.auftraggeberId && S.auftraggeber[x.auftraggeberId] ? preisFuerArt(preiseZum(x.auftraggeberId, x.datum), x.einsatzart) : null; const e = p && p.betragCent != null ? p : null; c.preis.set(x.id, e); return e; };
+  const listenpreis = x => { if (c.preis.has(x.id)) return c.preis.get(x.id); const p = x.auftraggeberId && S.auftraggeber[x.auftraggeberId] ? preisFuerTour(preiseZum(x.auftraggeberId, x.datum), x) : null; const e = p && p.betragCent != null ? p : null; c.preis.set(x.id, e); return e; };
   // Anteile einer Rechnung auf ihre Touren (Summe = 1)
   const anteile = l => { const g = l.map(x => (listenpreis(x) || {}).betragCent || 0), sum = g.reduce((n, x) => n + x, 0); return l.map((x, i) => (sum ? g[i] / sum : 1 / l.length)); };
   const erloes = new Map(), quelle = new Map(), abgerechnet = new Set(), zeilen = [];
@@ -5131,7 +5334,7 @@ function ergebnisKern() {
     let rest = betrag;
     teile.forEach((x, i) => { const teil = i === teile.length - 1 ? rest : Math.round(betrag * x.anteil); rest -= teil;
       zeilen.push({ id: 'beleg:' + b.id + ':' + i, virtuell: true, beleg: b, betrag: teil, datum: x.datum, auftraggeberId: b.firmaId, belegId: b.id, kennzeichen: '', fahrerId: '',
-        name: `${b.extern ? 'Externe Rechnung' : BELEG_ART[b.art][0]} ${b.nummer}` + (zr ? ` (Leistung ${datumText(zr.von)}–${datumText(zr.bis)})` : '') }); });
+        name: `${b.gutschriftverfahren ? 'Gutschrift (Gutschriftverfahren)' : b.extern ? 'Externe Rechnung' : BELEG_ART[b.art][0]} ${b.nummer}` + (zr ? ` (Leistung ${datumText(zr.von)}–${datumText(zr.bis)})` : '') }); });
   };
   for (const b of alle('belege').filter(zaehltUmsatz)) {
     const netto = belegSummen(b).netto;
@@ -5527,6 +5730,10 @@ function guvHtml(zr) {
   const lohn = alle('personaleintraege').filter(x => x.art === 'LOHN' && x.datum >= zr.von.slice(0, 7) + '-01' && x.datum <= zr.bis).reduce((n, x) => n + (x.kostenCent ?? x.bruttoCent ?? 0), 0);
   const fzKosten = alle('fahrzeugeintraege').filter(x => x.datum >= zr.von && x.datum <= zr.bis).reduce((n, x) => n + (x.betragCent || 0), 0);
   const schaedenIst = faelle().filter(f => (f.schadensdatum || f.meldedatum || '') >= zr.von && (f.schadensdatum || f.meldedatum || '') <= zr.bis).reduce((n, f) => n + schadenKosten(f), 0);
+  const eingang = alle('eingangsrechnungen').filter(e => e.datum >= zr.von && e.datum <= zr.bis), eingangSumme = eingang.reduce((n, e) => n + eingangNetto(e), 0);
+  const ausgabeMonat = {}, ausgabeKat = {};
+  for (const e of eingang) { const m = e.datum.slice(0, 7); (ausgabeMonat[m] = ausgabeMonat[m] || { eingang: 0, akte: 0 }).eingang += eingangNetto(e); ausgabeKat[e.kategorie || 'SONSTIGES'] = (ausgabeKat[e.kategorie || 'SONSTIGES'] || 0) + eingangNetto(e); }
+  for (const x of alle('fahrzeugeintraege').filter(x => x.datum >= zr.von && x.datum <= zr.bis && x.betragCent)) (ausgabeMonat[x.datum.slice(0, 7)] = ausgabeMonat[x.datum.slice(0, 7)] || { eingang: 0, akte: 0 }).akte += x.betragCent;
   const s = Object.values(monate).reduce((a, x) => { for (const k in x) a[k] = (a[k] || 0) + x[k]; return a; }, {});
   const ergebnis = (s.erloes || 0) - (s.personal || 0) - (s.fahrzeug || 0) - (s.schaeden || 0) - (s.gemein || 0);
   const umsatzSumme = umsatz.reduce((n, b) => n + umsatzNetto(b), 0);
@@ -5543,8 +5750,12 @@ function guvHtml(zr) {
       ${s.sonstig ? `<dt>davon ohne Tourbezug (im Erlös oben enthalten)</dt><dd>${geld(s.sonstig)}</dd>` : ''}
       ${s.geschaetzt ? `<dt>Geschätzt aus Preisliste (noch nicht abgerechnet, im Erlös oben enthalten)</dt><dd>${geld(s.geschaetzt)}</dd>` : ''}
       <dt>Lohnkosten laut Abrechnungen</dt><dd>${lohn ? geld(lohn) : 'keine Lohnabrechnungen im Zeitraum'}</dd>
-      <dt>Fahrzeugakte</dt><dd>${geld(fzKosten)}</dd><dt>Schadenkosten (Fälle im Zeitraum)</dt><dd>${geld(schaedenIst)}</dd>
-      <dt>Ergebnis Ist (vereinfacht)</dt><dd><b>${geld(umsatzSumme - lohn - fzKosten - schaedenIst)}</b> <span class="leise">Rechnungen − Lohn − Fahrzeugakte − Schäden (ohne Leasing, Miete, Versicherung …)</span></dd></dl>
+      <dt>Fahrzeugakte</dt><dd>${geld(fzKosten)}</dd><dt>Eingangsrechnungen − Gutschriften (netto)</dt><dd>${geld(eingangSumme)} (${eingang.length} Belege)</dd><dt>Schadenkosten (Fälle im Zeitraum)</dt><dd>${geld(schaedenIst)}</dd>
+      <dt>Ergebnis Ist (vereinfacht)</dt><dd><b>${geld(umsatzSumme - lohn - fzKosten - eingangSumme - schaedenIst)}</b> <span class="leise">Rechnungen − Lohn − Fahrzeugakte − Eingangsrechnungen − Schäden${eingang.length ? '' : ' (ohne Leasing, Miete, Versicherung … – dafür Eingangsrechnungen erfassen)'}</span></dd></dl>
+      ${Object.keys(ausgabeMonat).length ? `<h3 style="margin-top:12px">Ausgaben</h3><div class="tabelle-rahmen" tabindex="0"><table class="tabelle" id="ausgaben"><tr><th>Monat</th><th class="r">Eingangsrechnungen (netto)</th><th class="r">Fahrzeugakte</th><th class="r">Summe</th></tr>
+        ${Object.keys(ausgabeMonat).sort().map(m => { const x = ausgabeMonat[m]; return `<tr><td>${esc(ZEIT_DIMS.monat[2](m))}</td><td class="r">${geld(x.eingang)}</td><td class="r">${geld(x.akte)}</td><td class="r"><b>${geld(x.eingang + x.akte)}</b></td></tr>`; }).join('')}</table></div>
+        ${eingang.length ? `<dl style="margin-top:8px">${Object.entries(ausgabeKat).sort((a, b) => b[1] - a[1]).map(([k, c]) => `<dt>${esc(EINGANG_KATEGORIE[k] || k)}</dt><dd>${geld(c)}</dd>`).join('')}</dl>` : ''}
+        <p class="leise">Werkstatt- oder Tankrechnungen nur einmal erfassen – entweder in der Fahrzeugakte oder als Eingangsrechnung, sonst zählen sie doppelt.</p>` : ''}
       <p class="leise" style="margin-top:8px">Touren-Rechnung: Erlös aus Rechnung bzw. Preisliste der Firma; Personal und Fahrzeug aus „Kosten pro Einsatz“ (wenn eingetragen), sonst Personal aus Lohnabrechnung, Stundenlohn oder Tagessatz und Fahrzeug aus Fahrzeugakte und Leasingrate oder Tagessatz. Annahmen unter ⚙ → Kosten.</p></div>`;
 }
 
@@ -6548,10 +6759,11 @@ function tagesHinweiseZeigen(versuch = 0) {
 /** Für alle Firmen mit gefahrenen, noch nicht abgerechneten Touren im Zeitraum je eine Rechnung (Positionen je Einsatzart × Preisliste). */
 function sammelPositionen(firma, touren, bis) {
   const preise = preiseZum(firma.id, bis), gruppen = {};
-  for (const t of touren) (gruppen[t.einsatzart || ''] = gruppen[t.einsatzart || ''] || []).push(t);
-  return Object.entries(gruppen).sort((a, b) => a[0].localeCompare(b[0], 'de')).map(([art, l]) => {
-    const p = preisFuerArt(preise, art);
-    return { art, touren: l, preis: p, pos: { bez: p ? p.bezeichnung + (normal(p.bezeichnung) === normal(art) || !art ? '' : ` – ${art}`) : art || 'Touren', einheit: (p && p.einheit) || 'je Tour', menge: l.length, einzelCent: p && p.betragCent != null ? p.betragCent : 0 } };
+  // je Tour/Ziel aus den Stammdaten eine Position (eigener Preis), sonst je Einsatzart
+  for (const t of touren) { const zp = zielPreis(preise, t), k = zp ? 'Z|' + zp.bezeichnung : t.einsatzart || ''; (gruppen[k] = gruppen[k] || []).push(t); }
+  return Object.entries(gruppen).sort((a, b) => a[0].localeCompare(b[0], 'de')).map(([k, l]) => {
+    const art = l[0].einsatzart || '', ziel = k.startsWith('Z|'), p = ziel ? zielPreis(preise, l[0]) : preisFuerArt(preise, art);
+    return { art, touren: l, preis: p, pos: { bez: p ? p.bezeichnung + (ziel || normal(p.bezeichnung) === normal(art) || !art ? '' : ` – ${art}`) : art || 'Touren', einheit: (p && p.einheit) || 'je Tour', menge: l.length, einzelCent: p && p.betragCent != null ? p.betragCent : 0 } };
   });
 }
 function monatsabrechnungDialog() {
@@ -6811,7 +7023,7 @@ const FuhrparkAktionen = {
     for (const a of anlagenVon(z.id)) { entferne('anlagen', a, { fallId: a.fallId }); Dateien.loesche(a.id); }
     entferne('fahrzeuge', z, { firmaId: '', geaendertAm: jetzt }); nachAenderung();
   },
-  eintragSpeichern(x) {
+  eintragSpeichern(x, still = false) {
     merke('fahrzeugeintraege', { ...x, id: x.id || uuid(), firmaId: '', geaendertAm: jetztIso() });
     // Ein höherer Kilometerstand im Eintrag wird ins Fahrzeug übernommen, ein Fahrerwechsel ebenso.
     const z = S.fahrzeuge[x.fahrzeugId];
@@ -6821,7 +7033,7 @@ const FuhrparkAktionen = {
       if (x.art === 'FAHRER' && x.werkstatt) neu.fahrer = x.werkstatt;
       if (neu.kmStand !== z.kmStand || neu.fahrer !== z.fahrer) merke('fahrzeuge', { ...neu, geaendertAm: jetztIso() });
     }
-    nachAenderung();
+    if (!still) nachAenderung();
   },
   eintragLoeschen(x) { entferne('fahrzeugeintraege', x, { firmaId: '', fahrzeugId: x.fahrzeugId, geaendertAm: jetztIso() }); nachAenderung(); },
   async dokument(fahrzeugId, art, datei) { if (await legeAnlage(fahrzeugId, datei, `${art} – `)) nachAenderung(); },
@@ -6841,7 +7053,7 @@ function zeichneFuhrpark(r) {
       ${f ? `<div class="zeile eng" style="margin-top:6px"><span class="marke ${fristFarbe(f)}">⏱ ${esc(f.label)}: ${esc(fristText(f))}</span></div>` : ''}
       ${wartungKmFaellig(z) ? `<div class="zeile eng" style="margin-top:4px"><span class="marke gelb">🔧 Wartung bei ${esc(zahlText(z.wartungKm, 'km'))}</span></div>` : ''}</button>`;
   }).join('');
-  return seitenkopf('Fuhrpark', '<button class="knopf voll" data-neues-fahrzeug>＋ Fahrzeug</button>', `<button class="knopf" data-fuhrpark-csv>CSV</button>
+  return seitenkopf('Fuhrpark', '<button class="knopf voll" data-neues-fahrzeug>＋ Fahrzeug</button>', `<button class="knopf" data-tankbelege>⛽ Tankbelege</button><button class="knopf" data-fuhrpark-csv>CSV</button>
       <label class="knopf">⤓ Importieren<input type="file" id="fuhrpark-import" accept=".json,application/json" hidden></label><button class="knopf" data-gehe-bereich="personal">👥 Personal</button>
       <button class="knopf" data-gehe-bereich="auswertung">📊 Auswertungen</button>${fzDoppelte().length ? `<button class="knopf" data-fz-doppelte>🔁 Doppelte (${fzDoppelte().length})</button>` : ''}`) + `<div class="kennzahlen">
       <button class="kennzahl" data-fuhrpark-status="AKTIV"><b>${fahrzeugListe().filter(z => z.status !== 'STILLGELEGT').length}</b><span>Fahrzeuge</span></button>
@@ -8119,7 +8331,7 @@ function adressFeldAktivieren(form) {
     if (!treffer.length) { box.hidden = true; return; }
     wahl = 0; const r = feld.getBoundingClientRect(), f = form.getBoundingClientRect();
     box.style.left = (r.left - f.left) + 'px'; box.style.top = (r.bottom - f.top + form.scrollTop) + 'px'; box.style.width = r.width + 'px';
-    box.innerHTML = treffer.map(([a, n], i) => `<button type="button" data-vorschlag="${i}" class="${i === wahl ? 'aktiv' : ''}">${avatar(n, a)}<span><b>${esc(n || a)}</b><br><span class="leise">${esc(a)}</span></span></button>`).join(''); box.hidden = false;
+    box.innerHTML = treffer.map(([a, n], i) => `<button type="button" tabindex="-1" data-vorschlag="${i}" class="${i === wahl ? 'aktiv' : ''}">${avatar(n, a)}<span><b>${esc(n || a)}</b><br><span class="leise">${esc(a)}</span></span></button>`).join(''); box.hidden = false;
   };
   const wert = ([a, n]) => (n && !/\(/.test(n) ? `"${n.replace(/"/g, '')}" <${a}>` : a);
   form.querySelectorAll('.vf-adressen').forEach(feld => {
@@ -9785,9 +9997,7 @@ function eRechnungAnzeigen(r) {
 }
 async function eRechnungOeffnen(datei) {
   try {
-    const bytes = new Uint8Array(await datei.arrayBuffer());
-    const xml = /\.pdf$/i.test(datei.name) || (bytes[0] === 0x25 && bytes[1] === 0x50) ? await eRechnungAusPdf(bytes) : new TextDecoder('utf-8').decode(bytes);
-    eRechnungAnzeigen(eRechnungLesen(xml));
+    eRechnungAnzeigen(await rechnungAusDatei(datei, true));
   } catch (e) { toast(t('E-Rechnung nicht lesbar') + ': ' + t(String(e.message || e)), 7000); }
 }
 function eRechnungLueckenDialog(b, l) {
@@ -9847,8 +10057,18 @@ const UPDATE_BASIS = 'https://aysetransport.github.io/schaden/';
 const UPD = { info: null, neu: null, fehler: '', laeuft: false, bereit: false, appNoetig: false, gemeldet: false };
 const updateApi = () => (window.desktop && window.desktop.web) || null;
 const updateModus = () => S.einstellungen.updateModus || 'AUTO';
+/** Update der App selbst (neues Setup/APK): lädt die App im Hintergrund; ist es da, fragt die Seite nach der Installation. */
+async function appUpdatePruefen(manuell) {
+  const a = window.desktop && window.desktop.app; if (!a || (!manuell && updateModus() === 'AUS')) return;
+  try { UPD.app = await a.pruefen(); UPD.appFehler = ''; } catch (e) { UPD.appFehler = e.message || String(e); return; }
+  if (!UPD.app || !UPD.app.bereit || $('#dialog').open || (!manuell && UPD.appGemeldet)) return;
+  UPD.appGemeldet = true;
+  dialog(`<h2>App-Update bereit</h2><p>Version <span translate="no">${esc(UPD.app.version || '')}</span> der App ist geladen. Jetzt installieren? Die App wird dabei geschlossen und aktualisiert, deine Daten bleiben erhalten.</p>
+    <div class="dialog-knoepfe"><button class="knopf text" data-zu>Später</button><button class="knopf voll" data-app-installieren>Jetzt installieren</button></div>`);
+}
 async function updatePruefen(manuell = false) {
   const w = updateApi(); if (!w || UPD.laeuft) return;
+  appUpdatePruefen(manuell).finally(() => { if (route().art === 'einstellungen') zeichne(); });
   UPD.laeuft = true; UPD.fehler = '';
   if (manuell && route().art === 'einstellungen') zeichne();
   try {
@@ -9889,19 +10109,22 @@ function updateKarte() {
   if (!w) return '';
   const datum = s => (s ? new Date(Number(s) * 1000).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '–');
   return `<div class="karte block" id="update-karte"><h3>Updates</h3>
-    <p class="leise" style="margin-bottom:8px">Neue Funktionen kommen automatisch – ohne neues Setup bzw. neue APK. Nur wenn sich die App selbst ändern muss, erscheint hier ein Hinweis.</p>
+    <p class="leise" style="margin-bottom:8px">Neue Funktionen kommen automatisch. Muss sich die App selbst ändern, lädt sie das Update im Hintergrund und fragt vor der Installation.</p>
     <dl><dt>App</dt><dd translate="no">${esc(i.app || '–')}</dd><dt>Oberfläche</dt><dd translate="no">${esc(window.WEB_VERSION || '–')} (${esc(datum(window.WEB_STAND))})${i.aktiv ? ' · per Update' : ''}</dd>
       ${UPD.neu && Number(UPD.neu.stand) > Number(window.WEB_STAND || 0) ? `<dt>Verfügbar</dt><dd translate="no">${esc(UPD.neu.version || '')} (${esc(datum(UPD.neu.stand))})</dd>` : ''}</dl>
-    ${UPD.appNoetig ? '<p class="hinweis-box">⚠ Die neueste Version braucht ein App-Update (neues Setup bzw. neue APK).</p>' : ''}
+    ${UPD.appNoetig && !(UPD.app && UPD.app.bereit) ? '<p class="hinweis-box">⚠ Die neueste Version braucht ein App-Update – es wird automatisch geladen.</p>' : ''}
+    ${UPD.appFehler ? `<p class="leise">App-Update: ${esc(UPD.appFehler)}</p>` : ''}
     ${UPD.fehler ? `<p class="leise">Letzte Prüfung: ${esc(UPD.fehler)}</p>` : ''}
     <label class="feld">Neue Versionen<select data-einst="updateModus">${[['AUTO', 'automatisch laden'], ['FRAGEN', 'vorher fragen'], ['AUS', 'nicht suchen']].map(([k, l]) => `<option value="${k}" ${updateModus() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <div class="zeile"><button class="knopf voll" data-update-pruefen ${UPD.laeuft ? 'disabled' : ''}>${UPD.laeuft ? 'Suche …' : 'Jetzt nach Updates suchen'}</button>
       ${UPD.bereit ? '<button class="knopf" data-update-neuladen>Jetzt neu laden</button>' : ''}
+      ${UPD.app && UPD.app.bereit ? `<button class="knopf voll" data-app-installieren>App-Update ${esc(UPD.app.version || '')} installieren</button>` : ''}
       ${i.aktiv ? '<button class="knopf text" data-update-zurueck>Auf die mitgelieferte Version zurücksetzen</button>' : ''}</div></div>`;
 }
 document.addEventListener('click', e => {
   if (e.target.closest('[data-update-pruefen]')) updatePruefen(true);
   else if (e.target.closest('[data-update-neuladen]')) location.reload();
+  else if (e.target.closest('[data-app-installieren]')) { if ($('#dialog').open) $('#dialog').close(); window.desktop.app.installieren().catch(f => toast(t('Update nicht möglich') + ': ' + (f.message || f), 6000)); }
   else if (e.target.closest('[data-update-zurueck]')) bestaetige('Zurücksetzen', 'Die per Update geladene Version wird entfernt, die mitgelieferte Version der App gilt wieder.', 'Zurücksetzen', async () => { await updateApi().zuruecksetzen(); location.reload(); });
 });
 if (updateApi()) {
@@ -9918,7 +10141,14 @@ if (langeMailsKuerzen()) speichere();
 const anmeldeLink = anmeldelinkLesen();
 spracheAnwenden();
 zeichne();
-if (anmeldeLink && mitCloud()) einloggenMit(anmeldeLink.u, anmeldeLink.p).catch(e => { toast('Anmeldelink: ' + (String(e.message || e).replace(/^.*GESPERRT: /, '')), 7000); anmeldung(); });
+const mitLink = () => { if (anmeldeLink.u && anmeldeLink.p && mitCloud()) einloggenMit(anmeldeLink.u, anmeldeLink.p).catch(e => { toast('Anmeldelink: ' + (String(e.message || e).replace(/^.*GESPERRT: /, '')), 7000); anmeldung(); }); else if (mitCloud()) abgleich(); };
+if (anmeldeLink && anmeldeLink.neueCloud) {
+  dialog(`<h2>Mit einer anderen Cloud verbinden?</h2><p>Der Anmeldelink verbindet dieses Gerät mit:</p><p class="hinweis-box" translate="no" style="word-break:break-all">${esc(anmeldeLink.neueCloud)}</p>
+    <p>${apiUrl() ? 'Bisher ist es mit einer anderen Cloud verbunden. ' : ''}Nur bestätigen, wenn der Link wirklich von deiner Firma kommt – sonst landen deine Einträge bei Fremden.</p>
+    <div class="dialog-knoepfe"><button class="knopf text" data-zu>Nicht verbinden</button><button class="knopf voll" id="link-cloud-ja">Verbinden</button></div>`);
+  $('#link-cloud-ja').onclick = () => { $('#dialog').close(); S.apiUrl = anmeldeLink.neueCloud; S.nurLokal = false; speichere(); mitLink(); };
+}
+else if (anmeldeLink && mitCloud()) mitLink();
 else if (mitCloud()) abgleich();
 mailStart();
 window.__appBereit = true;

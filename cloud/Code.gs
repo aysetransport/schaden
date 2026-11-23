@@ -24,13 +24,13 @@ var ANLAGEN_ORDNER = 'anlagen';
 var SICHERUNG_ORDNER = 'sicherungen';
 var SICHERUNGEN_BEHALTEN = 14;
 
-var MIN_PIN_LAENGE = 4;
+var MIN_PIN_LAENGE = 8; // die Adresse des Skripts ist öffentlich – kurze PINs wären mit der Zeit erratbar
 var MAX_FEHLVERSUCHE = 8;
 var SPERRE_MINUTEN = 60;
 
 var MAX_ANLAGE_BYTES = 25 * 1024 * 1024;
 var MAX_TEXT = 20000;
-var API_VERSION = 15; // 15: Korrekturrechnungen (korrekturVon/ersetztDurch); 14: Selbst-Update, E-Rechnung (Leitweg-ID), externe Rechnungen/Leistungszeitraum; 13: Hauptadmin, Cloud-PIN abschaltbar; 12: Auftragsnummer, Betrag und Ankunftszeit an Stopps (Rollkarte); 11: Stopps (mehrere Kunden je Tour); 10: Statuslink, Lieferavis-Felder und Kundenbewertung an Touren; 9: Benutzer-Logins mit Rollen; 8: Zeiterfassung, Aufgaben, Tour-Status und Fahrtenbuch; 7: Tourenplanung und Personal; 6: Fuhrpark; 2: Kontaktdaten des Auftraggebers und Auftraggeber-Liste; 3: Zeichen des Auftraggebers; 4: CRM; 5: Verkaufschancen, Schlagworte
+var API_VERSION = 16; // 16: Eingangsrechnungen, Gutschriftverfahren; 15: Korrekturrechnungen (korrekturVon/ersetztDurch); 14: Selbst-Update, E-Rechnung (Leitweg-ID), externe Rechnungen/Leistungszeitraum; 13: Hauptadmin, Cloud-PIN abschaltbar; 12: Auftragsnummer, Betrag und Ankunftszeit an Stopps (Rollkarte); 11: Stopps (mehrere Kunden je Tour); 10: Statuslink, Lieferavis-Felder und Kundenbewertung an Touren; 9: Benutzer-Logins mit Rollen; 8: Zeiterfassung, Aufgaben, Tour-Status und Fahrtenbuch; 7: Tourenplanung und Personal; 6: Fuhrpark; 2: Kontaktdaten des Auftraggebers und Auftraggeber-Liste; 3: Zeichen des Auftraggebers; 4: CRM; 5: Verkaufschancen, Schlagworte
 
 /**
  * CRM-Tabellen: alle hängen über firmaId an einem Auftraggeber (Tabelle „auftraggeber“).
@@ -46,7 +46,10 @@ var CRM_TABELLEN = {
   chancen: { titel: 'text', wertCent: 'cent', phase: 'wort:ANFRAGE', erwartetAm: 'datum', notiz: 'text' },
   // Angebote und Rechnungen (bisher nur Web-/Windows-App); positionen als JSON-Text
   belege: { art: 'wort:RECHNUNG', nummer: 'text', datum: 'datum', faelligAm: 'datum', status: 'wort:OFFEN', positionen: 'text', mwstProzent: 'cent',
-    einleitung: 'text', schluss: 'text', bezahltCent: 'cent', bezahltAm: 'datum', mahnstufe: 'cent', bezug: 'text', notiz: 'text', fallId: 'text', unterzeichner: 'text', extern: 'bool', leistungVon: 'datum', leistungBis: 'datum', bestellnummer: 'text', korrekturVon: 'text', ersetztDurch: 'text' },
+    einleitung: 'text', schluss: 'text', bezahltCent: 'cent', bezahltAm: 'datum', mahnstufe: 'cent', bezug: 'text', notiz: 'text', fallId: 'text', unterzeichner: 'text', extern: 'bool', gutschriftverfahren: 'bool', leistungVon: 'datum', leistungBis: 'datum', bestellnummer: 'text', korrekturVon: 'text', ersetztDurch: 'text' },
+  // Eingangsrechnungen (Rechnungen und Gutschriften von Lieferanten, ohne Firma); Beträge in Cent, art RECHNUNG oder GUTSCHRIFT
+  eingangsrechnungen: { art: 'wort:RECHNUNG', lieferant: 'text', nummer: 'text', datum: 'datum', faelligAm: 'datum', nettoCent: 'cent', mwstCent: 'cent',
+    kategorie: 'wort:SONSTIGES', status: 'wort:OFFEN', bezahltAm: 'datum', iban: 'text', notiz: 'text', eRechnung: 'bool' },
   // Fuhrpark (ohne Firma): Fahrzeuge mit den Angaben aus dem Fahrzeugschein, Fristen und Fahrzeugakte.
   // Zahlen (km, kg, kW, Cent, Liter × 100) als ganze Zahlen.
   fahrzeuge: { kennzeichen: 'text', bezeichnung: 'text', art: 'wort:TRANSPORTER', status: 'wort:AKTIV', fahrer: 'text', kmStand: 'cent', wartungKm: 'cent',
@@ -144,8 +147,23 @@ var ROLLEN = { ADMIN: 'Admin', DISPO: 'Disposition / Büro', FAHRER: 'Fahrer' };
 var SITZUNG_TAGE = 90;
 var MIN_PASSWORT = 6;
 var ZUGANG_ = { rolle: 'ADMIN' };
-function benutzer_() { return JSON.parse(PropertiesService.getScriptProperties().getProperty('BENUTZER') || '{}'); }
-function speichereBenutzer_(b) { PropertiesService.getScriptProperties().setProperty('BENUTZER', JSON.stringify(b)); }
+/** Jeder Benutzer in einer eigenen Skript-Eigenschaft BENUTZER_<id> (eine Eigenschaft fasst höchstens 9 KB); BENUTZER = alte Form. */
+function benutzer_() {
+  var p = PropertiesService.getScriptProperties().getProperties(), b = JSON.parse(p.BENUTZER || '{}');
+  Object.keys(p).forEach(function (k) { if (k.indexOf('BENUTZER_') === 0) { var x = JSON.parse(p[k]); b[x.id] = x; } });
+  return b;
+}
+function speichereBenutzer_(b) {
+  var props = PropertiesService.getScriptProperties(), alt = props.getProperties();
+  Object.keys(b).forEach(function (id) { props.setProperty('BENUTZER_' + id, JSON.stringify(b[id])); });
+  Object.keys(alt).forEach(function (k) { if (k === 'BENUTZER' || (k.indexOf('BENUTZER_') === 0 && !b[k.slice(9)])) props.deleteProperty(k); });
+}
+/** Fehlversuch zählen: ab MAX_FEHLVERSUCHE gesperrt, jede weitere Sperre doppelt so lang (höchstens 7 Tage). Nur eine richtige Eingabe setzt zurück. */
+function fehlversuch_(z, jetzt) {
+  z.n = (z.n || 0) + 1;
+  z.bis = z.n >= MAX_FEHLVERSUCHE ? jetzt + Math.min(SPERRE_MINUTEN * 60000 * Math.pow(2, z.n - MAX_FEHLVERSUCHE), 7 * 864e5) : 0;
+  return z;
+}
 function loginNormal_(l) { return String(l == null ? '' : l).trim().toLowerCase(); }
 function oeffentlich_(b) { return { id: b.id, login: b.login, name: b.name, rolle: b.rolle, mitarbeiterId: b.mitarbeiterId || '', aktiv: b.aktiv !== false, hauptadmin: !!b.hauptadmin, geaendertAm: b.geaendertAm || '', letzteAnmeldung: b.letzteAnmeldung || '' }; }
 /** Ist die Anmeldung mit der Cloud-PIN abgeschaltet? (Dann nur noch Benutzer-Logins.) */
@@ -165,6 +183,11 @@ function pruefeZugang_(zugang) {
   }
   var props = PropertiesService.getScriptProperties(), schluessel = 'SITZUNG_' + hash_(z, 'sitzung');
   var s = JSON.parse(props.getProperty(schluessel) || 'null');
+  if (s && s.b === PIN_SITZUNG) {
+    // Gerät hat sich mit der Cloud-PIN angemeldet: gilt, solange die PIN gleich und die PIN-Anmeldung eingeschaltet ist
+    if (s.v !== props.getProperty('PIN_HASH') || s.bis < Date.now() || pinAus_()) { props.deleteProperty(schluessel); throw new Error(pinAus_() ? 'PIN_AUS: Die Anmeldung mit der Cloud-PIN ist abgeschaltet – bitte mit Benutzername und Passwort anmelden.' : 'Anmeldung abgelaufen – bitte erneut anmelden (Passwort bzw. PIN)'); }
+    return { rolle: 'ADMIN', pin: true, hauptadmin: true, sitzung: schluessel };
+  }
   var b = s && benutzer_()[s.b];
   if (!s || !b || b.aktiv === false || b.version !== s.v || s.bis < Date.now()) {
     if (s) props.deleteProperty(schluessel);
@@ -195,9 +218,7 @@ function einloggen(login, passwort) {
   var alle = benutzer_(), b = null;
   Object.keys(alle).forEach(function (k) { if (alle[k].login === login) b = alle[k]; });
   if (!b || b.aktiv === false || hash_(String(passwort == null ? '' : passwort), b.salz) !== b.hash) {
-    zaehler.n = (zaehler.bis && zaehler.bis <= jetzt ? 0 : zaehler.n) + 1;
-    zaehler.bis = zaehler.n >= MAX_FEHLVERSUCHE ? jetzt + SPERRE_MINUTEN * 60000 : 0;
-    props.setProperty(fk, JSON.stringify(zaehler));
+    props.setProperty(fk, JSON.stringify(fehlversuch_(zaehler, jetzt)));
     throw new Error('Benutzername oder Passwort falsch');
   }
   if (zaehler.n) props.deleteProperty(fk);
@@ -206,7 +227,7 @@ function einloggen(login, passwort) {
   Object.keys(alleProps).forEach(function (k) { if (k.indexOf('SITZUNG_') === 0) { try { if (JSON.parse(alleProps[k]).bis < jetzt) props.deleteProperty(k); } catch (e) { props.deleteProperty(k); } } });
   var token = 'T:' + Utilities.getUuid() + Utilities.getUuid();
   props.setProperty('SITZUNG_' + hash_(token, 'sitzung'), JSON.stringify({ b: b.id, v: b.version, bis: jetzt + SITZUNG_TAGE * 864e5 }));
-  b.letzteAnmeldung = new Date(jetzt).toISOString(); alle[b.id] = b; speichereBenutzer_(alle);
+  b.letzteAnmeldung = new Date(jetzt).toISOString(); props.setProperty('BENUTZER_' + b.id, JSON.stringify(b));
   return { token: token, rolle: b.rolle, name: b.name, mitarbeiterId: b.mitarbeiterId || '', hauptadmin: !!b.hauptadmin && b.rolle === 'ADMIN', api: API_VERSION };
 }
 function abmelden() { if (ZUGANG_.sitzung) PropertiesService.getScriptProperties().deleteProperty(ZUGANG_.sitzung); return true; }
@@ -504,9 +525,7 @@ function pruefePin_(pin) {
     if (zaehler.n) props.deleteProperty('FEHLVERSUCHE');
     return;
   }
-  zaehler.n = (zaehler.bis && zaehler.bis <= jetzt ? 0 : zaehler.n) + 1;
-  zaehler.bis = zaehler.n >= MAX_FEHLVERSUCHE ? jetzt + SPERRE_MINUTEN * 60000 : 0;
-  props.setProperty('FEHLVERSUCHE', JSON.stringify(zaehler));
+  props.setProperty('FEHLVERSUCHE', JSON.stringify(fehlversuch_(zaehler, jetzt)));
   throw new Error('PIN falsch');
 }
 
@@ -517,9 +536,15 @@ function hash_(pin, salz) {
 
 // ============================== Abgleich ==============================
 
+var PIN_SITZUNG = '__PIN__';
 function anmelden() {
-  var d = ladeDaten_();
-  return { name: 'Schadensfälle', api: API_VERSION, kennung: d.kennung, rev: d.rev, rolle: ZUGANG_.rolle, mitarbeiterId: ZUGANG_.mitarbeiterId || '', benutzer: ZUGANG_.name || '', hauptadmin: !!ZUGANG_.hauptadmin, pinAus: pinAus_() };
+  var d = ladeDaten_(), token = '';
+  if (ZUGANG_.pin && !ZUGANG_.sitzung) {
+    token = 'T:' + Utilities.getUuid() + Utilities.getUuid();
+    var props = PropertiesService.getScriptProperties();
+    props.setProperty('SITZUNG_' + hash_(token, 'sitzung'), JSON.stringify({ b: PIN_SITZUNG, v: props.getProperty('PIN_HASH'), bis: Date.now() + SITZUNG_TAGE * 864e5 }));
+  }
+  return { token: token, name: 'Schadensfälle', api: API_VERSION, kennung: d.kennung, rev: d.rev, rolle: ZUGANG_.rolle, mitarbeiterId: ZUGANG_.mitarbeiterId || '', benutzer: ZUGANG_.name || '', hauptadmin: !!ZUGANG_.hauptadmin, pinAus: pinAus_() };
 }
 
 /** Schnelle Abfrage, ob es Neues gibt. */
