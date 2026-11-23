@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795449615; window.WEB_VERSION = '4.17.0';
+window.WEB_STAND = 1795452103; window.WEB_VERSION = '4.17.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -1038,7 +1038,10 @@ const kontakteVon = firmaId => alle('ansprechpartner').filter(k => k.firmaId ===
 /** Bevorzugt der Ansprechpartner für Schäden, sonst der erste. */
 const schadenKontakt = firmaId => { const k = kontakteVon(firmaId); return k.find(x => /sch(a|ä)d/i.test(x.thema || '')) || k[0]; };
 /** Firma zum Namen (gleiche Regeln wie in der Android-App: ohne Groß-/Kleinschreibung, kleinste Kennung gewinnt). */
-const firmaZumNamen = name => alle('auftraggeber').filter(e => normal(e.name) === normal(name)).sort((a, b) => (a.id < b.id ? -1 : 1))[0];
+const firmaAliase = f => String((f && f.aliase) || '').split(',').map(x => x.trim()).filter(Boolean);
+/** Firma zum Namen – zuerst über den Namen, sonst über einen früheren/anderen Namen (Aliase in den Firmendaten). */
+const firmaZumNamen = name => { const n = normal(name), l = alle('auftraggeber').sort((a, b) => (a.id < b.id ? -1 : 1));
+  return n ? l.find(e => normal(e.name) === n) || l.find(e => firmaAliase(e).some(a => normal(a) === n)) : undefined; };
 /** Gehört der Fall zur Firma – über den Verweis oder, noch unverknüpft, über den Namen? */
 const gehoertZu = (f, firma) => (f.auftraggeberUuid ? f.auftraggeberUuid === firma.id : !!(f.auftraggeber || '').trim() && normal(f.auftraggeber) === normal(firma.name));
 
@@ -1131,6 +1134,7 @@ const Aktionen = {
     const f = merke('auftraggeber', { ...(alt || {}), ...e, id: e.id || uuid(), name: e.name.trim(), geaendertAm: jetztIso() });
     // Fälle tragen den Namen als Text – bei einer Umbenennung mitziehen.
     if (alt && alt.name !== f.name) for (const fall of faelle().filter(x => x.auftraggeberUuid === f.id)) fallMerken({ ...fall, auftraggeber: f.name });
+    aliaseZuordnen(f);
     nachAenderung(); return f.id;
   },
   /** Löscht die Firma mit allem, was an ihr hängt (die Cloud löscht mit). Fälle bleiben erhalten. */
@@ -1144,10 +1148,13 @@ const Aktionen = {
     const jetzt = jetztIso();
     for (const t of CRM_TABELLEN) for (const x of alle(t).filter(x => x.firmaId === weg.id)) merke(t, { ...x, firmaId: ziel.id, geaendertAm: jetzt });
     for (const f of faelle().filter(f => gehoertZu(f, weg))) fallMerken({ ...f, auftraggeberUuid: ziel.id, auftraggeber: ziel.name });
+    // Touren verweisen über auftraggeberId (bzw., noch unverknüpft, über den Namen) auf die Firma – nicht über firmaId
+    for (const t of tourenVonFirma(weg)) merke('touren', { ...t, auftraggeberId: ziel.id, auftraggeber: ziel.name, geaendertAm: jetzt });
     for (const m of Object.values(mails())) if (m.firmaId === weg.id) m.firmaId = ziel.id;
     const w = [...new Map([...schlagwortListe(ziel), ...schlagwortListe(weg)].map(x => [x.toLowerCase(), x])).values()].join(', ');
     merke('auftraggeber', { ...ziel, rechtsform: ziel.rechtsform || weg.rechtsform || '', telefon: ziel.telefon || weg.telefon || '', email: ziel.email || weg.email || '',
-      website: ziel.website || weg.website || '', notizen: [ziel.notizen, weg.notizen].filter(Boolean).join('\n\n'), schlagworte: w, geaendertAm: jetzt });
+      website: ziel.website || weg.website || '', notizen: [ziel.notizen, weg.notizen].filter(Boolean).join('\n\n'), schlagworte: w,
+      aliase: [...new Map([...firmaAliase(ziel), weg.name, ...firmaAliase(weg)].filter(a => normal(a) !== normal(ziel.name)).map(a => [normal(a), a])).values()].join(', '), geaendertAm: jetzt });
     entferne('auftraggeber', weg, { geaendertAm: jetzt });
     nachAenderung();
   },
@@ -1216,7 +1223,7 @@ async function api(fn, ...args) {
   return j.ok;
 }
 const TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber', ...CRM_TABELLEN];
-const CLOUD_API = 16; // 16: Eingangsrechnungen und Gutschriftverfahren – ein älteres Skript würde sie verwerfen
+const CLOUD_API = 17; // 17: Firmen-Aliase; 16: Eingangsrechnungen und Gutschriftverfahren – ein älteres Skript würde sie verwerfen
 const VERALTET = 'Das Cloud-Skript ist veraltet – bitte die neue Code.gs bereitstellen.';
 const offeneAnzahl = () => TABELLEN.reduce((n, t) => n + offene(t).length, 0);
 const SYNC = { laeuft: false, nochmal: false, fehler: '', zuletzt: 0, timer: 0 };
@@ -2633,6 +2640,7 @@ function zeichneFirma(id) {
 const CRM_FELDER = {
   auftraggeber: ['Firma', [['name', 'Firma', 'pflicht'], ['rechtsform', 'Rechtsform (z. B. GmbH)'], ['status', 'Status', Object.fromEntries(Object.entries(FIRMEN_STATUS).map(([k, [l]]) => [k, l]))],
     ['telefon', 'Telefon', 'tel'], ['email', 'E-Mail', 'email'], ['website', 'Website'], ['schlagworte', 'Schlagworte, durch Komma getrennt (z. B. Möbel, Elektro, Küchen)'],
+    ['aliase', 'Frühere / andere Namen, durch Komma getrennt – Touren, Fälle und Importe mit diesen Namen gehören zu dieser Firma'],
     ['kundennummer', 'Kundennummer'], ['ustId', 'USt-IdNr. der Firma'], ['zahlungszielTage', 'Zahlungsziel in Tagen (leer = Standard)'],
     ['leitwegId', 'Leitweg-ID / Käuferreferenz für E-Rechnungen (bei Behörden Pflicht)'], ['eRechnungEmail', 'E-Mail für E-Rechnungen (leer = Ansprechpartner Abrechnung bzw. Firmen-E-Mail)', 'email'],
     ['rechnungBank', 'Abweichende Bankverbindung auf Rechnungen an diese Firma: Bank (leer = Standard aus den Firmendaten)'], ['rechnungIban', 'Abweichende IBAN'], ['rechnungBic', 'Abweichende BIC'], ['notizen', 'Notizen', 'lang']]],
@@ -4169,6 +4177,16 @@ const BEIFAHRER_MAX = 5;
 const beifahrerVon = t => String(t.beifahrerIds || '').split(',').filter(Boolean);
 const teamVon = t => [t.fahrerId, ...beifahrerVon(t)].filter(Boolean);
 const tourenAm = tag => alle('touren').filter(t => t.datum === tag).sort((a, b) => (a.reihenfolge ?? 0) - (b.reihenfolge ?? 0) || String(a.id).localeCompare(String(b.id)));
+/** Tour verweist auf eine Firma, die es nicht mehr gibt (z. B. vor 4.17 zusammengeführt). */
+/** Touren ohne gültige Firma, deren Auftraggeber-Name ein Alias dieser Firma ist, gehören ab jetzt zu ihr. @return Anzahl */
+function aliaseZuordnen(f) {
+  const namen = new Set(firmaAliase(f).map(normal)); if (!namen.size) return 0;
+  const l = alle('touren').filter(t => (!t.auftraggeberId || firmaWeg(t)) && namen.has(normal(t.auftraggeber)));
+  for (const t of l) merke('touren', { ...t, auftraggeberId: f.id, auftraggeber: f.name, geaendertAm: jetztIso() });
+  if (l.length) toast(`${l.length} Touren über frühere Namen zu ${f.name} zugeordnet`, 6000);
+  return l.length;
+}
+const firmaWeg = t => !!t.auftraggeberId && !(S.auftraggeber[t.auftraggeberId] && !S.auftraggeber[t.auftraggeberId].geloescht);
 const tourAuftraggeberName = t => (t.auftraggeberId && S.auftraggeber[t.auftraggeberId] && !S.auftraggeber[t.auftraggeberId].geloescht ? S.auftraggeber[t.auftraggeberId].name : t.auftraggeber || '');
 const tourText = t => [t.tourNr && 'Tour ' + t.tourNr, tourAuftraggeberName(t), t.name, t.uhrzeit && 'ab ' + t.uhrzeit, t.einsatzart].filter(Boolean).join(' · ');
 const tourGefahren = t => !!(t.kennzeichen && t.fahrerId) && t.status !== 'STORNIERT';
@@ -4269,6 +4287,7 @@ function tourHinweise(t, lage = tagesLage(t.datum)) {
     if (!z) h.push(['grau', 'nicht im Fuhrpark']);
   }
   if (t.kennzeichen && !t.fahrerId) h.push(['gelb', 'Fahrer fehlt']);
+  if (firmaWeg(t)) h.push(['rot', 'Firma gelöscht – Auftraggeber neu wählen']);
   const ziele = zieleZum(t.auftraggeberId, t.datum);
   if (ziele.length && t.name && !zielPreis(ziele, t)) h.push(['gelb', 'Ziel nicht in den Stammdaten']);
   else if (ziele.length && !t.name && t.kennzeichen) h.push(['gelb', 'Ziel fehlt']);
@@ -4461,7 +4480,15 @@ function tourEingabe(t, el) {
   if (feld === 'kennzeichen') { const z = fahrzeugZumKz(wert); neu.kennzeichen = z ? z.kennzeichen : wert.toUpperCase(); }
   else if (feld === 'auftraggeber') {
     const f = wert ? firmaZumNamen(wert) : null;
-    if (f || !wert) { neu.auftraggeberId = f ? f.id : ''; neu.auftraggeber = f ? f.name : ''; }
+    if (f || !wert) {
+      neu.auftraggeberId = f ? f.id : ''; neu.auftraggeber = f ? f.name : '';
+      // Zeigte die Tour auf eine gelöschte Firma, gehen alle Touren mit diesem Verweis mit (Reparatur nach dem Zusammenführen).
+      if (f && firmaWeg(t)) {
+        const andere = alle('touren').filter(x => x.id !== t.id && x.auftraggeberId === t.auftraggeberId);
+        for (const x of andere) merke('touren', { ...x, auftraggeberId: f.id, auftraggeber: f.name, geaendertAm: jetztIso() });
+        if (andere.length) toast(`${andere.length} weitere Touren von „${t.auftraggeber}“ ebenfalls zu ${f.name}`, 6000);
+      }
+    }
     else {
       neu.auftraggeberId = Aktionen.firmaSpeichern({ name: wert, status: 'AKTIV', notizen: 'Aus der Tourenplanung angelegt' }); neu.auftraggeber = wert;
       toast(`Firma „${wert}“ im CRM angelegt`, 4000);
@@ -4799,11 +4826,30 @@ function tourSenden(t) {
 /** Alle Touren des Tages: je Person eine Nachricht (WhatsApp nacheinander) oder als CSV für Sammel-SMS. */
 function alleSenden(tag) {
   const eintraege = tourenAm(tag).filter(t => t.kennzeichen).flatMap(t => teamVon(t).map(id => ({ m: maVon(id), t }))).filter(x => x.m);
-  dialog(`<h2>Touren ${esc(datumText(tag))} an alle</h2><p class="leise">Je Person die eigene Tour. WhatsApp öffnet sich für jede Person einzeln.</p>
-    <div id="tp-alle">${eintraege.map((x, i) => `<div class="zeile eng" style="margin:6px 0"><span class="fuell"><b>${esc(x.m.name)}</b><br><span class="leise">${esc(x.t.kennzeichen)} · ${esc(tourText(x.t))}</span></span>
-      ${x.m.telefon ? `<button class="knopf tonal" data-alle-wa="${i}">💬</button>` : '<span class="leise">keine Nr.</span>'}</div>`).join('') || '<p class="leise">Noch kein Team eingeplant.</p>'}</div>
-    <div class="dialog-knoepfe"><button class="knopf" id="tp-csv">CSV für Sammel-SMS</button><button class="knopf voll" data-zu>Fertig</button></div>`);
-  $('#tp-alle').onclick = e => { const b = e.target.closest('[data-alle-wa]'); if (!b) return; const x = eintraege[Number(b.dataset.alleWa)]; whatsapp(x.m.telefon, `Hallo ${x.m.name.split(' ')[0]},\n${tourNachricht(x.t)}`); b.textContent = '✓'; };
+  const smsMassen = window.desktop && window.desktop.sms && window.desktop.sms.massen, mitNr = eintraege.filter(x => x.m.telefon);
+  const nachricht = x => `Hallo ${x.m.name.split(' ')[0]},\n${tourNachricht(x.t)}`;
+  dialog(`<h2>Touren ${esc(datumText(tag))} an alle</h2><p class="leise">Je Person die eigene Tour. ${smsMassen ? 'Per SMS an alle auf einmal; wo die SMS nicht rausgeht, bitte per WhatsApp kontaktieren.' : 'WhatsApp öffnet sich für jede Person einzeln.'}</p>
+    <div id="tp-alle">${eintraege.map((x, i) => `<div class="zeile eng" style="margin:6px 0"><span class="fuell"><b>${esc(x.m.name)}</b><br><span class="leise">${esc(x.t.kennzeichen)} · ${esc(tourText(x.t))}</span><span data-alle-sms="${i}"></span></span>
+      ${x.m.telefon ? `<button class="knopf tonal" data-alle-wa="${i}" aria-label="${esc(x.m.name)} per WhatsApp">💬</button>` : '<span class="leise">keine Nr.</span>'}</div>`).join('') || '<p class="leise">Noch kein Team eingeplant.</p>'}</div>
+    <p id="tp-sms-ergebnis" hidden></p>
+    <div class="dialog-knoepfe">${smsMassen && mitNr.length ? `<button class="knopf tonal" id="tp-sms">📱 Alle per SMS (${mitNr.length})</button>` : ''}<button class="knopf" id="tp-csv">CSV für Sammel-SMS</button><button class="knopf voll" data-zu>Fertig</button></div>`);
+  if ($('#tp-sms')) $('#tp-sms').onclick = async () => {
+    const b = $('#tp-sms'), ziel = eintraege.map((x, i) => ({ x, i })).filter(({ x }) => x.m.telefon);
+    b.disabled = true; b.textContent = 'Sende …';
+    try {
+      const r = await smsMassen(ziel.map(({ x }) => ({ nummer: intNummer(x.m.telefon), text: nachricht(x) })));
+      let fehlt = 0;
+      ziel.forEach(({ i }, k) => {
+        const ok = r[k] && r[k].ok, feld = $(`[data-alle-sms="${i}"]`);
+        if (!ok) fehlt++;
+        feld.innerHTML = ok ? '<br><span class="marke gruen">✓ SMS gesendet</span>' : `<br><span class="marke rot">SMS nicht angekommen – bitte per WhatsApp kontaktieren</span> <span class="leise">${esc((r[k] && r[k].fehler) || '')}</span>`;
+      });
+      const e = $('#tp-sms-ergebnis'); e.hidden = false; e.className = fehlt ? 'hinweis-box' : 'leise';
+      e.textContent = `${ziel.length - fehlt} von ${ziel.length} SMS gesendet.` + (fehlt ? ` ${fehlt} Person(en) bitte per WhatsApp kontaktieren (rot markiert, 💬).` : '') + (eintraege.length > ziel.length ? ` ${eintraege.length - ziel.length} ohne Telefonnummer.` : '');
+      b.textContent = '📱 SMS gesendet';
+    } catch (f) { b.disabled = false; b.textContent = `📱 Alle per SMS (${ziel.length})`; if (!/Abgebrochen/.test(f.message)) toast('SMS nicht möglich: ' + f.message, 6000); }
+  };
+  $('#tp-alle').onclick = e => { const b = e.target.closest('[data-alle-wa]'); if (!b) return; const x = eintraege[Number(b.dataset.alleWa)]; whatsapp(x.m.telefon, nachricht(x)); b.textContent = '✓'; };
   $('#tp-csv').onclick = () => {
     const zeilen = eintraege.filter(x => x.m.telefon).map(x => [intNummer(x.m.telefon), x.m.name.replace(/,/g, ' '), ('Hallo {name}, ' + tourNachricht(x.t).split('\n').join(' | '))]);
     ladeHerunter(`Touren_${tag}.csv`, ['nummer,name,nachricht', ...zeilen.map(z => z.map((v, i) => (i === 2 ? v : v)).join(','))].join('\r\n'));

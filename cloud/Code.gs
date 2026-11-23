@@ -30,7 +30,7 @@ var SPERRE_MINUTEN = 60;
 
 var MAX_ANLAGE_BYTES = 25 * 1024 * 1024;
 var MAX_TEXT = 20000;
-var API_VERSION = 16; // 16: Eingangsrechnungen, Gutschriftverfahren; 15: Korrekturrechnungen (korrekturVon/ersetztDurch); 14: Selbst-Update, E-Rechnung (Leitweg-ID), externe Rechnungen/Leistungszeitraum; 13: Hauptadmin, Cloud-PIN abschaltbar; 12: Auftragsnummer, Betrag und Ankunftszeit an Stopps (Rollkarte); 11: Stopps (mehrere Kunden je Tour); 10: Statuslink, Lieferavis-Felder und Kundenbewertung an Touren; 9: Benutzer-Logins mit Rollen; 8: Zeiterfassung, Aufgaben, Tour-Status und Fahrtenbuch; 7: Tourenplanung und Personal; 6: Fuhrpark; 2: Kontaktdaten des Auftraggebers und Auftraggeber-Liste; 3: Zeichen des Auftraggebers; 4: CRM; 5: Verkaufschancen, Schlagworte
+var API_VERSION = 17; // 17: Firmen-Aliase (frühere Namen); 16: Eingangsrechnungen, Gutschriftverfahren; 15: Korrekturrechnungen (korrekturVon/ersetztDurch); 14: Selbst-Update, E-Rechnung (Leitweg-ID), externe Rechnungen/Leistungszeitraum; 13: Hauptadmin, Cloud-PIN abschaltbar; 12: Auftragsnummer, Betrag und Ankunftszeit an Stopps (Rollkarte); 11: Stopps (mehrere Kunden je Tour); 10: Statuslink, Lieferavis-Felder und Kundenbewertung an Touren; 9: Benutzer-Logins mit Rollen; 8: Zeiterfassung, Aufgaben, Tour-Status und Fahrtenbuch; 7: Tourenplanung und Personal; 6: Fuhrpark; 2: Kontaktdaten des Auftraggebers und Auftraggeber-Liste; 3: Zeichen des Auftraggebers; 4: CRM; 5: Verkaufschancen, Schlagworte
 
 /**
  * CRM-Tabellen: alle hängen über firmaId an einem Auftraggeber (Tabelle „auftraggeber“).
@@ -88,7 +88,7 @@ var CRM_TABELLEN = {
     auftragNr: 'text', betragCent: 'cent', eta: 'text' }
 };
 /** Felder einer Firma, die nicht jede App kennt: Fehlen sie in einer Änderung, bleibt der bisherige Wert. */
-var FIRMEN_ZUSATZ = ['kundennummer', 'ustId', 'zahlungszielTage', 'schlagworte', 'rechnungBank', 'rechnungIban', 'rechnungBic', 'leitwegId', 'eRechnungEmail'];
+var FIRMEN_ZUSATZ = ['kundennummer', 'ustId', 'zahlungszielTage', 'schlagworte', 'rechnungBank', 'rechnungIban', 'rechnungBic', 'leitwegId', 'eRechnungEmail', 'aliase'];
 var CRM_NAMEN = Object.keys(CRM_TABELLEN);
 
 // ============================== Einstieg ==============================
@@ -698,6 +698,7 @@ function uebernehmeAuftraggeber_(d, roh, zurueck) {
   neu.rechnungBic = text_(roh.rechnungBic).slice(0, 15);
   neu.leitwegId = text_(roh.leitwegId).slice(0, 60);
   neu.eRechnungEmail = text_(roh.eRechnungEmail).slice(0, 200);
+  neu.aliase = text_(roh.aliase).slice(0, 1000); // frühere/andere Namen, durch Komma getrennt
   // Ältere Apps schicken diese Felder nicht mit – dann den bisherigen Wert behalten statt ihn zu leeren.
   FIRMEN_ZUSATZ.forEach(function (k) { if (roh[k] === undefined && alt && alt[k] !== undefined) neu[k] = alt[k]; });
   if (alt && zeit_(neu.geaendertAm) <= zeit_(alt.geaendertAm)) {
