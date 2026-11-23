@@ -1,18 +1,18 @@
 {
- "stand": 1795469016,
- "version": "4.19.2",
+ "stand": 1795470002,
+ "version": "4.19.3",
  "minNativ": 1,
  "dateien": {
   "index.html": {
-   "sha256": "17f1ad244c6662a63d3c2c9510f3718c8cd557daf3f152dbc9201bcbfeea9b9b",
-   "groesse": 1054904
+   "sha256": "9d14a5fdbcbeea1458bcf42ca61c3e0864b626b908308d4b115d771a55b5f037",
+   "groesse": 1059900
   },
   "sprachen.json": {
    "sha256": "abb949525725f0269a57f895e25dd083a96d02d29988ce1c1c0f926276586603",
    "groesse": 791985
   },
   "manifest.webmanifest": {
-   "sha256": "9cae0e37b60f049ee2a4f16cf72794b45743ce3a180d6ec2b34c247add102b81",
+   "sha256": "0b64cca62f1006e5adb496c982cb731b9de62a37e2bdd81619869cc10ce2757d",
    "groesse": 497
   },
   "icon-192.png": {

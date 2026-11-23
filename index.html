@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795469016; window.WEB_VERSION = '4.19.2';
+window.WEB_STAND = 1795470002; window.WEB_VERSION = '4.19.3';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -3253,7 +3253,7 @@ async function scannenUndLesen(modus, fortschritt) {
   fortschritt(modus === 'EINZELN' ? 'Beleg einlegen und per Hand führen …' : 'Scanne …');
   const sel = $('#dialog [data-scan-geraet]'), id = g.some(x => x.id === (sel && sel.value)) ? sel.value : g[0].id;
   const seiten = await scanner().stapel(id, modus), aus = [];
-  for (const [k, seite] of seiten.entries()) { fortschritt(`Lese ${k + 1} / ${seiten.length} …`); aus.push({ seite, ...(await scanner().lesen(seite.base64)) }); }
+  for (const [k, seite] of seiten.entries()) { fortschritt(`Lese ${k + 1} / ${seiten.length} …`); aus.push({ seite, ...(await scanner().lesen(seite.base64).catch(() => ({ text: '', sicherheit: 0 }))) }); } // Seite bleibt, Zeile wird gelb zum Ausfüllen
   return aus;
 }
 const seiteAlsDatei = (sc, name) => new File([blobAusBase64(sc.base64, sc.mimeType)], name + (/png/.test(sc.mimeType) ? '.png' : '.jpg'), { type: sc.mimeType });
