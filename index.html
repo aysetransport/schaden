@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795470705; window.WEB_VERSION = '4.19.3';
+window.WEB_STAND = 1795471399; window.WEB_VERSION = '4.19.4';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -473,6 +473,17 @@ body.postfach #liste .pf-datum{background:inherit}
 .pf-leiste .knopf.ic{min-width:34px;justify-content:center;padding:5px 8px}
 /* Schreibfenster */
 dialog.gross{width:min(980px,calc(100vw - 32px));max-height:calc(100vh - 24px)}
+dialog.gross.mit-bild,.win dialog.gross.mit-bild{width:min(1480px,calc(100vw - 32px))}
+.beleg-vergleich{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start}
+.mit-bild .beleg-vergleich{grid-template-columns:minmax(0,1fr) minmax(300px,40%)}
+@media (max-width:899px){.mit-bild .beleg-vergleich{grid-template-columns:minmax(0,1fr)}.beleg-bild{order:-1}}
+.beleg-bild{position:sticky;top:0;margin:0;max-height:72vh;overflow:auto;background:var(--flaeche2);border:1px solid var(--rand);border-radius:12px;padding:8px}
+.beleg-bild img{display:block;width:100%;cursor:zoom-in;background:#fff;border-radius:6px}
+.beleg-bild.zoom img{width:220%;max-width:none;cursor:zoom-out}
+.beleg-seiten:not(:empty){display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.beleg-bild figcaption{margin-top:6px;font-size:12px}
+tr.im-bild td{background:var(--primaer-hell)}
+.scan-wahl{font-size:13px;padding:4px 6px;gap:6px}.scan-wahl select{font-size:13px}
 .verfassen{position:relative}
 .verfassen.drop::after{content:"Dateien hier ablegen";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--primaer) 18%,transparent);border:2px dashed var(--primaer);border-radius:8px;font-weight:600;z-index:5}
 .vf-titel h2{margin:0}
@@ -3137,10 +3148,11 @@ function eingangScanDialog(eingereicht = []) {
   dialog(`<form method="dialog" id="ers-form"><h2>Rechnungen scannen</h2>
     <p class="leise">Lieferantenrechnungen, Werkstatt, Versicherung, Maut … Jede Rechnung wird ausgelesen und erscheint unten zum Prüfen. Folgeseiten ohne eigenen Betrag hängen an der Rechnung davor. Gelbe Felder bitte prüfen.</p>
     ${scanner() && scanner().stapel ? `<div class="zeile" style="margin-bottom:8px;flex-wrap:wrap"><button type="button" class="knopf tonal" id="ers-scan">🖨 Scannen</button>${scanModusHtml('ers-modus')}</div>` : ''}
-    <div class="tabelle-rahmen"><table class="tabelle rk-tabelle" id="ers-tabelle"><thead><tr><th></th><th>Lieferant</th><th>Nummer</th><th>Datum</th><th>Fällig</th><th>Brutto €</th><th>MwSt %</th><th>Kategorie</th><th>Bezahlt</th></tr></thead><tbody></tbody></table></div>
+    <div class="beleg-vergleich"><div class="tabelle-rahmen"><table class="tabelle rk-tabelle" id="ers-tabelle"><thead><tr><th></th><th>Lieferant</th><th>Nummer</th><th>Datum</th><th>Fällig</th><th>Brutto €</th><th>MwSt %</th><th>Kategorie</th><th>Bezahlt</th></tr></thead><tbody></tbody></table></div>${VERGLEICH_BILD}</div>
     <p class="leise" id="ers-leer">Noch nichts gescannt.</p><p class="fehlertext" id="ers-fehler" hidden></p>
     <div class="dialog-knoepfe"><span class="leise fuell" id="ers-summe"></span><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
   const d = $('#dialog'), form = $('#ers-form'), tb = $('#ers-tabelle tbody');
+  const imBild = belegVergleich(tb, tr => (posten[Number(tr.dataset.ers)] || {}).seiten);
   d.classList.add('gross'); d.addEventListener('close', () => d.classList.remove('gross'), { once: true });
   const zeile = (w, i) => { const u = f => (w.unsicher.includes(f) || w.unsicher.includes('alles') ? 'class="unsicher" title="Bitte prüfen – nicht sicher erkannt"' : '');
     return `<tr data-ers="${i}"><td><button type="button" class="symbol" data-ers-scan="${i}" title="Scan ansehen" aria-label="Scan ansehen">📄<small data-ers-seiten="${i}"></small></button></td>
@@ -3169,6 +3181,7 @@ function eingangScanDialog(eingereicht = []) {
   if ($('#ers-scan')) $('#ers-scan').onclick = async () => {
     const b = $('#ers-scan'); b.disabled = true;
     try {
+      const vorher = posten.length;
       const gelesen = await scannenUndLesen(modus(), x => { b.textContent = x; });
       for (const { seite, text, sicherheit } of gelesen) {
         const w = rechnungLesen(text);
@@ -3178,6 +3191,7 @@ function eingangScanDialog(eingereicht = []) {
         if (sicherheit < 60) w.unsicher.push('alles');
         posten.push({ seiten: [seite] }); tb.insertAdjacentHTML('beforeend', zeile(w, posten.length - 1));
       }
+      imBild(tb.querySelector(`[data-ers="${vorher}"]`));
       $('#ers-leer').hidden = !!posten.length;
       toast(`${gelesen.length} Seite(n) gelesen – gelbe Felder bitte prüfen, dann speichern`, 6000);
     } catch (e) { toast('Scannen nicht möglich: ' + e.message, 8000); }
@@ -3223,9 +3237,9 @@ function eingangScanDialog(eingereicht = []) {
  */
 // ---------- Scannen und Auslesen (Windows-App: Scanner über WIA, Texterkennung offline) ----------
 const scanner = () => window.desktop && window.desktop.scan;
-const scanModusHtml = name => `<label class="auswahl"><input type="radio" name="${name}" value="STAPEL" checked> Stapel über den Einzug</label>
-  <label class="auswahl"><input type="radio" name="${name}" value="EINZELN"> Einzeln – lange Bons per Hand führen</label>
-  <label class="auswahl">Scanner <select data-scan-geraet aria-label="Scanner"><option value="">wird gesucht …</option></select></label>
+const scanModusHtml = name => `<label class="auswahl scan-wahl"><input type="radio" name="${name}" value="STAPEL" checked> Stapel über den Einzug</label>
+  <label class="auswahl scan-wahl"><input type="radio" name="${name}" value="EINZELN"> Einzeln – lange Bons per Hand führen</label>
+  <label class="auswahl scan-wahl">Scanner <select data-scan-geraet aria-label="Scanner"><option value="">wird gesucht …</option></select></label>
   <button type="button" class="knopf text" data-scan-pruefen title="Zeigt, was Windows und der Treiber melden – mit Papier im Einzug auch einen Testscan">🩺 Scanner prüfen</button>
   <div data-scan-bericht hidden style="flex-basis:100%"><pre class="leise" style="white-space:pre-wrap;max-height:30vh;overflow:auto"></pre><button type="button" class="knopf text" data-scan-kopieren>📋 Kopieren</button></div>`;
 /** Füllt die Scannerauswahl im offenen Dialog (Wahl bleibt gespeichert) und verdrahtet „Scanner prüfen“. */
@@ -3252,9 +3266,30 @@ async function scannenUndLesen(modus, fortschritt) {
   if (!g.length) throw new Error('Kein Scanner gefunden – ist er eingeschaltet und in Windows eingerichtet?');
   fortschritt(modus === 'EINZELN' ? 'Beleg einlegen und per Hand führen …' : 'Scanne …');
   const sel = $('#dialog [data-scan-geraet]'), id = g.some(x => x.id === (sel && sel.value)) ? sel.value : g[0].id;
-  const seiten = await scanner().stapel(id, modus), aus = [];
-  for (const [k, seite] of seiten.entries()) { fortschritt(`Lese ${k + 1} / ${seiten.length} …`); aus.push({ seite, ...(await scanner().lesen(seite.base64).catch(() => ({ text: '', sicherheit: 0 }))) }); } // Seite bleibt, Zeile wird gelb zum Ausfüllen
+  const seiten = await scanner().stapel(id, modus), aus = []; let fehler = '';
+  for (const [k, seite] of seiten.entries()) {
+    fortschritt(`Lese ${k + 1} / ${seiten.length} …`);
+    aus.push({ seite, ...(await scanner().lesen(seite.base64).catch(e => { fehler = fehler || e.message; return { text: '', sicherheit: 0 }; })) }); // Seite bleibt, Zeile wird gelb zum Ausfüllen
+  }
+  if (fehler) toast('Texterkennung: ' + fehler + ' – bitte „🩺 Scanner prüfen“ ausführen und das Ergebnis weitergeben', 12000);
   return aus;
+}
+const VERGLEICH_BILD = `<figure class="beleg-bild" hidden><div class="beleg-seiten"></div><img alt="Gescannter Beleg" title="Klicken: vergrößern"><figcaption class="leise">Zeile anklicken → ihr Beleg erscheint hier. Klick ins Bild vergrößert.</figcaption></figure>`;
+/** Bild neben der Tabelle: zeigt den Beleg der Zeile, in der gerade getippt wird. seitenVon(tr) → [Seite]. Gibt waehle(tr) zurück. */
+function belegVergleich(tb, seitenVon) {
+  const d = $('#dialog'), fig = d.querySelector('.beleg-bild'), img = fig.querySelector('img'), nav = fig.querySelector('.beleg-seiten');
+  let zeile = null, seiten = [], k = 0;
+  const zeige = () => { img.src = `data:${seiten[k].mimeType};base64,${seiten[k].base64}`;
+    nav.innerHTML = seiten.length > 1 ? seiten.map((_, i) => `<button type="button" class="chip" aria-pressed="${i === k}" data-beleg-seite="${i}">Seite ${i + 1}</button>`).join('') : ''; };
+  const waehle = tr => { const l = tr && seitenVon(tr); if (!l || !l.length || (tr === zeile && l.length === seiten.length)) return;
+    if (zeile) zeile.classList.remove('im-bild'); zeile = tr; tr.classList.add('im-bild'); seiten = l.slice(); k = 0;
+    fig.hidden = false; d.classList.add('mit-bild'); zeige(); };
+  tb.addEventListener('focusin', e => waehle(e.target.closest('tr')));
+  tb.addEventListener('click', e => waehle(e.target.closest('tr')));
+  nav.onclick = e => { const b = e.target.closest('[data-beleg-seite]'); if (b) { k = Number(b.dataset.belegSeite); zeige(); } };
+  img.onclick = () => fig.classList.toggle('zoom');
+  d.addEventListener('close', () => d.classList.remove('mit-bild'), { once: true });
+  return waehle;
 }
 const seiteAlsDatei = (sc, name) => new File([blobAusBase64(sc.base64, sc.mimeType)], name + (/png/.test(sc.mimeType) ? '.png' : '.jpg'), { type: sc.mimeType });
 const seiteZeigen = sc => window.desktop.oeffneDatei(sc.name, Uint8Array.from(atob(sc.base64), c => c.charCodeAt(0))).catch(e => toast(e.message));
@@ -3351,11 +3386,12 @@ function tankbelegeDialog(eingereicht = []) {
     ${scan ? `<div class="zeile" style="margin-bottom:8px;flex-wrap:wrap"><button type="button" class="knopf tonal" id="tank-scan">🖨 Belege scannen</button>${scanModusHtml('tank-modus')}
       <span class="leise">Erkannte Belege landen unten in der Tabelle – gelbe Felder bitte prüfen.</span></div>` : ''}
     <datalist id="tank-kz">${fahrzeugListe().map(z => `<option value="${esc(z.kennzeichen)}">`).join('')}</datalist>
-    <div class="tabelle-rahmen"><table class="tabelle rk-tabelle" id="tank-tabelle"><thead><tr><th>Datum</th><th>Kennzeichen</th><th>Liter</th><th>Betrag €</th><th>km-Stand</th><th>Tankstelle</th></tr></thead>
-      <tbody>${zeile()}</tbody></table></div>
+    <div class="beleg-vergleich"><div class="tabelle-rahmen"><table class="tabelle rk-tabelle" id="tank-tabelle"><thead><tr><th>Datum</th><th>Kennzeichen</th><th>Liter</th><th>Betrag €</th><th>km-Stand</th><th>Tankstelle</th></tr></thead>
+      <tbody>${zeile()}</tbody></table></div>${VERGLEICH_BILD}</div>
     <p class="fehlertext" id="tank-fehler" hidden></p>
     <div class="dialog-knoepfe"><span class="leise fuell" id="tank-summe"></span><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
   const d = $('#dialog'), form = $('#tank-form'), tb = $('#tank-tabelle tbody');
+  const imBild = belegVergleich(tb, tr => (tr.dataset.scan != null ? [scans[Number(tr.dataset.scan)]] : null));
   if (scan) scanWahlEinrichten();
   d.classList.add('gross'); d.addEventListener('close', () => d.classList.remove('gross'), { once: true });
   const zeilen = () => [...tb.rows].map(r => Object.fromEntries([...r.querySelectorAll('input')].map(i => [i.dataset.t, i.value.trim()])));
@@ -3395,10 +3431,11 @@ function tankbelegeDialog(eingereicht = []) {
   if (scan) $('#tank-scan').onclick = async () => {
     const b = $('#tank-scan'); b.disabled = true;
     try {
+      const vorher = scans.length;
       const gelesen = await scannenUndLesen(modus(), x => { b.textContent = x; });
       for (const r of [...tb.rows]) if (leer(r)) r.remove();
       for (const { seite, text, sicherheit } of gelesen) zeileAus(seite, text, sicherheit);
-      tb.insertAdjacentHTML('beforeend', zeile());
+      tb.insertAdjacentHTML('beforeend', zeile()); imBild(tb.querySelector(`tr[data-scan="${vorher}"]`));
       toast(`${gelesen.length} Beleg(e) gelesen – gelbe Felder bitte prüfen, dann speichern`, 6000);
     } catch (e) { toast('Scannen nicht möglich: ' + e.message, 8000); }
     b.disabled = false; b.textContent = knopfText(); summe();
