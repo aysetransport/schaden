@@ -18,7 +18,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795564094; window.WEB_VERSION = '4.21.0';
+window.WEB_STAND = 1795564379; window.WEB_VERSION = '4.21.1';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -201,7 +201,7 @@ main>section{padding:8px calc(var(--rand-seite) + env(safe-area-inset-right)) 40
   #menue-knopf{display:inline-grid}
   main{margin-left:var(--nav-breite);padding-top:var(--kopf-hoehe);grid-template-columns:minmax(340px,420px) minmax(0,1fr);align-items:start;max-width:calc(1560px + var(--nav-breite))}
   #liste{position:sticky;top:var(--kopf-hoehe);max-height:calc(100vh - var(--kopf-hoehe));overflow:auto}
-  #detail{border-left:.5px solid var(--linie)}
+  #detail{border-left:.5px solid var(--linie);min-height:calc(100vh - var(--kopf-hoehe))}
   body.breit main{grid-template-columns:minmax(0,1fr)}
   body.breit #liste{position:static;max-height:none;overflow:visible}
   body.breit #detail,body.breit-detail #liste{display:none}
@@ -632,6 +632,8 @@ body.postfach #liste{padding-left:0;padding-right:0}
 .pf-o{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;color:var(--text);padding:7px 10px;border-radius:10px;cursor:pointer;text-align:left;font-size:var(--t-unter);position:relative}
 .pf-o:hover{background:var(--flaeche2)}
 .pf-o[aria-current=true]{background:color-mix(in srgb,var(--primaer) 14%,transparent);color:var(--primaer);font-weight:600}
+.pf-o > span:first-child{width:22px;display:inline-grid;place-items:center;flex:none;color:var(--primaer)}
+.pf-o > span:first-child .ico{margin:0;width:18px;height:18px}
 .pf-o .pf-n{margin-left:auto;font-size:var(--t-klein);font-weight:500;color:var(--leise)}
 .pf-o .pf-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pf-o.ziel-drop{outline:2px dashed var(--primaer);outline-offset:-2px}
@@ -668,9 +670,13 @@ body.postfach #liste{padding-left:0;padding-right:0}
 .pf-zuord.offen{font-style:italic}
 .pf-kat{display:inline-block;width:10px;height:10px;border-radius:50%;margin-left:2px;vertical-align:middle}
 .pf-anzahl{font-size:var(--t-mini);font-weight:600;border-radius:8px;padding:0 6px;background:var(--flaeche2);color:var(--leise)}
-.pf-schnell{position:absolute;right:8px;top:8px;display:none;gap:2px;padding:3px;border-radius:999px;background:var(--glas-dicht);border:1px solid var(--glas-rand);box-shadow:var(--schatten)}
+.pf-z1{min-height:26px}
+/* Schnellaktionen beim Überfahren (wie Mail am Mac): kompakt an der Stelle der Uhrzeit – verdecken nie Betreff oder Vorschau */
+.pf-schnell{position:absolute;right:8px;top:8px;display:none;gap:1px;padding:1px;border-radius:999px;background:var(--glas-dicht);border:1px solid var(--glas-rand);box-shadow:var(--schatten)}
 .pf-zeile:hover .pf-schnell,.pf-zeile:focus-within .pf-schnell{display:flex}
-.pf-schnell button{border:0;background:transparent;width:30px;height:28px;border-radius:999px;cursor:pointer;font-size:14px;color:var(--text)}
+.pf-zeile:is(:hover,:focus-within) .pf-zeit{visibility:hidden}
+.pf-schnell button{border:0;background:transparent;width:26px;height:22px;border-radius:999px;cursor:pointer;font-size:12px;color:var(--text);display:grid;place-items:center}
+.pf-schnell button .ico{width:14px;height:14px;margin:0}
 .pf-schnell button:hover{background:var(--flaeche2)}
 .pf-mehr{display:block;margin:12px auto}
 .pf-lese{max-width:980px}
@@ -10613,7 +10619,7 @@ for (const [sel, name] of [['#menue-knopf', 'menu'], ['#mehr-knopf', 'ellipsis']
 const EMOJI_VORN = new RegExp('^\\s*(' + Object.keys(SYMBOL_EMOJI).map(e => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\uFE0F?\\s*');
 /** Emoji am Anfang von Knöpfen, Kacheln und Überschriften durch das Symbol ersetzen. Das Emoji bleibt versteckt im Text (Suche, Kopieren, Tests). */
 function symboleEinsetzen(wurzel = document.body) {
-  for (const el of wurzel.querySelectorAll('.knopf, .chip, .symbol, .kachel > span:first-child, .karte h2, .karte h3, dialog h2, dialog h3, .seitenkopf h1, .treffer-gruppe, .vorlage > b, .nav-symbol')) {
+  for (const el of wurzel.querySelectorAll('.knopf, .chip, .symbol, .kachel > span:first-child, .pf-o > span:first-child, .pf-schnell button, .karte h2, .karte h3, dialog h2, dialog h3, .seitenkopf h1, .treffer-gruppe, .vorlage > b, .nav-symbol')) {
     const t = el.firstChild; if (!t || t.nodeType !== 3) continue;
     const m = t.data.match(EMOJI_VORN); if (!m) continue;
     t.data = t.data.slice(m[0].length);
