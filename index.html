@@ -19,14 +19,14 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795530487; window.WEB_VERSION = '4.19.6';
+window.WEB_STAND = 1795530857; window.WEB_VERSION = '4.19.6';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#1F4E79">
+<meta name="theme-color" content="#0A0A0C">
 <link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <!-- iPhone/iPad: als App vom Home-Bildschirm im Vollbild -->
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Ayse CRM"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="theme-color" content="#F8F9FF">
+<meta name="apple-mobile-web-app-title" content="Ayse CRM"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
 :root{
   --bg:#F8F9FF;--flaeche:#F2F3FA;--flaeche2:#ECEEF4;--hoch:#E1E2E8;--text:#191C20;--leise:#43474E;--rand:#C3C7CF;--linie:#DFE2EB;
@@ -693,6 +693,67 @@ dialog.klein{width:min(420px,calc(100vw - 32px));z-index:60}
 .win ::-webkit-scrollbar-thumb{background:var(--win-text3);border-radius:6px;border:4px solid transparent;background-clip:content-box}
 .win ::-webkit-scrollbar-thumb:hover{border-width:3px;background:var(--win-text2);background-clip:content-box}
 .win ::-webkit-scrollbar-corner{background:transparent}
+
+/* ===== Design Web + Android (nicht Windows): schwarz mit roten Akzenten, Glas-Karten, Pill-Navigation. Standard dunkel, „hell“ wählbar. ===== */
+:root:not(.win){
+  --bg:#0A0A0C;--flaeche:#151518;--flaeche2:#1E1E23;--hoch:#2A2A31;--text:#F4F4F5;--leise:#A1A1AA;--rand:#2F2F36;--linie:#222228;
+  --primaer:#E5243B;--auf-primaer:#FFFFFF;--primaer-hell:#3B0F17;--auf-primaer-hell:#FFB3BC;--fehler:#FF6B7A;
+  --blau-f:#16304D;--blau-t:#CFE3FF;--violett-f:#2E2A63;--violett-t:#E3DFFF;--gelb-f:#4A3800;--gelb-t:#FFE08A;--lila-f:#40284F;--lila-t:#F2DAFF;
+  --tuerkis-f:#123F43;--tuerkis-t:#BFE9EC;--orange-f:#5C2A08;--orange-t:#FFD2B5;--gruen-f:#163F21;--gruen-t:#BDEFC2;--grau-f:#2A2A31;--grau-t:#D4D4D8;--rot-f:#5A0F19;--rot-t:#FFD0D6;
+  --verlauf-rot:linear-gradient(180deg,#F23A50 0%,#C8162B 55%,#9E0F1F 100%);--glow:0 8px 24px rgba(229,36,59,.35);
+  --karte-verlauf:linear-gradient(160deg,rgba(255,255,255,.055),rgba(255,255,255,.01));--glas:rgba(22,22,26,.78);
+  color-scheme:dark;
+}
+:root:not(.win)[data-thema=hell]{
+  --bg:#F5F5F7;--flaeche:#FFFFFF;--flaeche2:#F0F0F3;--hoch:#E4E4E8;--text:#141417;--leise:#5B5B66;--rand:#DCDCE2;--linie:#E9E9EE;
+  --primaer:#D3182F;--auf-primaer:#FFFFFF;--primaer-hell:#FDE3E6;--auf-primaer-hell:#7A0B18;--fehler:#BA1A1A;
+  --blau-f:#D1E4FF;--blau-t:#0B3A63;--violett-f:#E3DFFF;--violett-t:#2F2A7A;--gelb-f:#FFDF9E;--gelb-t:#4F3A00;--lila-f:#F2DAFF;--lila-t:#4A3657;
+  --tuerkis-f:#BFE9EC;--tuerkis-t:#00363A;--orange-f:#FFDBC8;--orange-t:#6A2D00;--gruen-f:#BDEFC2;--gruen-t:#0C3A18;--grau-f:#E4E4E8;--grau-t:#43474E;--rot-f:#FFDAD6;--rot-t:#93000A;
+  --karte-verlauf:linear-gradient(160deg,#FFFFFF,#FAFAFC);--glas:rgba(255,255,255,.82);--glow:0 6px 18px rgba(211,24,47,.25);
+  color-scheme:light;
+}
+:root:not(.win) body{background:radial-gradient(130% 55% at 50% -8%,rgba(229,36,59,.30),rgba(120,10,25,.10) 45%,transparent 70%) fixed,var(--bg)}
+:root:not(.win)[data-thema=hell] body{background:radial-gradient(130% 45% at 50% -8%,rgba(229,36,59,.12),transparent 65%) fixed,var(--bg)}
+:root:not(.win) header{background:color-mix(in srgb,var(--bg) 55%,transparent);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-bottom:1px solid color-mix(in srgb,var(--rand) 50%,transparent)}
+:root:not(.win) #app-titel{color:var(--text);font-weight:700;letter-spacing:.01em}
+:root:not(.win) #globale-suche{background:var(--flaeche2);border-color:var(--rand);border-radius:16px}
+:root:not(.win) .karte{background:var(--karte-verlauf),var(--flaeche);border:1px solid var(--rand);border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+:root:not(.win)[data-thema=hell] .karte{box-shadow:0 4px 18px rgba(20,20,30,.06)}
+:root:not(.win) .karte.klickbar:hover,:root:not(.win) .karte.gewaehlt{background:var(--flaeche2)}
+:root:not(.win) .kachel{border-radius:20px;background:var(--karte-verlauf),var(--flaeche2);border-color:var(--rand)}
+:root:not(.win) .kachel:hover{border-color:var(--primaer);box-shadow:var(--glow)}
+:root:not(.win) .knopf{border-radius:999px;font-weight:500}
+:root:not(.win) .knopf.voll{background:var(--verlauf-rot);color:#fff;box-shadow:var(--glow)}
+:root:not(.win) .knopf.tonal{background:var(--flaeche2);color:var(--text);border:1px solid var(--rand)}
+:root:not(.win) .chip{border-radius:999px;background:var(--flaeche2);border-color:var(--rand)}
+:root:not(.win) .chip[aria-pressed=true]{background:var(--verlauf-rot);color:#fff;border-color:transparent;box-shadow:var(--glow)}
+:root:not(.win) :is(input:not([type=checkbox]):not([type=radio]),select,textarea){border-radius:14px}
+:root:not(.win) input[type=checkbox],:root:not(.win) input[type=radio]{accent-color:var(--primaer)}
+:root:not(.win) dialog{border-radius:28px;border:1px solid var(--rand);background:var(--karte-verlauf),var(--flaeche);box-shadow:0 24px 60px rgba(0,0,0,.5)}
+:root:not(.win) dialog::backdrop{background:rgba(0,0,0,.6);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+:root:not(.win) .tabelle-rahmen{border-radius:18px;border:1px solid var(--rand)}
+:root:not(.win) .nav-knopf[aria-current=page]{background:var(--verlauf-rot);color:#fff;box-shadow:var(--glow)}
+:root:not(.win) .nav-knopf .zahl{background:var(--primaer);color:#fff}
+@media (min-width:900px){:root:not(.win) #navi{background:color-mix(in srgb,var(--flaeche) 70%,transparent);border-right:1px solid var(--linie)}}
+/* Übersicht: Titel weiß, große Zahlen, erste Karte als rote „Hero“-Karte (wie die Vorlage) */
+:root:not(.win) .seitenkopf h1{font-size:26px;font-weight:700;letter-spacing:-.01em}
+:root:not(.win) .block h3{color:var(--text);font-size:15px;font-weight:600}
+:root:not(.win) .kennzahl{border-radius:16px;background:var(--karte-verlauf),var(--flaeche2);border:1px solid var(--linie)}
+:root:not(.win) .kennzahl b{font-size:24px;font-weight:700;letter-spacing:-.01em}
+:root:not(.win) .kennzahl.rot{background:var(--rot-f)}:root:not(.win) .kennzahl.gelb{background:var(--gelb-f)}:root:not(.win) .kennzahl.blau{background:var(--blau-f)}
+:root:not(.win) .dashboard>.karte:first-child{color:#fff;border-color:rgba(229,36,59,.45);
+  background:radial-gradient(120% 90% at 100% 0%,rgba(242,58,80,.55),transparent 55%),linear-gradient(160deg,#3d0c15,#170709 75%)}
+:root:not(.win) .dashboard>.karte:first-child :is(.leise,h3){color:rgba(255,255,255,.85)}
+:root:not(.win) .dashboard>.karte:first-child .kennzahl:not(.rot):not(.gelb):not(.blau){background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.08);color:#fff}
+:root:not(.win) .dashboard>.karte:first-child .knopf.voll{background:#fff;color:#B3121F;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+:root:not(.win) .dashboard>.karte:first-child .knopf:not(.voll){color:#fff;border-color:rgba(255,255,255,.3)}
+/* Handy: schwebende Pill-Leiste unten */
+@media (max-width:899px){
+  :root:not(.win) #navi{left:calc(12px + env(safe-area-inset-left));right:calc(12px + env(safe-area-inset-right));bottom:calc(10px + env(safe-area-inset-bottom));padding:6px;border-radius:999px;
+    background:var(--glas);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid var(--rand);box-shadow:0 12px 32px rgba(0,0,0,.45)}
+  :root:not(.win) .nav-klein .nav-knopf{border-radius:999px}
+  :root:not(.win) body.nav-offen .nav-gross{border-radius:0 28px 28px 0;background:var(--karte-verlauf),var(--flaeche)}
+}
 </style>
 </head>
 <body>
@@ -1683,7 +1744,7 @@ function zeichneNavi() {
   const gruppen = [...new Set(Object.values(BEREICHE).map(b => b[2]))];
   $('#navi').innerHTML = `<div class="nav-gross">${gruppen.map(g => `<div class="nav-gruppe">${esc(g)}</div>${Object.keys(BEREICHE).filter(k => BEREICHE[k][2] === g && bereichSichtbar(k)).map(k => knopf(k)).join('')}`).join('')}
       <div class="nav-gruppe"></div><button class="nav-knopf" data-nav-einstellungen><span class="nav-symbol" aria-hidden="true">${winSymbol('einstellungen', '⚙')}</span><span class="nav-text">Einstellungen</span></button>
-      <button class="nav-knopf" data-nav-thema><span class="nav-symbol" aria-hidden="true">${winSymbol('thema', { hell: '☀', dunkel: '🌙' }[S.einstellungen.thema] || '🌓')}</span><span class="nav-text">Darstellung: ${{ hell: 'hell', dunkel: 'dunkel' }[S.einstellungen.thema] || 'automatisch'}</span></button>
+      <button class="nav-knopf" data-nav-thema><span class="nav-symbol" aria-hidden="true">${winSymbol('thema', { hell: '☀', dunkel: '🌙' }[S.einstellungen.thema] || '🌓')}</span><span class="nav-text">Darstellung: ${{ hell: 'hell', dunkel: 'dunkel' }[S.einstellungen.thema] || THEMA_STANDARD()}</span></button>
       ${window.desktop && window.desktop.fenster && window.desktop.fenster.neu ? `<button class="nav-knopf" data-nav-fenster title="Aktuelle Ansicht in einem eigenen Fenster (Strg+Umschalt+N) – Strg-Klick auf einen Bereich öffnet ihn dort"><span class="nav-symbol" aria-hidden="true">⧉</span><span class="nav-text">Neues Fenster</span></button>` : ''}
       <button class="nav-knopf" data-nav-hilfe><span class="nav-symbol" aria-hidden="true">${winSymbol('hilfe', '⌨')}</span><span class="nav-text">Tastenkürzel</span></button></div>
     <div class="nav-klein">${unten.filter(bereichSichtbar).map(k => knopf(k)).join('')}
@@ -1716,6 +1777,8 @@ function menueUmschalten() {
 $('#menue-knopf').onclick = menueUmschalten;
 $('#nav-schleier').onclick = () => document.body.classList.remove('nav-offen');
 try { if (localStorage.getItem('nav-schmal')) document.body.classList.add('nav-schmal'); } catch {}
+// Windows folgt dem System; Web und Android sind im neuen Design ohne Wahl dunkel (siehe CSS :root:not(.win))
+const THEMA_STANDARD = () => (document.documentElement.classList.contains('win') ? 'automatisch' : 'Standard (dunkel)');
 function themaSetzen() { const t = S.einstellungen.thema; if (t === 'hell' || t === 'dunkel') document.documentElement.dataset.thema = t; else delete document.documentElement.dataset.thema;  if (typeof titelleisteFarben === 'function') titelleisteFarben(); }
 themaSetzen();
 /** Werkzeugleiste: am Handy nur die ersten Knöpfe, der Rest hinter „⋯ Mehr“. */
@@ -2353,7 +2416,7 @@ function zeichneEinstellungenVoll() {
     <div class="karte block"><h3>Bedienung</h3>
       <label class="feld">Wer nutzt dieses Gerät? (für „Meine Touren“, Stempeluhr und „Meine Aufgaben“)<select data-einst-wahl="ichId"><option value="">– niemand Bestimmtes –</option>${mitarbeiterListe(true).map(m => `<option value="${m.id}" ${e.ichId === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
       <label class="feld">Sprache der Bedienung (für Fahrer und Helfer; Kunden-Nachrichten, Belege und PDFs bleiben deutsch)<select data-einst-wahl="sprache">${Object.entries(SPRACHEN).map(([k, [n]]) => `<option value="${k}" ${sprache() === k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
-      <label class="feld">Darstellung<select data-einst-wahl="thema">${[['auto', 'automatisch (wie das Gerät)'], ['hell', 'hell'], ['dunkel', 'dunkel']].map(([k, l]) => `<option value="${k}" ${(e.thema || 'auto') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label><p class="leise" style="margin-bottom:8px">Diese vier Bereiche stehen am Handy in der unteren Leiste (die übrigen unter „Mehr“):</p>
+      <label class="feld">Darstellung<select data-einst-wahl="thema">${[['auto', THEMA_STANDARD() === 'automatisch' ? 'automatisch (wie das Gerät)' : THEMA_STANDARD()], ['hell', 'hell'], ['dunkel', 'dunkel']].map(([k, l]) => `<option value="${k}" ${(e.thema || 'auto') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label><p class="leise" style="margin-bottom:8px">Diese vier Bereiche stehen am Handy in der unteren Leiste (die übrigen unter „Mehr“):</p>
       <div class="chips">${Object.entries(BEREICHE).map(([k, [l, sy]]) => `<button class="chip" data-nav-unten="${k}" aria-pressed="${navUnten().includes(k)}">${sy} ${l}</button>`).join('')}</div></div>
     <div class="karte block"><h3>Daten</h3><button class="knopf" id="csv">Fallliste für Excel exportieren (CSV)</button>
       <p class="leise" style="margin:10px 0 6px">Nach Tests: alle Angebote und Rechnungen samt erfasster Zahlungen entfernen – auf allen Geräten. Die Nummern beginnen danach wieder bei der Startnummer.</p>
