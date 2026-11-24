@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795526300; window.WEB_VERSION = '4.19.6';
+window.WEB_STAND = 1795530487; window.WEB_VERSION = '4.19.6';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E79">
@@ -3124,7 +3124,7 @@ function rechnungLesen(text) {
   if (!datum) unsicher.push('datum');
   const faelligZeile = zeilen.find(z => /fällig|zahlbar|zahlungsziel|due/i.test(z)) || '', tage = (faelligZeile.match(/(\d{1,3})\s*tage/i) || [])[1];
   const faelligAm = datumIn(faelligZeile) || (tage && datum ? plusTage(datum, Number(tage)) : '');
-  const nummer = (t.match(/(?:rechnungs?[- ]?(?:nr|nummer)|re[- ]?nr|beleg[- ]?nr|invoice\s*(?:no|nr|number))\.?\s*[:#]?\s*([A-Z0-9][\w\/-]{2,30})/i) || [])[1] || '';
+  const nummer = (t.match(/(?:rechnungs?[- ]?(?:[nh]r|nummer)|re[- ]?nr|beleg[- ]?[nh]r|bon[- ]?nr|invoice\s*(?:no|nr|number))\.?\s*[:#]?\s*([A-Z0-9][\w\/-]{2,30})/i) || [])[1] || '';
   if (!nummer) unsicher.push('nummer');
   // Kassenbons drucken den Betrag oft groß in die nächste Zeile („Endsumme in €“ ⏎ „49,07“)
   const summe = zeilen.flatMap((z, i) => /gesamtbetrag|rechnungsbetrag|zu zahlen|endbetrag|endsumme|brutto|gesamtsumme|summe|total/i.test(z) && !/netto|zwischensumme|mwst\b.*%|ust\.?\s*\d/i.test(z) ? (betraege(z).length ? betraege(z) : betraege(zeilen[i + 1] || '')) : []);
@@ -3373,9 +3373,12 @@ function tankbelegLesen(text) {
   let kz = '';
   for (const m of t.matchAll(/\b([A-ZÄÖÜ]{1,3})[\s-]+([A-Z]{1,2})[\s-]?(\d{1,4}[EH]?)\b/g)) { const z = fahrzeugZumKz(`${m[1]}-${m[2]} ${m[3]}`); if (z) { kz = z.kennzeichen; break; } }
   const km = (t.match(/(?:km[- ]?stand|kilometer(?:stand)?)\D{0,10}(\d{3,7})/i) || [])[1] || '';
+  // Beleg-Nr. (die erste – weiter unten steht oft noch die des Kartenterminals); „Nr“ liest die Erkennung auch als „Hr“; star/ORLEN: „#63783 16.11.26“
+  const nr = (t.match(/(?:beleg|bon|rechnungs?|quittungs?)[- ]?(?:[nh]r|nummer)\.?,?\s*[:#]?\s*(\d[\d\/-]{1,30}\d)/i) || t.match(/^#(\d{3,})\s+\d{1,2}\.\d{1,2}\./m) || [])[1] || '';
+  if (!nr) unsicher.push('nr');
   const marke = [zeilen.slice(0, 6).join(' '), t].map(b => TANKSTELLEN.find(x => new RegExp(`\\b${x}\\b`, 'i').test(b))).find(Boolean); // Kopf zuerst; große Logo-Schrift liest die Erkennung oft nicht
   const ort = marke || (zeilen[0] || '').slice(0, 40);
-  return { datum, betragCent, liter, kz, km, ort, unsicher };
+  return { datum, betragCent, liter, kz, km, ort, nr, unsicher };
 }
 function tankbelegeDialog(eingereicht = []) {
   const scans = []; // gescannte Seiten (Base64) – beim Speichern als Dokument am Fahrzeug bzw. an der Ausgabe
@@ -3383,14 +3386,15 @@ function tankbelegeDialog(eingereicht = []) {
     return `<tr ${w.scan != null ? `data-scan="${w.scan}"` : ''}><td>${w.scan != null ? `<button type="button" class="symbol" data-tank-scan="${w.scan}" title="Scan ansehen" aria-label="Scan ansehen">📄</button>` : ''}<input type="date" data-t="datum" value="${esc(w.datum ?? heute())}" aria-label="Datum" ${u('datum')}></td>
     <td><input data-t="kz" list="tank-kz" value="${esc(w.kz || '')}" aria-label="Kennzeichen (leer = ohne Fahrzeug)"></td>
     <td><input data-t="liter" inputmode="decimal" value="${esc(w.liter || '')}" aria-label="Liter" ${u('liter')}></td><td><input data-t="betrag" inputmode="decimal" value="${esc(w.betrag || '')}" aria-label="Betrag brutto" ${u('betrag')}></td>
-    <td><input data-t="km" inputmode="numeric" value="${esc(w.km || '')}" aria-label="Kilometerstand"></td><td><input data-t="ort" value="${esc(w.ort || '')}" aria-label="Tankstelle"></td></tr>`; };
+    <td><input data-t="km" inputmode="numeric" value="${esc(w.km || '')}" aria-label="Kilometerstand"></td><td><input data-t="ort" value="${esc(w.ort || '')}" aria-label="Tankstelle"></td>
+    <td><input data-t="nr" value="${esc(w.nr || '')}" aria-label="Beleg-Nr." ${w.scan != null ? u('nr') : ''}></td></tr>`; };
   const scan = scanner();
   dialog(`<form method="dialog" id="tank-form"><h2>Tankbelege erfassen</h2>
     <p class="leise">Einfach runtertippen: Enter springt weiter, unten kommt automatisch eine neue Zeile dazu. Ohne Kennzeichen zählt der Beleg als Ausgabe „Kraftstoff“ ohne Fahrzeug. Strg+Enter speichert.</p>
     ${scan ? `<div class="zeile" style="margin-bottom:8px;flex-wrap:wrap"><button type="button" class="knopf tonal" id="tank-scan">🖨 Belege scannen</button>${scanModusHtml('tank-modus')}
       <span class="leise">Erkannte Belege landen unten in der Tabelle – gelbe Felder bitte prüfen.</span></div>` : ''}
     <datalist id="tank-kz">${fahrzeugListe().map(z => `<option value="${esc(z.kennzeichen)}">`).join('')}</datalist>
-    <div class="beleg-vergleich"><div class="tabelle-rahmen"><table class="tabelle rk-tabelle" id="tank-tabelle"><thead><tr><th>Datum</th><th>Kennzeichen</th><th>Liter</th><th>Betrag €</th><th>km-Stand</th><th>Tankstelle</th></tr></thead>
+    <div class="beleg-vergleich"><div class="tabelle-rahmen"><table class="tabelle rk-tabelle" id="tank-tabelle"><thead><tr><th>Datum</th><th>Kennzeichen</th><th>Liter</th><th>Betrag €</th><th>km-Stand</th><th>Tankstelle</th><th>Beleg-Nr.</th></tr></thead>
       <tbody>${zeile()}</tbody></table></div>${VERGLEICH_BILD}</div>
     <p class="fehlertext" id="tank-fehler" hidden></p>
     <div class="dialog-knoepfe"><span class="leise fuell" id="tank-summe"></span><button type="button" class="knopf text" data-zu>Abbrechen</button><button class="knopf voll">Speichern</button></div></form>`);
@@ -3457,7 +3461,7 @@ function tankbelegeDialog(eingereicht = []) {
     [...tb.rows].forEach((r, n) => {
       const z = Object.fromEntries([...r.querySelectorAll('input')].map(i => [i.dataset.t, i.value.trim()]));
       for (const i of r.querySelectorAll('input')) i.removeAttribute('aria-invalid');
-      if (!z.betrag && !z.liter && !z.kz && !z.km && !z.ort) return; // leere Zeile
+      if (!z.betrag && !z.liter && !z.kz && !z.km && !z.ort && !z.nr) return; // leere Zeile
       const betrag = z.betrag ? geldLesen(z.betrag) : null, liter = z.liter ? Number(z.liter.replace(',', '.')) : null, km = z.km ? Number(z.km.replace(/[.\s]/g, '')) : null;
       const fz = z.kz ? fahrzeugZumKz(z.kz) : null, falsch = [];
       if (betrag == null) falsch.push('betrag');
@@ -3476,11 +3480,11 @@ function tankbelegeDialog(eingereicht = []) {
       const sc = x.scan != null && scans[Number(x.scan)], datei = sc && !sc.anlageId && seiteAlsDatei(sc, `Tankbeleg_${x.datum}`), verweis = sc && sc.anlageId ? belegVerweis(sc.anlageId) : '';
       if (x.fz) {
         FuhrparkAktionen.eintragSpeichern({ fahrzeugId: x.fz.id, art: 'TANKEN', datum: x.datum, kmStand: x.km != null ? Math.round(x.km) : null, betragCent: x.betrag,
-          menge: x.liter ? Math.round(x.liter * 100) : null, werkstatt: x.ort, text: verweis ? `Foto vom Fahrer an der Tour · ${verweis}` : sc ? 'Gescannter Beleg bei den Dokumenten' : '' }, true);
+          menge: x.liter ? Math.round(x.liter * 100) : null, werkstatt: x.ort, text: [x.nr ? `Beleg-Nr. ${x.nr}` : '', verweis ? `Foto vom Fahrer an der Tour · ${verweis}` : sc ? 'Gescannter Beleg bei den Dokumenten' : ''].filter(Boolean).join(' · ') }, true);
         if (datei) await legeAnlage(x.fz.id, datei, `Tankbeleg ${datumText(x.datum)} – `);
       } else { const netto = Math.round(x.betrag / 1.19), id = uuid();
         if (datei) await legeAnlage(id, datei);
-        merke('eingangsrechnungen', { id, firmaId: '', art: 'RECHNUNG', lieferant: x.ort || 'Tankstelle', nummer: '', datum: x.datum, faelligAm: null, nettoCent: netto, mwstCent: x.betrag - netto,
+        merke('eingangsrechnungen', { id, firmaId: '', art: 'RECHNUNG', lieferant: x.ort || 'Tankstelle', nummer: x.nr || '', datum: x.datum, faelligAm: null, nettoCent: netto, mwstCent: x.betrag - netto,
           kategorie: 'KRAFTSTOFF', status: 'BEZAHLT', bezahltAm: x.datum, iban: '', notiz: [x.liter ? `${String(x.liter).replace('.', ',')} l` : '', verweis].filter(Boolean).join(' · '), eRechnung: false, geaendertAm: jetztIso() }); }
     }
     nachAenderung();
