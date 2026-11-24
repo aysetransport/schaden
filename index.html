@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795535361; window.WEB_VERSION = '4.19.6';
+window.WEB_STAND = 1795539438; window.WEB_VERSION = '4.19.6';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0A0A0C">
@@ -5317,6 +5317,38 @@ function tourSenden(t) {
 /** Alle Touren des Tages: je Person eine Nachricht (WhatsApp nacheinander) oder als CSV für Sammel-SMS. */
 /** SMS ohne Rückmeldung in der Wartezeit: kein Fehler – Android hält sie zurück (z. B. Rückfrage ab ~30 SMS), sie kann noch rausgehen. */
 const smsUnterwegs = f => /^noch unterwegs/.test(String(f || ''));
+/**
+ * WhatsApp der Reihe nach – ohne API (kostenlos, kein Sperr-Risiko für die Nummer): öffnet den Chat der nächsten Person mit fertigem Text.
+ * In WhatsApp tippt man „Senden“; kommt man zurück in die App, öffnet sich nach 2 s die nächste. Übersprungen wird, wer schon ✓ hat (💬 oder SMS gesendet).
+ */
+function waReihe(eintraege, nachricht) {
+  const b = $('#tp-wa-reihe'); if (!b) return;
+  let weg = false, pause = true, uhr = null, zuletzt = null;
+  const offen = () => eintraege.map((x, i) => i).filter(i => eintraege[i].m.telefon && !($(`[data-alle-wa="${i}"]`) || {}).dataset?.erledigt && !document.querySelector(`[data-alle-sms="${i}"] .marke.gruen`));
+  const gesamt = eintraege.filter(x => x.m.telefon).length, vorname = i => eintraege[i].m.name.split(' ')[0];
+  const text = () => { const o = offen(); b.textContent = !o.length ? `✓ Alle ${gesamt} per WhatsApp geöffnet` : `${zuletzt == null ? '💬 Start' : '▶ Weiter'}: ${vorname(o[0])} (${gesamt - o.length + 1}/${gesamt})`; b.disabled = !o.length; };
+  const naechste = () => {
+    const o = offen(); if (!o.length) { text(); return; }
+    const i = o[0], x = eintraege[i], k = $(`[data-alle-wa="${i}"]`);
+    whatsapp(x.m.telefon, nachricht(x)); if (k) { k.textContent = '✓'; k.dataset.erledigt = '1'; }
+    zuletzt = i; pause = false; weg = false; text();
+  };
+  const halt = () => { clearInterval(uhr); uhr = null; };
+  const zurueck = () => {
+    if (!b.isConnected) return aufraeumen();
+    if (pause || !weg || uhr || !offen().length) { if (!offen().length) text(); return; }
+    weg = false; let rest = 2;
+    const zeige = () => { b.textContent = `Nächste: ${vorname(offen()[0])} in ${rest} s … (antippen = Pause)`; };
+    zeige(); uhr = setInterval(() => { if (--rest <= 0) { halt(); naechste(); } else zeige(); }, 1000);
+  };
+  const fort = () => { if (zuletzt != null) weg = true; };
+  const sicht = () => (document.visibilityState === 'hidden' ? fort() : zurueck());
+  const aufraeumen = () => { halt(); document.removeEventListener('visibilitychange', sicht); removeEventListener('blur', fort); removeEventListener('focus', zurueck); };
+  document.addEventListener('visibilitychange', sicht); addEventListener('blur', fort); addEventListener('focus', zurueck);
+  $('#dialog').addEventListener('close', aufraeumen, { once: true });
+  b.onclick = () => { if (uhr) { halt(); pause = true; text(); return; } naechste(); };
+  text();
+}
 function alleSenden(tag) {
   const eintraege = tourenAm(tag).filter(t => t.kennzeichen).flatMap(t => teamVon(t).map(id => ({ m: maVon(id), t }))).filter(x => x.m);
   const smsMassen = window.desktop && window.desktop.sms && window.desktop.sms.massen, mitNr = eintraege.filter(x => x.m.telefon);
@@ -5325,7 +5357,10 @@ function alleSenden(tag) {
     <div id="tp-alle">${eintraege.map((x, i) => `<div class="zeile eng" style="margin:6px 0"><span class="fuell"><b>${esc(x.m.name)}</b><br><span class="leise">${esc(x.t.kennzeichen)} · ${esc(tourText(x.t))}</span><span data-alle-sms="${i}"></span></span>
       ${x.m.telefon ? `<button class="knopf tonal" data-alle-wa="${i}" aria-label="${esc(x.m.name)} per WhatsApp">💬</button>` : '<span class="leise">keine Nr.</span>'}</div>`).join('') || '<p class="leise">Noch kein Team eingeplant.</p>'}</div>
     <p id="tp-sms-ergebnis" hidden></p>
-    <div class="dialog-knoepfe">${smsMassen && mitNr.length ? `<button class="knopf tonal" id="tp-sms">📱 Alle per SMS (${mitNr.length})</button>` : ''}<button class="knopf" id="tp-csv">CSV für Sammel-SMS</button><button class="knopf voll" data-zu>Fertig</button></div>`);
+    ${mitNr.length ? `<div class="zeile" style="margin:10px 0 4px;flex-wrap:wrap;gap:8px"><button class="knopf voll" id="tp-wa-reihe">💬 Alle per WhatsApp – der Reihe nach (${mitNr.length})</button></div>
+      <p class="leise" style="margin:0 0 8px">In WhatsApp „Senden“ tippen und zurück in die App – die nächste Person öffnet sich von selbst. Antippen während des Countdowns = Pause.</p>` : ''}
+    <div class="dialog-knoepfe">${smsMassen && mitNr.length ? `<button class="knopf tonal" id="tp-sms">📱 Alle per SMS (${mitNr.length})</button>` : ''}<button class="knopf" id="tp-csv">CSV für Sammel-SMS</button><button class="knopf" data-zu>Fertig</button></div>`);
+  waReihe(eintraege, nachricht);
   if ($('#tp-sms')) $('#tp-sms').onclick = async () => {
     const b = $('#tp-sms'), ziel = eintraege.map((x, i) => ({ x, i })).filter(({ x }) => x.m.telefon);
     b.disabled = true; b.textContent = `Sende … 0 / ${ziel.length}`;
@@ -5346,7 +5381,7 @@ function alleSenden(tag) {
       b.textContent = '📱 SMS gesendet';
     } catch (f) { b.disabled = false; b.textContent = `📱 Alle per SMS (${ziel.length})`; if (!/Abgebrochen/.test(f.message)) toast('SMS nicht möglich: ' + f.message, 6000); }
   };
-  $('#tp-alle').onclick = e => { const b = e.target.closest('[data-alle-wa]'); if (!b) return; const x = eintraege[Number(b.dataset.alleWa)]; whatsapp(x.m.telefon, nachricht(x)); b.textContent = '✓'; };
+  $('#tp-alle').onclick = e => { const b = e.target.closest('[data-alle-wa]'); if (!b) return; const x = eintraege[Number(b.dataset.alleWa)]; whatsapp(x.m.telefon, nachricht(x)); b.textContent = '✓'; b.dataset.erledigt = '1'; };
   $('#tp-csv').onclick = () => {
     const zeilen = eintraege.filter(x => x.m.telefon).map(x => [intNummer(x.m.telefon), x.m.name.replace(/,/g, ' '), ('Hallo {name}, ' + tourNachricht(x.t).split('\n').join(' | '))]);
     ladeHerunter(`Touren_${tag}.csv`, ['nummer,name,nachricht', ...zeilen.map(z => z.map((v, i) => (i === 2 ? v : v)).join(','))].join('\r\n'));
