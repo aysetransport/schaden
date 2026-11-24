@@ -1,6 +1,6 @@
 // Hält die App-Dateien vor, damit sie auch ohne Netz startet. Netz zuerst: Updates kommen sofort an.
 const SPEICHER = 'schadensfaelle-v39';
-const DATEIEN = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const DATEIEN = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-rund.png'];
 self.addEventListener('install', e => e.waitUntil(caches.open(SPEICHER).then(c => c.addAll(DATEIEN)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(
   caches.keys().then(namen => Promise.all(namen.filter(n => n !== SPEICHER).map(n => caches.delete(n)))).then(() => self.clients.claim())));

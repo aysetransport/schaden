@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- App-Symbol nach Apples Richtlinien: einfache, gefüllte Formen auf Verlaufsfläche, Tiefe durch überlappende halbdurchsichtige Ebenen, kein Text, keine eingebauten Effekte, Motiv mittig (Sicherheitszone für Masken). Quelle für tools/icons.js. -->
+  <defs><linearGradient id="hintergrund" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F43B52"/><stop offset="1" stop-color="#8C0D1B"/></linearGradient></defs>
+  <rect width="1024" height="1024" fill="url(#hintergrund)"/>
+  <g transform="translate(1 12)" fill="#fff">
+    <rect x="212" y="318" width="380" height="290" rx="36" fill-opacity=".55"/>
+    <path fill-rule="evenodd" d="M560 400h150a40 40 0 0 1 34 19l60 96a40 40 0 0 1 6 21v52a20 20 0 0 1-20 20H560z M602 432h94l44 74H602z"/>
+    <path fill-rule="evenodd" d="M268 620a62 62 0 1 0 124 0a62 62 0 1 0-124 0z M304 620a26 26 0 1 0 52 0a26 26 0 1 0-52 0z"/>
+    <path fill-rule="evenodd" d="M638 620a62 62 0 1 0 124 0a62 62 0 1 0-124 0z M674 620a26 26 0 1 0 52 0a26 26 0 1 0-52 0z"/>
+  </g>
+</svg>
