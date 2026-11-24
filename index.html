@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795532038; window.WEB_VERSION = '4.19.6';
+window.WEB_STAND = 1795535361; window.WEB_VERSION = '4.19.6';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0A0A0C">
@@ -738,6 +738,7 @@ dialog.klein{width:min(420px,calc(100vw - 32px));z-index:60}
 :root:not(.win) .nav-knopf[aria-current=page]{background:var(--verlauf-rot);color:#fff;box-shadow:var(--glow)}
 :root:not(.win) .nav-knopf .zahl{background:var(--primaer);color:#fff}
 @media (min-width:900px){:root:not(.win) #navi{background:color-mix(in srgb,var(--flaeche) 70%,transparent);border-right:1px solid var(--linie)}}
+body[data-rolle=GESPERRT] :is(#menue-knopf,#suche-knopf,#suche-global,#neu-knopf,#navi){display:none!important}
 @keyframes schwebe-auf{from{opacity:0;transform:translateY(12px) scale(.98)}}
 @media (prefers-reduced-motion:reduce){:root:not(.win) body.nav-offen .nav-gross{animation:none}}
 /* Übersicht: Titel weiß, große Zahlen, erste Karte als rote „Hero“-Karte (wie die Vorlage) */
@@ -1467,7 +1468,7 @@ async function anmeldung(falsch = false) {
       const a = await api('anmelden', pin);
       PIN = a.token || pin; try { localStorage.setItem(PIN_SPEICHER, PIN); } catch {} // mit Token trifft eine PIN-Sperre dieses Gerät nicht mehr
       S.zugang = { rolle: a.rolle || 'ADMIN', name: 'Admin', mitarbeiterId: '', hauptadmin: true, pin: true }; speichere();
-      $('#dialog').close(); SYNC.fehler = ''; SYNC.versionOk = null; abgleich();
+      $('#dialog').close(); SYNC.fehler = ''; SYNC.versionOk = null; zeichne(); abgleich();
     } catch (e) {
       const m = String(e.message || e);
       zeige(m.includes('GESPERRT') ? m.replace(/^.*GESPERRT: /, '') : m.includes('falsch') ? 'Die PIN war falsch.' : e instanceof TypeError ? 'Keine Verbindung zur Cloud.' : m);
@@ -1603,7 +1604,8 @@ function benutzerDialog(b, liste) {
   };
 }
 /** Rolle auf diesem Gerät: ADMIN (PIN oder ohne Cloud), DISPO, FAHRER. */
-const rolle = () => (mitCloud() && S.zugang && S.zugang.rolle) || 'ADMIN';
+// Fail closed: mit Cloud gibt es ohne Anmeldung nichts zu sehen; angemeldet, aber Rolle (noch) unbekannt → Fahrer-Ansicht bis zum Abgleich – nie Admin.
+const rolle = () => (!mitCloud() ? 'ADMIN' : !PIN ? 'GESPERRT' : (S.zugang && S.zugang.rolle) || 'FAHRER');
 const ROLLEN_TEXT = { ADMIN: 'Admin', DISPO: 'Disposition / Büro', FAHRER: 'Fahrer' };
 /** Bereiche je Rolle (die Cloud gibt ohnehin nur die erlaubten Daten heraus). */
 const FAHRER_BEREICHE = new Set(['fahrer', 'kalender', 'aufgaben', 'zeiten', 'faelle']);
@@ -1758,6 +1760,7 @@ function navZahlen() {
     faelle: kennzahlen(faelle()).faellig, personal: mitarbeiterListe(true).filter(m => personalFristen(m).some(f => f.tage < 0)).length };
 }
 function zeichneNavi() {
+  if (rolle() === 'GESPERRT') return;
   const z = navZahlen(), aktiv = ANSICHT.bereich;
   const knopf = (k, klasse = '') => `<button class="nav-knopf ${klasse}" data-bereich="${k}" aria-current="${aktiv === k ? 'page' : 'false'}" title="${esc(t(BEREICHE[k][0]))}">
     <span class="nav-symbol" aria-hidden="true">${winSymbol(k, BEREICHE[k][1])}</span><span class="nav-text">${esc(t(BEREICHE[k][0]))}</span>${z[k] ? `<span class="zahl">${z[k] > 99 ? '99+' : z[k]}</span>` : ''}</button>`;
@@ -1826,7 +1829,7 @@ const seitenkopf = (titel, haupt = '', weitere = '') => `<div class="seitenkopf"
 
 /** Suche über alles: Firmen, Ansprechpartner, Fälle, Touren, Personal, Fahrzeuge, Rechnungen, Mails. */
 function globaleSuche(text) {
-  const s = text.trim().toLowerCase(); if (s.length < 2) return [];
+  const s = text.trim().toLowerCase(); if (s.length < 2 || rolle() === 'GESPERRT') return [];
   const p = (...t) => t.some(x => String(x || '').toLowerCase().includes(s));
   const gruppe = (titel, liste, max = 5) => liste.length ? [{ titel, eintraege: liste.slice(0, max), mehr: liste.length - max }] : [];
   return [
@@ -1876,6 +1879,7 @@ document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.ke
 
 /** „＋ Neu“: alles von überall anlegen. */
 function neuMenue() {
+  if (rolle() === 'GESPERRT') return;
   const eintraege = [['fall', '⚠', 'Schadensfall'], ['tour', '🚚', 'Tour (heute)'], ['firma', '🏢', 'Firma'], ['interessent', '🎯', 'Interessent'], ['mitarbeiter', '👤', 'Mitarbeiter'],
     ['abwesenheit', '🏖', 'Abwesenheit'], ['fahrzeug', '🚐', 'Fahrzeug'], ['rechnung', '€', 'Rechnung'], ['angebot', '📄', 'Angebot'], ['rechnung-touren', '🧾', 'Rechnung aus Touren'],
     ...(MAIL.konto ? [['mail', '✉', 'E-Mail']] : []), ['anruf', '📞', 'Anrufliste (Akquise)'], ['aufgabe', '✅', 'Aufgabe'], ['zeit', '⏱', 'Arbeitszeit'], ['tacho', '💳', 'Fahrerkarte einlesen'], ['kalk', '🧮', 'Preis kalkulieren'], ['brief', '✉', 'Brief'], ['monat', '🧾', 'Monatsabrechnung'], ['rollkarte', '📄', 'Tour aus Rollkarte (PDF)']];
@@ -1999,7 +2003,31 @@ document.addEventListener('change', e => { if (!istAdmin() && e.target.matches &
 /** Einstellungs-Karten je Rolle (nach Überschrift). */
 const EINSTELLUNGEN_ERLAUBT = { DISPO: ['Absender', 'Wiedervorlage', 'Anmeldung', 'E-Mail: Signatur und Textbausteine', 'Akquise', 'Bedienung', 'E-Mail'], FAHRER: ['Anmeldung', 'Bedienung'] };
 
+/** Abmelden: erst noch abgleichen, dann alle Daten vom Gerät entfernen – das nächste Konto sieht nichts davon. */
+async function abmeldenUndLeeren(trotzdem = false) {
+  try { await abgleich(); } catch {}
+  const offen = TABELLEN.reduce((n, t) => n + offene(t).length, 0);
+  if (offen && !trotzdem) { bestaetige('Trotzdem abmelden?', `${offen} Änderung(en) sind noch nicht in der Cloud (keine Verbindung?) und gehen beim Abmelden verloren.`, 'Trotzdem abmelden', () => abmeldenUndLeeren(true)); return; }
+  if (String(PIN).startsWith('T:')) api('abmelden', PIN).catch(() => {});
+  PIN = ''; try { localStorage.removeItem(PIN_SPEICHER); } catch {}
+  const leer = LEER();
+  for (const t of TABELLEN) { if (t === 'anlagen') for (const id of Object.keys(S.anlagen)) Dateien.loesche(id); S[t] = leer[t]; }
+  S.seit = 0; S.kennung = ''; S.sichtRolle = ''; S.zugang = null; S.einstellungen.ichId = '';
+  speichere(); SYNC.fehler = ''; zeichne(); toast('Abgemeldet – die Daten wurden von diesem Gerät entfernt.');
+}
+/** Mit der Cloud verbunden, aber niemand angemeldet: keine Daten, kein Menü – nur die Anmeldung. */
+function sperrbild() {
+  document.body.dataset.rolle = 'GESPERRT'; document.body.classList.remove('zeigt-detail', 'breit', 'breit-detail', 'nav-offen', 'sucht');
+  $('#navi').innerHTML = ''; $('#detail').innerHTML = ''; $('#zurueck').hidden = true;
+  $('#liste').innerHTML = `<div class="karte block" style="margin-top:12px"><h2>${esc(t('Anmeldung nötig'))}</h2>
+    <p class="leise" style="margin:8px 0 14px">${esc(t('Diese App ist mit der Cloud verbunden. Bitte mit deinem Benutzernamen und Passwort anmelden.'))}</p>
+    <button class="knopf voll" data-anmelden>${esc(t('Anmelden'))}</button></div>`;
+  zeichneSync();
+}
+document.addEventListener('click', e => { if (e.target.closest('[data-anmelden]')) anmeldung(); });
+
 function zeichne() {
+  if (rolle() === 'GESPERRT') { sperrbild(); return; }
   document.body.dataset.rolle = rolle();
   const r = route();
   if (!BEREICHE[ANSICHT.bereich]) ANSICHT.bereich = 'uebersicht';
@@ -2015,6 +2043,7 @@ function zeichne() {
 }
 
 function zeichneListe(r = route()) {
+  if (rolle() === 'GESPERRT') { sperrbild(); return; }
   if (ANSICHT.bereich !== 'faelle') {
     const el = $('#liste'), fokus = document.activeElement && document.activeElement.id === 'firmen-suche';
 
@@ -2073,6 +2102,7 @@ $('#einstellungen-knopf').onclick = () => gehe('#/einstellungen');
 $('#sync').onclick = () => (!mitCloud() ? gehe('#/einstellungen') : !PIN ? anmeldung() : abgleich());
 
 function zeichneDetail(r = route()) {
+  if (rolle() === 'GESPERRT') return;
   const el = $('#detail');
   if (r.art === 'neu' || r.art === 'bearbeiten') { if (!el.querySelector('#fall-form') || el.dataset.id !== r.art + r.id) zeichneFormular(r); return; }
   el.dataset.id = '';
@@ -2500,7 +2530,7 @@ $('#detail').addEventListener('click', e => {
           catch (x) { toast(String(x.message || x), 8000); }
         });
     })(); break;
-    case 'abmelden': if (String(PIN).startsWith('T:')) api('abmelden', PIN).catch(() => {}); PIN = ''; try { localStorage.removeItem(PIN_SPEICHER); } catch {} S.zugang = null; speichere(); SYNC.fehler = ''; zeichne(); toast('Abgemeldet. Zum Anmelden oben auf „Anmeldung nötig“ tippen.'); break;
+    case 'abmelden': abmeldenUndLeeren(); break;
     case 'verbinden': {
       const url = $('#cloud-url').value.trim();
       if (!/^https?:\/\/.+/.test(url)) { toast('Bitte die vollständige Adresse eintragen (beginnt mit https://).'); break; }
