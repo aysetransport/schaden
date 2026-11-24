@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795539438; window.WEB_VERSION = '4.19.6';
+window.WEB_STAND = 1795539867; window.WEB_VERSION = '4.19.6';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0A0A0C">
@@ -727,6 +727,7 @@ dialog.klein{width:min(420px,calc(100vw - 32px));z-index:60}
 :root:not(.win) .kachel:hover{border-color:var(--primaer);box-shadow:var(--glow)}
 :root:not(.win) .knopf{border-radius:999px;font-weight:500}
 :root:not(.win) .knopf.voll{background:var(--verlauf-rot);color:#fff;box-shadow:var(--glow)}
+:root:not(.win) .knopf.text{white-space:normal;max-width:100%} /* lange Text-Knöpfe umbrechen statt über die Karte zu ragen (Handy) */
 :root:not(.win) .knopf.tonal{background:var(--flaeche2);color:var(--text);border:1px solid var(--rand)}
 :root:not(.win) .chip{border-radius:999px;background:var(--flaeche2);border-color:var(--rand)}
 :root:not(.win) .chip[aria-pressed=true]{background:var(--verlauf-rot);color:#fff;border-color:transparent;box-shadow:var(--glow)}
