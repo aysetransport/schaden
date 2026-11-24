@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795544484; window.WEB_VERSION = '4.20.0';
+window.WEB_STAND = 1795545183; window.WEB_VERSION = '4.20.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0A0A0C">
@@ -57,7 +57,7 @@ window.WEB_STAND = 1795544484; window.WEB_VERSION = '4.20.0';
 }
 
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);overflow-x:hidden;max-width:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{margin:0;background:var(--bg);color:var(--text);overflow-x:hidden;overflow-x:clip;max-width:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 html{overscroll-behavior-x:none}
 img,video,canvas,svg,table{max-width:100%}
 main,main>section,.karte,.dashboard>*{min-width:0}
@@ -712,8 +712,10 @@ dialog.klein{width:min(420px,calc(100vw - 32px));z-index:60}
   --karte-verlauf:linear-gradient(160deg,#FFFFFF,#FAFAFC);--glas:rgba(255,255,255,.82);--glow:0 6px 18px rgba(211,24,47,.25);
   color-scheme:light;
 }
-:root:not(.win) body{background:radial-gradient(130% 55% at 50% -8%,rgba(229,36,59,.30),rgba(120,10,25,.10) 45%,transparent 70%) fixed,var(--bg)}
-:root:not(.win)[data-thema=hell] body{background:radial-gradient(130% 45% at 50% -8%,rgba(229,36,59,.12),transparent 65%) fixed,var(--bg)}
+:root:not(.win) body{background:var(--bg)}
+/* Hintergrundschein als eigene feste Ebene: der Grafikchip verschiebt sie nur, statt sie bei jedem Scroll-Bild neu zu malen */
+:root:not(.win) body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(130% 55% at 50% -8%,rgba(229,36,59,.30),rgba(120,10,25,.10) 45%,transparent 70%)}
+:root:not(.win)[data-thema=hell] body::before{background:radial-gradient(130% 45% at 50% -8%,rgba(229,36,59,.12),transparent 65%)}
 :root:not(.win) header{background:transparent;border-bottom:1px solid color-mix(in srgb,var(--rand) 50%,transparent)}
 /* Glas-Unschärfe im ::before: backdrop-filter am Element selbst würde fixierte Kinder (Menü, Suche) darin einsperren */
 :root:not(.win) :is(header,#navi)::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
@@ -781,24 +783,28 @@ body[data-rolle=GESPERRT] :is(#menue-knopf,#suche-knopf,#suche-global,#neu-knopf
 /* ===== Liquid Glass nach Apples Richtlinien (Web + Android, nicht Windows) =====
    Glas nur auf der Ebene für Navigation und Bedienung (Tab-Leiste, Seitenleiste, Kopf-Knöpfe, Suche, Menü, Sheets, Meldungen) – nie im Inhalt.
    Variante „Regular“: unscharf und in der Helligkeit angeglichen, damit Beschriftungen lesbar bleiben. Farbe sparsam: Rot nur für Auswahl und Hauptaktion. */
-:root:not(.win){--glas:color-mix(in srgb,var(--flaeche) 55%,transparent);--glas-dicht:color-mix(in srgb,var(--flaeche) 86%,transparent);
-  --glas-rand:rgba(255,255,255,.12);--glas-licht:rgba(255,255,255,.26);--glas-unschaerfe:blur(22px) saturate(180%) brightness(1.05);--glas-schatten:0 10px 30px rgba(0,0,0,.35);
+:root:not(.win){--glas:color-mix(in srgb,var(--flaeche) 55%,transparent);--glas-dicht:color-mix(in srgb,var(--flaeche) 95%,transparent);
+  --glas-rand:rgba(255,255,255,.12);--glas-licht:rgba(255,255,255,.26);--glas-unschaerfe:blur(16px) saturate(170%) brightness(1.05);--glas-schatten:0 10px 30px rgba(0,0,0,.35);
   --glow:0 0 0 transparent;--feder:cubic-bezier(.2,.9,.25,1.15);--weich:cubic-bezier(.2,.8,.2,1)}
-:root:not(.win)[data-thema=hell]{--glow:0 0 0 transparent;--glas:color-mix(in srgb,#fff 60%,transparent);--glas-dicht:color-mix(in srgb,#fff 88%,transparent);--glas-rand:rgba(0,0,0,.07);--glas-licht:rgba(255,255,255,.95);--glas-schatten:0 10px 30px rgba(0,0,0,.12)}
+:root:not(.win)[data-thema=hell]{--glow:0 0 0 transparent;--glas:color-mix(in srgb,#fff 60%,transparent);--glas-dicht:color-mix(in srgb,#fff 96%,transparent);--glas-rand:rgba(0,0,0,.07);--glas-licht:rgba(255,255,255,.95);--glas-schatten:0 10px 30px rgba(0,0,0,.12)}
 /* Lichtkante auf Glas: oben links hell, nach unten rechts auslaufend */
 :root:not(.win) :is(#toast,.nav-linse)::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
   background:linear-gradient(140deg,rgba(255,255,255,.6),rgba(255,255,255,.08) 30%,rgba(255,255,255,0) 55%,rgba(255,255,255,.2));
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
-:root:not(.win) :is(#toast,#suchtreffer,dialog,body.nav-offen .nav-gross,header .symbol,#suche-knopf){-webkit-backdrop-filter:var(--glas-unschaerfe);backdrop-filter:var(--glas-unschaerfe);border:1px solid var(--glas-rand)}
-:root:not(.win) :is(#toast,header .symbol,#suche-knopf){background:var(--glas);box-shadow:inset 0 1px 0 var(--glas-licht),var(--glas-schatten)}
+:root:not(.win) :is(header .symbol,#suche-knopf){-webkit-backdrop-filter:var(--glas-unschaerfe);backdrop-filter:var(--glas-unschaerfe);border:1px solid var(--glas-rand)}
+/* Flächen, die sich beim Erscheinen bewegen (Sheets, Menüs, Suche, Meldungen): dichtes Material ohne Echtzeit-Unschärfe –
+   sonst müsste das Handy den Hintergrund in jedem Animationsbild neu weichzeichnen (Ruckeln) */
+:root:not(.win) :is(#toast,#suchtreffer,dialog,body.nav-offen .nav-gross){border:1px solid var(--glas-rand)}
+:root:not(.win) :is(header .symbol,#suche-knopf){background:var(--glas);box-shadow:inset 0 1px 0 var(--glas-licht),var(--glas-schatten)}
+:root:not(.win) #toast{background:var(--glas-dicht);box-shadow:inset 0 1px 0 var(--glas-licht),var(--glas-schatten)}
 :root:not(.win) :is(#suchtreffer,dialog,body.nav-offen .nav-gross){background:var(--glas-dicht);box-shadow:inset 1px 1px 0 var(--glas-licht),inset -1px -1px 0 rgba(255,255,255,.05),0 24px 60px rgba(0,0,0,.45)}
 :root:not(.win) #toast{position:fixed;color:var(--text);border-radius:22px}
 /* Kopf: kein Balken mehr – Knöpfe schweben als Glas-Kreise; darunter Scroll-Kanten-Effekt (Inhalt wird ausgeblendet und unscharf) */
 :root:not(.win) header{border-bottom:0}
-:root:not(.win) header::before{background:linear-gradient(to bottom,var(--bg) 0%,color-mix(in srgb,var(--bg) 75%,transparent) 55%,transparent);
-  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);-webkit-mask-image:linear-gradient(to bottom,#000 50%,transparent);mask-image:linear-gradient(to bottom,#000 50%,transparent)}
+:root:not(.win) header::before{background:linear-gradient(to bottom,var(--bg) 0%,color-mix(in srgb,var(--bg) 75%,transparent) 55%,transparent);-webkit-backdrop-filter:none;backdrop-filter:none}
 :root:not(.win) header .symbol{width:40px;height:40px;border-radius:50%;display:inline-grid;place-items:center}
-:root:not(.win) #neu-knopf{border:1px solid rgba(255,255,255,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 6px 18px rgba(0,0,0,.3)}
+:root:not(.win) #neu-knopf{border:1px solid var(--glas-rand);box-shadow:inset 0 1px 0 var(--glas-licht),var(--glas-schatten)}
+@media (max-width:899px){:root:not(.win) #neu-knopf{width:40px;height:40px;padding:0;border-radius:50%;background:var(--glas);color:var(--text);-webkit-backdrop-filter:var(--glas-unschaerfe);backdrop-filter:var(--glas-unschaerfe)}}
 /* Inhalt: ruhiges, festes Material – kein Glas. Größere, konzentrische Rundungen (Abschnitt 26 px − Innenabstand 16 px = 10 px innen). */
 :root:not(.win) .karte{background:var(--flaeche);border:1px solid color-mix(in srgb,var(--text) 6%,transparent);border-radius:26px;box-shadow:none}
 :root:not(.win)[data-thema=hell] .karte{box-shadow:0 1px 2px rgba(0,0,0,.04)}
@@ -817,32 +823,32 @@ body[data-rolle=GESPERRT] :is(#menue-knopf,#suche-knopf,#suche-global,#neu-knopf
 @media (max-width:899px){
   /* Tab-Leiste: Glas mit Lichtkante; Suche als eigener runder Knopf am Ende (wie iOS) */
   :root:not(.win) #navi{right:calc(12px + 64px + 8px + env(safe-area-inset-right));box-shadow:inset 0 1px 0 var(--glas-licht),var(--glas-schatten);border-color:var(--glas-rand);
-    transition:padding .3s var(--weich)}
+    transform-origin:0 100%;transition:transform .35s var(--weich);will-change:transform}
   :root:not(.win) #navi::before{background:var(--glas);-webkit-backdrop-filter:var(--glas-unschaerfe);backdrop-filter:var(--glas-unschaerfe)}
   :root:not(.win) #navi::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
     background:linear-gradient(140deg,rgba(255,255,255,.55),rgba(255,255,255,.08) 30%,rgba(255,255,255,0) 60%,rgba(255,255,255,.18));
     -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
   :root:not(.win) #suche-knopf{position:fixed;z-index:7;right:calc(12px + env(safe-area-inset-right));bottom:calc(10px + env(safe-area-inset-bottom));width:64px;height:64px;border-radius:50%;
-    display:grid;place-items:center;font-size:22px;transition:width .3s var(--weich),height .3s var(--weich)}
+    display:grid;place-items:center;font-size:22px;transform-origin:100% 100%;transition:transform .35s var(--weich);will-change:transform}
   :root:not(.win) .nav-klein .nav-knopf{position:relative;z-index:1;border-radius:999px}
   :root:not(.win) .nav-klein .nav-knopf[aria-current=page]{background:transparent;box-shadow:none;color:var(--primaer)}
   :root:not(.win) .nav-linse{position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;background:color-mix(in srgb,var(--text) 12%,transparent);box-shadow:inset 0 1px 0 var(--glas-licht)}
-  :root:not(.win) .nav-text{transition:opacity .2s,max-height .3s var(--weich);max-height:20px}
+  :root:not(.win) .nav-text{transition:opacity .2s}
   :root:not(.win) .nav-klein .nav-text{font-size:10.5px;letter-spacing:-.01em}
   /* Beim Herunterscrollen tritt die Tab-Leiste zurück (nur Symbole), beim Hochscrollen kommt sie wieder (JS: body.leiste-klein) */
-  :root:not(.win) body.leiste-klein .nav-klein .nav-text{opacity:0;max-height:0}
-  :root:not(.win) body.leiste-klein #suche-knopf{width:48px;height:48px}
+  :root:not(.win) body.leiste-klein .nav-klein .nav-text{opacity:0}
+  :root:not(.win) body.leiste-klein #navi{transform:translateY(8px) scale(.9)}
+  :root:not(.win) body.leiste-klein #suche-knopf{transform:translateY(8px) scale(.8)}
   /* Scroll-Kanten-Effekt unten: Inhalt hinter der Leiste wird ausgeblendet und unscharf */
   :root:not(.win) body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:calc(120px + env(safe-area-inset-bottom));z-index:5;pointer-events:none;
-    background:linear-gradient(to top,var(--bg) 15%,color-mix(in srgb,var(--bg) 55%,transparent) 55%,transparent);
-    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);-webkit-mask-image:linear-gradient(to top,#000 40%,transparent);mask-image:linear-gradient(to top,#000 40%,transparent)}
+    background:linear-gradient(to top,var(--bg) 15%,color-mix(in srgb,var(--bg) 60%,transparent) 55%,transparent)}
   :root:not(.win) body.nav-offen .nav-gross{transform-origin:50% 100%}
 }
 @media (max-width:700px){
   /* Sheets: von unten, größere Rundung, Griff; nach unten ziehen schließt (JS). Volle Höhe = dichteres Glas. */
   :root:not(.win) dialog{margin:auto 0 0;height:calc(100dvh - 12px - env(safe-area-inset-top));max-height:calc(100dvh - 12px - env(safe-area-inset-top));border-radius:34px 34px 0 0;border-bottom:0;padding-top:22px}
   :root:not(.win) dialog::before{content:"";display:block;width:38px;height:5px;border-radius:3px;background:color-mix(in srgb,var(--text) 30%,transparent);margin:-10px auto 12px}
-  :root:not(.win) .dialog-knoepfe{background:var(--glas-dicht);-webkit-backdrop-filter:blur(14px) saturate(180%);backdrop-filter:blur(14px) saturate(180%)}
+  :root:not(.win) .dialog-knoepfe{background:var(--glas-dicht)}
 }
 /* Bewegung: federnd, nichts Lineares; Menüs wachsen aus ihrer Leiste */
 @media (prefers-reduced-motion:no-preference){
@@ -883,6 +889,64 @@ body[data-rolle=GESPERRT] :is(#menue-knopf,#suche-knopf,#suche-global,#neu-knopf
 .kachel > span .ico{width:26px;height:26px;margin:0}
 .nav-knopf[aria-current=page] .ico{fill:currentColor;fill-opacity:.2;stroke-width:2.2}
 header .symbol .ico,#suche-knopf .ico{width:22px;height:22px}
+
+/* ===== Layout und Menüs nach Apple (Web + Android, nicht Windows) ===== */
+/* Kopfleiste: Titel der Ansicht; am Handy erscheint er klein und mittig, sobald der große Titel wegscrollt. ☰ und ⚙ am Handy über „Mehr“. */
+:root:not(.win) #app-titel{color:var(--text);font-size:17px;font-weight:600}
+@media (max-width:899px){
+  :root:not(.win) :is(#menue-knopf,#einstellungen-knopf){display:none}
+  :root:not(.win) #app-titel{position:absolute;left:50%;transform:translateX(-50%);max-width:46vw;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;transition:opacity .2s}
+  :root:not(.win) body.titel-klein #app-titel{opacity:1}
+  :root:not(.win) header{justify-content:flex-end}
+  :root:not(.win) #zurueck{margin-right:auto}
+}
+/* Apple-Menü: Glas, wächst aus dem Knopf; oben bis zu drei Hauptaktionen, darunter Gruppen mit Trennern, Symbol rechts */
+:root:not(.win) dialog.menue{position:fixed;inset:auto;margin:0;width:min(300px,calc(100vw - 24px));height:auto;max-height:min(72vh,620px);padding:6px;border-radius:26px;border:1px solid var(--glas-rand);overflow:auto}
+:root:not(.win) dialog.menue::before{display:none}
+:root:not(.win) dialog.menue:focus{outline:0}
+:root:not(.win) dialog.menue::backdrop{background:rgba(0,0,0,.18)}
+@media (prefers-reduced-motion:no-preference){:root:not(.win) dialog.menue[open]{animation:menue-am .34s var(--feder)}}
+@keyframes menue-am{from{opacity:0;transform:scale(.5)}}
+:root:not(.win) .am-oben{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px}
+:root:not(.win) .am-kachel{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px;border:0;border-radius:18px;background:color-mix(in srgb,var(--text) 7%,transparent);color:var(--text);font-size:13px;cursor:pointer}
+:root:not(.win) .am-kachel .ico{width:24px;height:24px}
+:root:not(.win) .am-gruppe{display:flex;flex-direction:column;border-radius:18px;overflow:hidden;background:color-mix(in srgb,var(--text) 5%,transparent)}
+:root:not(.win) .am-gruppe + .am-gruppe{margin-top:8px}
+:root:not(.win) .am-gruppe > *{display:flex!important;align-items:center;justify-content:space-between;gap:12px;width:100%;margin:0;padding:12px 16px;border:0;border-radius:0;background:transparent;color:var(--text);font-size:16px;text-align:left;box-shadow:none;cursor:pointer}
+:root:not(.win) .am-gruppe > * + *{border-top:1px solid color-mix(in srgb,var(--text) 9%,transparent)!important}
+:root:not(.win) .am-gruppe > * .ico{order:2;margin:0 0 0 auto;width:20px;height:20px}
+:root:not(.win) .am-gruppe > :is(:hover,:focus-visible){background:color-mix(in srgb,var(--text) 8%,transparent);outline:0}
+:root:not(.win) .am-gruppe > :disabled{opacity:.4}
+/* Gruppierte Listen (inset grouped): Zeilen bilden einen Block mit Trennlinien; Chevron › für Zeilen, die eine Detailseite öffnen */
+:root:not(.win) .karte.klickbar{position:relative;margin:0;border-radius:0;border-width:0;padding-right:40px;box-shadow:none}
+:root:not(.win) .karte.klickbar + .karte.klickbar{border-top:1px solid color-mix(in srgb,var(--text) 8%,transparent)}
+:root:not(.win) :is(.karte.klickbar:first-child,:not(.karte.klickbar) + .karte.klickbar){border-top-left-radius:22px;border-top-right-radius:22px}
+:root:not(.win) .karte.klickbar:not(:has(+ .karte.klickbar)){border-bottom-left-radius:22px;border-bottom-right-radius:22px;margin-bottom:14px}
+:root:not(.win) .karte.klickbar::after{content:"";position:absolute;right:16px;top:50%;width:9px;height:15px;transform:translateY(-50%);background:color-mix(in srgb,var(--text) 35%,transparent);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 15'%3E%3Cpath d='M1.5 1.5 7.5 7.5 1.5 13.5' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 15'%3E%3Cpath d='M1.5 1.5 7.5 7.5 1.5 13.5' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat}
+/* Segment-Steuerung für 2–4 Ansichten; längere Filterreihen scrollen am Handy seitlich statt umzubrechen */
+:root:not(.win) .chips:has(> .chip:nth-child(2)):not(:has(> :nth-child(5))){display:inline-flex;flex-wrap:nowrap;gap:2px;padding:3px;border-radius:999px;background:var(--flaeche2)}
+:root:not(.win) .chips:has(> .chip:nth-child(2)):not(:has(> :nth-child(5))) > .chip{background:transparent;border:0;padding:7px 18px;font-weight:500}
+:root:not(.win) .chips:has(> .chip:nth-child(2)):not(:has(> :nth-child(5))) > .chip[aria-pressed=true]{background:var(--flaeche);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.25)}
+:root:not(.win)[data-thema=hell] .chips:has(> .chip:nth-child(2)):not(:has(> :nth-child(5))) > .chip[aria-pressed=true]{background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+@media (max-width:899px){
+  :root:not(.win) .chips:has(> :nth-child(5)){flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px}
+  :root:not(.win) .chips:has(> :nth-child(5))::-webkit-scrollbar{display:none}
+  :root:not(.win) .chips:has(> :nth-child(5)) > .chip{flex:none}
+}
+
+@media (max-width:899px){
+  /* Scroll-Kante unter der Kopfleiste: Inhalt darunter wird ausgeblendet und unscharf (reicht etwas unter die Leiste) */
+  :root:not(.win) header::before{inset:0 0 -44px 0;background:linear-gradient(to bottom,var(--bg) 0%,var(--bg) 58%,color-mix(in srgb,var(--bg) 70%,transparent) 80%,transparent)}
+  /* Status als runder Knopf mit Punkt (grün = aktuell); Text nur, wenn etwas zu tun ist */
+  :root:not(.win) #sync:not([data-zustand=anmelden]):not([data-zustand=fehler]){font-size:0;line-height:0;width:40px;height:40px;padding:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+    background:var(--glas);border:1px solid var(--glas-rand);-webkit-backdrop-filter:var(--glas-unschaerfe);backdrop-filter:var(--glas-unschaerfe)}
+  :root:not(.win) #sync:not([data-zustand=anmelden]):not([data-zustand=fehler])::before{content:"";width:11px;height:11px;border-radius:50%;background:var(--leise)}
+  :root:not(.win) #sync[data-zustand=aktuell]::before{background:#30D158}
+  :root:not(.win) #sync[data-zustand=beschaeftigt]::before{background:#FFD60A}
+  :root:not(.win) #app-titel{max-width:calc(100vw - 230px)}
+}
 </style>
 </head>
 <body>
@@ -1889,9 +1953,10 @@ function zeichneNaviInhalt() {
 /** Sanftes, gestaffeltes Einblenden – nur beim Wechsel von Bereich oder Ansicht, nicht bei jedem Neuzeichnen (z. B. nach dem Abgleich). */
 function einblenden(el, seitlich = false) {
   if (!el || !el.animate || document.documentElement.classList.contains('win') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  [...el.querySelectorAll(':scope > :not(.dashboard), :scope > .dashboard > *')].slice(0, 14).forEach((x, i) => x.animate(
-    [{ opacity: 0, transform: seitlich ? 'translateX(18px)' : 'translateY(12px) scale(.985)', filter: 'blur(6px)' }, { opacity: 1, transform: 'none', filter: 'none' }],
-    { duration: 420, delay: i * 35, easing: 'cubic-bezier(.2,.9,.25,1)', fill: 'backwards' }));
+  // nur Verschieben und Deckkraft – das erledigt der Grafikchip ohne Neuberechnung (Unschärfe oder Größen würden ruckeln)
+  [...el.querySelectorAll(':scope > :not(.dashboard), :scope > .dashboard > *')].slice(0, 8).forEach((x, i) => x.animate(
+    [{ opacity: 0, transform: seitlich ? 'translateX(16px)' : 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
+    { duration: 300, delay: i * 25, easing: 'cubic-bezier(.2,.9,.25,1)', fill: 'backwards' }));
 }
 const bewegung = () => !document.documentElement.classList.contains('win') && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** Tab-Leiste (Handy): eine Glaslinse liegt unter dem aktiven Punkt und gleitet beim Wechsel federnd hinüber (dehnt sich unterwegs wie Flüssigkeit). */
@@ -1913,6 +1978,7 @@ function navLinse() {
   addEventListener('scroll', () => {
     if (wartet) return; wartet = true;
     requestAnimationFrame(() => { wartet = false; const y = scrollY, d = y - zuletzt;
+      document.body.classList.toggle('titel-klein', y > 56); // großer Titel ist weggescrollt → kleiner Titel in der Kopfleiste
       if (Math.abs(d) > 6) { document.body.classList.toggle('leiste-klein', d > 0 && y > 80); zuletzt = y; } });
   }, { passive: true });
 })();
@@ -1937,7 +2003,7 @@ function bereichWechseln(k) {
   ANSICHT.bereich = k; try { if (!NEBENFENSTER) localStorage.setItem('crm-bereich', k); } catch {}
   if (k === 'touren' && !ANSICHT.tourTag) ANSICHT.tourTag = heute();
   if (route().art) gehe('#/'); else zeichne();
-  window.scrollTo(0, 0); einblenden($('#liste'));
+  window.scrollTo(0, 0); requestAnimationFrame(() => einblenden($('#liste'))); // erst aufbauen, dann bewegen
 }
 $('#navi').addEventListener('click', e => {
   const b = e.target.closest('[data-bereich]');
@@ -1963,7 +2029,43 @@ const THEMA_STANDARD = () => (document.documentElement.classList.contains('win')
 function themaSetzen() { const t = S.einstellungen.thema; if (t === 'hell' || t === 'dunkel') document.documentElement.dataset.thema = t; else delete document.documentElement.dataset.thema;  if (typeof titelleisteFarben === 'function') titelleisteFarben(); }
 themaSetzen();
 /** Werkzeugleiste: am Handy nur die ersten Knöpfe, der Rest hinter „⋯ Mehr“. */
-document.addEventListener('click', e => { const m = e.target.closest('[data-werkzeug-mehr]'); if (m) m.closest('.werkzeuge').classList.toggle('offen'); });
+document.addEventListener('click', e => {
+  const m = e.target.closest('[data-werkzeug-mehr]'); if (!m) return;
+  const leiste = m.closest('.werkzeuge');
+  if (document.documentElement.classList.contains('win') || !matchMedia('(max-width:899px)').matches) { leiste.classList.toggle('offen'); return; }
+  werkzeugMenue(leiste, m);
+});
+/**
+ * Apple-Menü (Pull-down) am Anker: Glas, wächst aus dem Knopf, Gruppen mit Trennern, Symbole rechts. Schließt bei Auswahl, Tippen daneben und Esc.
+ * inhalt = HTML; Klicks auf Einträge laufen über die üblichen Handler (data-…-Attribute).
+ */
+function appleMenue(anker, inhalt) {
+  const d = dialog(`<div class="am" role="menu">${inhalt}</div>`);
+  d.classList.add('menue');
+  const r = (anker && anker.offsetParent ? anker : document.body).getBoundingClientRect(), unten = r.bottom + 8 + 300 < innerHeight;
+  // am Knopf ausrichten, aber immer ganz auf dem Bildschirm (Knopf links → Menü wächst nach rechts)
+  const breite = Math.min(300, innerWidth - 24), links = Math.min(Math.max(12, r.right - breite), innerWidth - breite - 12);
+  Object.assign(d.style, { top: unten ? `${r.bottom + 8}px` : '', bottom: unten ? '' : `${innerHeight - r.top + 8}px`, left: `${links}px` });
+  d.style.transformOrigin = `${Math.min(Math.max(r.left + r.width / 2 - links, 0), breite)}px ${unten ? 'top' : 'bottom'}`;
+  d.addEventListener('click', e => { if (e.target === d) d.close(); });
+  d.addEventListener('close', () => { d.classList.remove('menue'); d.style.cssText = ''; }, { once: true });
+  const erste = d.querySelector('[role=menuitem], button');
+  if (matchMedia('(pointer: fine)').matches) { if (erste) erste.focus(); } else if (document.activeElement) document.activeElement.blur(); // Finger: kein Fokusrahmen
+  return d;
+}
+/** Überlauf einer Werkzeugleiste als Apple-Menü: die verborgenen Knöpfe wandern ins Menü und beim Schließen zurück (gleiche Handler, keine Kopien). */
+function werkzeugMenue(leiste, anker) {
+  const knoepfe = [...leiste.children].filter((x, i) => i >= 3 && !x.classList.contains('werkzeug-mehr'));
+  const d = appleMenue(anker, '<div class="am-gruppe"></div>'), gruppe = d.querySelector('.am-gruppe');
+  const plaetze = knoepfe.map(k => { const p = document.createComment('werkzeug'); k.before(p); k.classList.add('am-eintrag'); gruppe.append(k); return [k, p]; });
+  const zurueck = () => plaetze.forEach(([k, p]) => { k.classList.remove('am-eintrag'); p.replaceWith(k); });
+  // Auswahl: erst zurück an den alten Platz, dann dort auslösen – so greifen auch Handler, die an der Leiste hängen
+  d.addEventListener('click', e => {
+    const k = knoepfe.find(x => x.contains(e.target)); if (!k) return;
+    e.stopPropagation(); e.preventDefault(); d.close(); setTimeout(() => k.click(), 0);
+  }, true);
+  d.addEventListener('close', zurueck, { once: true });
+}
 const TASTEN = [['/ oder Strg+K', 'Suchen'], ['N', 'Neu anlegen'], ['Alt+1 … Alt+9', 'Bereiche der Reihe nach'], ['T', 'Tourenplanung heute'], ['K', 'Kalender'], ['G', 'Übersicht'],
   ['Strg+Z', 'Tourenplanung: rückgängig'], ['Esc', 'Dialog bzw. Suche schließen'], ['?', 'diese Hilfe'],
   ['F5', 'Abgleichen bzw. Senden/Empfangen'], ['Strg+F / Strg+E', 'Suchen'], ['Strg+,', 'Einstellungen'], ['Alt+←', 'Zurück'], ['Strg + / − / 0', 'Zoom (Windows-App)'],
@@ -2042,8 +2144,15 @@ function neuMenue() {
     ...(MAIL.konto ? [['mail', '✉', 'E-Mail']] : []), ['anruf', '📞', 'Anrufliste (Akquise)'], ['aufgabe', '✅', 'Aufgabe'], ['zeit', '⏱', 'Arbeitszeit'], ['tacho', '💳', 'Fahrerkarte einlesen'], ['kalk', '🧮', 'Preis kalkulieren'], ['brief', '✉', 'Brief'], ['monat', '🧾', 'Monatsabrechnung'], ['rollkarte', '📄', 'Tour aus Rollkarte (PDF)']];
   const fuerFahrer = new Set(['fall', 'aufgabe', 'zeit', 'abwesenheit']);
   if (rolle() === 'FAHRER') eintraege.splice(0, eintraege.length, ...eintraege.filter(([k]) => fuerFahrer.has(k)));
-  dialog(`<h2>Neu anlegen</h2><div class="kacheln">${eintraege.map(([k, s, l]) => `<button class="kachel" data-neu-art="${k}"><span>${s}</span>${l}</button>`).join('')}</div>
+  if (document.documentElement.classList.contains('win')) dialog(`<h2>Neu anlegen</h2><div class="kacheln">${eintraege.map(([k, s, l]) => `<button class="kachel" data-neu-art="${k}"><span>${s}</span>${l}</button>`).join('')}</div>
     <div class="dialog-knoepfe"><button class="knopf" data-zu>Abbrechen</button></div>`);
+  else { // Apple-Menü, mittleres Layout: drei Hauptaktionen oben (Symbol über Text), darunter Gruppen als Liste
+    const knopf = ([k, sy, l]) => `<button class="am-eintrag" role="menuitem" data-neu-art="${k}"><span class="am-text">${esc(l)}</span>${ico(SYMBOL_EMOJI[sy] || 'plus', 'allein')}</button>`;
+    const oben = eintraege.slice(0, 3), rest = eintraege.slice(3), GRUPPEN = [['interessent', 'anruf', 'mail', 'brief', 'aufgabe'], ['mitarbeiter', 'abwesenheit', 'zeit', 'tacho', 'fahrzeug']];
+    const gruppen = GRUPPEN.map(g => rest.filter(([k]) => g.includes(k))).concat([rest.filter(([k]) => !GRUPPEN.flat().includes(k))]).filter(g => g.length); // Rest (Finanzen u. a.) zuletzt
+    appleMenue($('#neu-knopf'), `<div class="am-oben">${oben.map(([k, sy, l]) => `<button class="am-kachel" role="menuitem" data-neu-art="${k}">${ico(SYMBOL_EMOJI[sy] || 'plus', 'allein')}<span>${esc(l)}</span></button>`).join('')}</div>
+      ${gruppen.map(g => `<div class="am-gruppe">${g.map(knopf).join('')}</div>`).join('')}`);
+  }
   $('#dialog').onclick = e => {
     const b = e.target.closest('[data-neu-art]'); if (!b) return;
     $('#dialog').onclick = null; $('#dialog').close();
@@ -2183,6 +2292,12 @@ function sperrbild() {
 }
 document.addEventListener('click', e => { if (e.target.closest('[data-anmelden]')) anmeldung(); });
 
+/** Titel der aktuellen Ansicht in der Kopfleiste (Apple: nie den App-Namen); Windows behält den App-Namen in der Titelleiste. */
+function kopfTitel(r = route()) {
+  if (document.documentElement.classList.contains('win')) return;
+  const titel = (r.art && ($('#detail h1, #detail h2') || {}).textContent) || t(BEREICHE[ANSICHT.bereich][0]);
+  $('#app-titel').textContent = String(titel).trim().slice(0, 40);
+}
 function zeichne() {
   if (rolle() === 'GESPERRT') { sperrbild(); return; }
   document.body.dataset.rolle = rolle();
@@ -2196,7 +2311,7 @@ function zeichne() {
   document.body.classList.toggle('breit', breit && !r.art);
   document.body.classList.toggle('breit-detail', breit && !!r.art);
   $('#zurueck').hidden = !r.art;
-  zeichneNavi(); zeichneListe(r); zeichneDetail(r); zeichneSync();
+  zeichneNavi(); zeichneListe(r); zeichneDetail(r); zeichneSync(); kopfTitel(r);
 }
 
 function zeichneListe(r = route()) {
@@ -10526,6 +10641,8 @@ const SYMBOL_BEREICH = { uebersicht: 'house', fahrer: 'navigation', kalender: 'c
 const SYMBOL_EMOJI = { '＋': 'plus', '✉': 'mail', '✓': 'check', '⚙': 'settings', '⚠': 'triangle-alert', '✎': 'pencil', '💬': 'message-circle', '📄': 'file-text', '🖨': 'printer', '⏱': 'timer', '🗑': 'trash-2', '🚚': 'truck', '📎': 'paperclip', '✕': 'x', '🧾': 'receipt-euro', '€': 'euro', '🚩': 'flag', '☎': 'phone', '📅': 'calendar', '✅': 'circle-check', '👤': 'user', '↩': 'reply', '🏢': 'building-2', '🔁': 'repeat', '🚐': 'van', '↗': 'external-link', '📨': 'mail-open', '📊': 'chart-column', '⧉': 'copy', '📞': 'phone', '⛽': 'fuel', '✍': 'signature', '🔗': 'link', '🕓': 'clock', '⛔': 'ban', '🔍': 'search', '🌐': 'globe', '🧭': 'navigation', '💳': 'credit-card', '🖼': 'image', '📥': 'inbox', '↔': 'arrow-left-right', '📍': 'map-pin', '🗄': 'archive', '📁': 'folder', '📌': 'pin', '👑': 'crown', '🏖': 'tree-palm', '📋': 'clipboard-list', '📱': 'smartphone', '💶': 'banknote', '↪': 'forward', '❗': 'circle-alert', '✔': 'check', '🏷': 'tag', '⚡': 'zap', '☰': 'menu', '👥': 'users', '⋯': 'ellipsis', '🎯': 'target', '🧮': 'calculator', '📒': 'notebook', '🎓': 'graduation-cap', '🔑': 'key-round', '📦': 'package', '🔧': 'wrench', '⏲': 'alarm-clock', '📭': 'mailbox', '💾': 'save', '👍': 'thumbs-up', '🩺': 'stethoscope', '🛠': 'hammer', '🏆': 'trophy', '📚': 'library', '📷': 'camera', '⏵': 'play', '➤': 'send', '🔎': 'search', '🧹': 'eraser', '📤': 'upload', '⚑': 'flag', '🎲': 'dices', '🏠': 'house', '📆': 'calendar-days', '☀': 'sun', '🌙': 'moon', '🌓': 'sun-moon', '⌨': 'keyboard', '🔐': 'lock-keyhole', '⏎': 'corner-down-left', '🪪': 'id-card', '📝': 'notebook-pen', '⭐': 'star', '🎂': 'cake', '✨': 'sparkles', '↶': 'undo-2', '★': 'star', '☆': 'star', '⏳': 'hourglass', '↺': 'rotate-ccw', '💰': 'coins', '📉': 'trending-down', '🧩': 'puzzle', '🎉': 'party-popper', '⏸': 'pause', '⏹': 'square', '🤒': 'thermometer', '❔': 'circle-help', '⏰': 'alarm-clock', '👁': 'eye', '☑': 'square-check', '📕': 'book', '🗜': 'file-archive', '📘': 'book', '📗': 'book', '📰': 'newspaper', '🛡': 'shield', '🏳': 'flag', '🕗': 'clock', '🚫': 'ban', '🔕': 'bell-off', '◀': 'chevron-left', '▶': 'chevron-right', '▲': 'chevron-up', '▼': 'chevron-down', '⋮': 'ellipsis-vertical' };
 // SYMBOLE-ENDE
 const ico = (name, klasse = '') => `<svg class="ico ${klasse}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+// Kopf-Knöpfe ohne Emoji-Text: Symbole direkt setzen
+if (!document.documentElement.classList.contains('win')) for (const [sel, name] of [['#menue-knopf', 'menu'], ['#zurueck', 'chevron-left'], ['#einstellungen-knopf', 'settings'], ['#suche-knopf', 'search']]) { const k = $(sel); if (k) k.innerHTML = ico(name, 'allein'); }
 const EMOJI_VORN = new RegExp('^\\s*(' + Object.keys(SYMBOL_EMOJI).map(e => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\uFE0F?\\s*');
 /** Emoji am Anfang von Knöpfen, Kacheln und Überschriften durch das Symbol ersetzen. Das Emoji bleibt versteckt im Text (Suche, Kopieren, Tests). */
 function symboleEinsetzen(wurzel = document.body) {
@@ -10537,7 +10654,16 @@ function symboleEinsetzen(wurzel = document.body) {
     el.insertAdjacentHTML('afterbegin', ico(SYMBOL_EMOJI[m[1]], t.data.trim() ? '' : 'allein') + `<span class="emoji-ersetzt" aria-hidden="true">${m[1]} </span>`);
   }
 }
-{ let wartet = false; new MutationObserver(() => { if (wartet) return; wartet = true; requestAnimationFrame(() => { wartet = false; symboleEinsetzen(); }); }).observe(document.body, { childList: true, subtree: true, characterData: true }); }
+// nur die Teile prüfen, die sich geändert haben (statt der ganzen Seite) – hält Neuzeichnen und Abgleich flüssig
+{ const offen = new Set(); let geplant = false;
+  new MutationObserver(liste => {
+    for (const m of liste) { const el = m.target.nodeType === 1 ? m.target : m.target.parentElement; if (el) offen.add(el); }
+    if (geplant) return; geplant = true;
+    requestAnimationFrame(() => {
+      geplant = false; const alle = [...offen]; offen.clear();
+      for (const w of alle.filter(el => el.isConnected && !alle.some(o => o !== el && o.contains(el)))) symboleEinsetzen(w.parentElement || w);
+    });
+  }).observe(document.body, { childList: true, subtree: true, characterData: true }); }
 // ============================== Windows-Stil (Windows-App) ==============================
 // Symbole aus „Segoe Fluent Icons“ (Windows 11, sonst Segoe MDL2), Statusleiste, Titelleisten-Farben, Kontextmenüs per
 // Rechtsklick, Windows-Tastenkürzel und Zähler auf dem Taskleistensymbol. Alles nur aktiv, wenn window.WIN gesetzt ist.
