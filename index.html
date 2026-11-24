@@ -19,7 +19,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795530857; window.WEB_VERSION = '4.19.6';
+window.WEB_STAND = 1795532038; window.WEB_VERSION = '4.19.6';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0A0A0C">
@@ -714,7 +714,10 @@ dialog.klein{width:min(420px,calc(100vw - 32px));z-index:60}
 }
 :root:not(.win) body{background:radial-gradient(130% 55% at 50% -8%,rgba(229,36,59,.30),rgba(120,10,25,.10) 45%,transparent 70%) fixed,var(--bg)}
 :root:not(.win)[data-thema=hell] body{background:radial-gradient(130% 45% at 50% -8%,rgba(229,36,59,.12),transparent 65%) fixed,var(--bg)}
-:root:not(.win) header{background:color-mix(in srgb,var(--bg) 55%,transparent);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-bottom:1px solid color-mix(in srgb,var(--rand) 50%,transparent)}
+:root:not(.win) header{background:transparent;border-bottom:1px solid color-mix(in srgb,var(--rand) 50%,transparent)}
+/* Glas-Unschärfe im ::before: backdrop-filter am Element selbst würde fixierte Kinder (Menü, Suche) darin einsperren */
+:root:not(.win) :is(header,#navi)::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+:root:not(.win) header::before{background:color-mix(in srgb,var(--bg) 55%,transparent)}
 :root:not(.win) #app-titel{color:var(--text);font-weight:700;letter-spacing:.01em}
 :root:not(.win) #globale-suche{background:var(--flaeche2);border-color:var(--rand);border-radius:16px}
 :root:not(.win) .karte{background:var(--karte-verlauf),var(--flaeche);border:1px solid var(--rand);border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
@@ -735,6 +738,8 @@ dialog.klein{width:min(420px,calc(100vw - 32px));z-index:60}
 :root:not(.win) .nav-knopf[aria-current=page]{background:var(--verlauf-rot);color:#fff;box-shadow:var(--glow)}
 :root:not(.win) .nav-knopf .zahl{background:var(--primaer);color:#fff}
 @media (min-width:900px){:root:not(.win) #navi{background:color-mix(in srgb,var(--flaeche) 70%,transparent);border-right:1px solid var(--linie)}}
+@keyframes schwebe-auf{from{opacity:0;transform:translateY(12px) scale(.98)}}
+@media (prefers-reduced-motion:reduce){:root:not(.win) body.nav-offen .nav-gross{animation:none}}
 /* Übersicht: Titel weiß, große Zahlen, erste Karte als rote „Hero“-Karte (wie die Vorlage) */
 :root:not(.win) .seitenkopf h1{font-size:26px;font-weight:700;letter-spacing:-.01em}
 :root:not(.win) .block h3{color:var(--text);font-size:15px;font-weight:600}
@@ -750,9 +755,25 @@ dialog.klein{width:min(420px,calc(100vw - 32px));z-index:60}
 /* Handy: schwebende Pill-Leiste unten */
 @media (max-width:899px){
   :root:not(.win) #navi{left:calc(12px + env(safe-area-inset-left));right:calc(12px + env(safe-area-inset-right));bottom:calc(10px + env(safe-area-inset-bottom));padding:6px;border-radius:999px;
-    background:var(--glas);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid var(--rand);box-shadow:0 12px 32px rgba(0,0,0,.45)}
+    background:transparent;border:1px solid var(--rand);box-shadow:0 12px 32px rgba(0,0,0,.45)}
+  :root:not(.win) #navi::before{background:var(--glas)}
   :root:not(.win) .nav-klein .nav-knopf{border-radius:999px}
-  :root:not(.win) body.nav-offen .nav-gross{border-radius:0 28px 28px 0;background:var(--karte-verlauf),var(--flaeche)}
+  :root:not(.win) body.nav-offen .nav-gross{left:calc(12px + env(safe-area-inset-left));right:calc(12px + env(safe-area-inset-right));top:auto;bottom:calc(88px + env(safe-area-inset-bottom));width:auto;
+    max-height:min(68vh,560px);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-content:start;padding:14px;border-radius:28px;
+    border:1px solid var(--rand);background:var(--karte-verlauf),var(--flaeche);box-shadow:0 24px 60px rgba(0,0,0,.55);animation:schwebe-auf .18s ease-out}
+  :root:not(.win) body.nav-offen .nav-gross .nav-gruppe{grid-column:1/-1;padding:6px 4px 0}
+  :root:not(.win) body.nav-offen .nav-gross .nav-gruppe:empty{display:none}
+  :root:not(.win) body.nav-offen .nav-gross .nav-knopf{flex-direction:column;justify-content:center;gap:6px;min-height:78px;padding:12px 4px;font-size:12px;text-align:center;
+    border-radius:18px;background:var(--flaeche2);border:1px solid var(--linie)}
+  :root:not(.win) body.nav-offen .nav-gross .nav-knopf .nav-text{white-space:normal}
+  :root:not(.win) body.nav-offen .nav-gross .nav-symbol{font-size:22px}
+  :root:not(.win) body.nav-offen .nav-gross .nav-knopf .zahl{position:absolute;top:6px;right:8px;margin:0}
+  :root:not(.win) body.nav-offen .nav-gross .nav-knopf[aria-current=page]{background:var(--verlauf-rot);color:#fff;border-color:transparent}
+  :root:not(.win) body.nav-offen #nav-schleier{background:rgba(0,0,0,.55);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+  /* Suche am Handy: schwebendes Feld mit Treffern im selben Stil */
+  :root:not(.win) body.sucht #suche-global{top:calc(6px + env(safe-area-inset-top))}
+  :root:not(.win) body.sucht #globale-suche{background:var(--flaeche);border:2px solid var(--primaer);outline:none;box-shadow:0 12px 32px rgba(0,0,0,.5)}
+  :root:not(.win) #suchtreffer{border-radius:22px;background:var(--karte-verlauf),var(--flaeche);box-shadow:0 24px 60px rgba(0,0,0,.55)}
 }
 </style>
 </head>
@@ -1849,7 +1870,7 @@ $('#suchtreffer').addEventListener('keydown', e => {
   if (e.key === 'ArrowDown' && b.nextElementSibling) { e.preventDefault(); (b.nextElementSibling.classList.contains('treffer') ? b.nextElementSibling : b.nextElementSibling.nextElementSibling || b).focus(); }
   if (e.key === 'ArrowUp') { e.preventDefault(); (b.previousElementSibling && b.previousElementSibling.classList.contains('treffer') ? b.previousElementSibling : $('#globale-suche')).focus(); }
 });
-document.addEventListener('click', e => { if (!e.target.closest('#suche-global')) { $('#suchtreffer').hidden = true; document.body.classList.remove('sucht'); } });
+document.addEventListener('click', e => { if (!e.target.closest('#suche-global, #suche-knopf')) { $('#suchtreffer').hidden = true; document.body.classList.remove('sucht'); } });
 $('#suche-knopf').onclick = () => { document.body.classList.add('sucht'); $('#globale-suche').focus(); };
 document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.body.classList.add('sucht'); $('#globale-suche').focus(); } });
 
