@@ -1,11 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- App-Symbol nach Apples Richtlinien: einfache, gefüllte Formen auf Verlaufsfläche, Tiefe durch überlappende halbdurchsichtige Ebenen, kein Text, keine eingebauten Effekte, Motiv mittig (Sicherheitszone für Masken). Quelle für tools/icons.js. -->
-  <defs><linearGradient id="hintergrund" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F43B52"/><stop offset="1" stop-color="#8C0D1B"/></linearGradient></defs>
-  <rect width="1024" height="1024" fill="url(#hintergrund)"/>
-  <g transform="translate(1 12)" fill="#fff">
-    <rect x="212" y="318" width="380" height="290" rx="36" fill-opacity=".55"/>
-    <path fill-rule="evenodd" d="M560 400h150a40 40 0 0 1 34 19l60 96a40 40 0 0 1 6 21v52a20 20 0 0 1-20 20H560z M602 432h94l44 74H602z"/>
-    <path fill-rule="evenodd" d="M268 620a62 62 0 1 0 124 0a62 62 0 1 0-124 0z M304 620a26 26 0 1 0 52 0a26 26 0 1 0-52 0z"/>
-    <path fill-rule="evenodd" d="M638 620a62 62 0 1 0 124 0a62 62 0 1 0-124 0z M674 620a26 26 0 1 0 52 0a26 26 0 1 0-52 0z"/>
+  <!-- Ayse CRM – App-Symbol nach Apples Richtlinien: ein klares Motiv (Straße in der Flucht = „A“), kein Text,
+       Raster 1024 mit Motiv in der Sicherheitszone (Masken von iOS, Android, Windows), Ebenen statt eingebauter Effekte:
+       Hintergrund (Verlauf) · Fahrbahn (weiß) · Mittellinie (halbdurchsichtig, Tiefe). Quelle für tools/icons.js. -->
+  <defs>
+    <linearGradient id="hintergrund" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF5A66"/><stop offset="1" stop-color="#C40F25"/></linearGradient>
+    <radialGradient id="licht" cx=".3" cy=".08" r=".75"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="fahrbahn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#FFE9EC"/></linearGradient>
+  </defs>
+  <g id="ebene-hintergrund"><rect width="1024" height="1024" fill="url(#hintergrund)"/><rect width="1024" height="1024" fill="url(#licht)"/></g>
+  <g id="ebene-motiv" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M258 786 512 262 766 786" stroke="url(#fahrbahn)" stroke-width="112"/>
+    <g stroke="#fff" stroke-opacity=".62"><path d="M512 744v-56" stroke-width="46"/><path d="M512 610v-40" stroke-width="36"/><path d="M512 500v-24" stroke-width="26"/></g>
   </g>
 </svg>

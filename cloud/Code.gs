@@ -217,12 +217,13 @@ function nurAdmin_() { if (ZUGANG_.rolle !== 'ADMIN') throw new Error('Nur für 
 
 /** Anmeldung mit Benutzername und Passwort. */
 function einloggen(login, passwort) {
-  login = loginNormal_(login);
-  var props = PropertiesService.getScriptProperties(), jetzt = Date.now(), fk = 'FEHL_' + login;
-  var zaehler = JSON.parse(props.getProperty(fk) || '{"n":0,"bis":0}');
-  if (zaehler.bis > jetzt) throw new Error('GESPERRT: Zu viele falsche Eingaben. Bitte in ' + Math.ceil((zaehler.bis - jetzt) / 60000) + ' Minuten erneut versuchen.');
+  login = loginNormal_(login).slice(0, 40);
   var alle = benutzer_(), b = null;
   Object.keys(alle).forEach(function (k) { if (alle[k].login === login) b = alle[k]; });
+  // Zähler nur für echte Benutzer; erfundene Namen teilen sich einen – sonst füllt jeder Name den Eigenschaften-Speicher (500 KB)
+  var props = PropertiesService.getScriptProperties(), jetzt = Date.now(), fk = b ? 'FEHL_' + login : 'FEHL_?';
+  var zaehler = JSON.parse(props.getProperty(fk) || '{"n":0,"bis":0}');
+  if (zaehler.bis > jetzt) throw new Error('GESPERRT: Zu viele falsche Eingaben. Bitte in ' + Math.ceil((zaehler.bis - jetzt) / 60000) + ' Minuten erneut versuchen.');
   if (!b || b.aktiv === false || hash_(String(passwort == null ? '' : passwort), b.salz) !== b.hash) {
     props.setProperty(fk, JSON.stringify(fehlversuch_(zaehler, jetzt)));
     throw new Error('Benutzername oder Passwort falsch');
@@ -941,10 +942,11 @@ function cent_(wert) {
   var zahl = Math.floor(Number(wert));
   return isFinite(zahl) && zahl >= 0 ? zahl : null;
 }
-/** Zeitpunkte einheitlich als ISO-Text in UTC; Unlesbares wird zu „jetzt“. */
+/** Zeitpunkte einheitlich als ISO-Text in UTC; Unlesbares wird zu „jetzt“. Zukunft (falsch gestellte Geräteuhr) wird auf „jetzt“
+ *  gekappt – sonst gewönne ein solches Gerät jeden Konflikt („spätere Änderung gewinnt“) und andere Änderungen gingen verloren. */
 function zeitpunkt_(wert) {
-  var ms = Date.parse(String(wert));
-  return new Date(isNaN(ms) ? Date.now() : ms).toISOString();
+  var ms = Date.parse(String(wert)), jetzt = Date.now();
+  return new Date(isNaN(ms) || ms > jetzt + 5 * 60000 ? jetzt : ms).toISOString();
 }
 function zeit_(iso) { var ms = Date.parse(String(iso)); return isNaN(ms) ? 0 : ms; }
 function liste_(wert) { return Array.isArray(wert) ? wert : []; }
