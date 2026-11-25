@@ -18,7 +18,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795599714; window.WEB_VERSION = '4.21.1';
+window.WEB_STAND = 1795602310; window.WEB_VERSION = '4.21.1';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -148,8 +148,8 @@ header .symbol .ico,#suche-knopf .ico{width:21px;height:21px;margin:0}
 #neu-knopf .ico{margin-right:.3em}
 /* Status: Punkt (grün = aktuell); Text nur, wenn etwas zu tun ist */
 #sync{display:inline-flex;align-items:center;gap:6px;border:0;cursor:pointer;white-space:nowrap;font-size:var(--t-fuss);font-weight:500;padding:6px 12px;border-radius:999px;min-height:32px;background:var(--flaeche2);color:var(--text)}
-#sync:not([data-zustand=anmelden]):not([data-zustand=fehler]){font-size:0;width:44px;height:44px;padding:0;justify-content:center;background:var(--glas);border:1px solid var(--glas-rand);-webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten)}
-#sync:not([data-zustand=anmelden]):not([data-zustand=fehler])::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--sys-grau)}
+#sync:not([data-zustand=anmelden]):not([data-zustand=fehler]){position:relative;overflow:hidden;color:transparent;text-indent:200%;white-space:nowrap;width:44px;height:44px;padding:0;justify-content:center;background:var(--glas);border:1px solid var(--glas-rand);-webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten)}
+#sync:not([data-zustand=anmelden]):not([data-zustand=fehler])::before{content:"";position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--sys-grau)} /* genau mittig, unabhängig vom versteckten Text */
 #sync[data-zustand=aktuell]::before{background:var(--sys-gruen)!important}
 #sync[data-zustand=beschaeftigt]::before{background:var(--sys-orange)!important}
 #sync[data-zustand=fehler]{background:var(--rot-f);color:var(--rot-t)}
@@ -195,7 +195,7 @@ main>section{padding:8px calc(var(--rand-seite) + env(safe-area-inset-right)) 40
   body.nav-schmal{--nav-breite:92px}
   body.nav-schmal .nav-knopf{flex-direction:column;gap:3px;padding:8px 2px;text-align:center;font-size:var(--t-mini)}
   body.nav-schmal .nav-knopf .zahl{position:absolute;top:3px;right:8px;margin:0}
-  body.nav-schmal .nav-gruppe:not(:empty){font-size:0;padding:0;border-top:.5px solid var(--linie);margin:8px 6px}
+  body.nav-schmal .nav-gruppe:not(:empty){height:0;overflow:hidden;color:transparent;padding:0;border-top:.5px solid var(--linie);margin:8px 6px}
   header{position:fixed;left:0;right:0}
   header #app-titel{width:calc(var(--nav-breite) - 24px);text-align:left;font-size:var(--t-titel3);font-weight:700}
   #menue-knopf{display:inline-grid}
@@ -213,7 +213,7 @@ main>section{padding:8px calc(var(--rand-seite) + env(safe-area-inset-right)) 40
   :root{--nav-breite:96px}
   .nav-knopf{flex-direction:column;gap:3px;padding:8px 2px;text-align:center;font-size:var(--t-mini)}
   .nav-knopf .zahl{position:absolute;top:3px;right:8px;margin:0}
-  .nav-gruppe:not(:empty){font-size:0;padding:0;border-top:.5px solid var(--linie);margin:8px 6px}
+  .nav-gruppe:not(:empty){height:0;overflow:hidden;color:transparent;padding:0;border-top:.5px solid var(--linie);margin:8px 6px}
   header #app-titel{font-size:var(--t-kopf)}
 }
 @media (max-width:899px){
@@ -240,7 +240,7 @@ main>section{padding:8px calc(var(--rand-seite) + env(safe-area-inset-right)) 40
   .nav-klein .nav-symbol{color:inherit}
   .nav-klein .nav-knopf[aria-current=page]{color:var(--primaer)}
   .nav-knopf .nav-text{max-width:calc(100% - 8px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:opacity .2s} /* mind. 4 px Luft zur Blase */
-  .nav-knopf .zahl{position:absolute;top:3px;right:calc(50% - 24px);margin:0;min-width:8px;width:8px;height:8px;padding:0;font-size:0;line-height:0}
+  .nav-knopf .zahl{position:absolute;top:3px;right:calc(50% - 24px);margin:0;min-width:8px;width:8px;height:8px;padding:0;color:transparent;overflow:hidden;text-indent:200%;line-height:0}
   .nav-linse{position:absolute;inset:0 -3px;z-index:-1; /* etwas breiter als der Tab (wie iOS 26), reicht bis an den Leistenrand */ border-radius:inherit;pointer-events:none;background:color-mix(in srgb,var(--text) 10%,transparent);box-shadow:inset 0 1px 0 var(--glas-licht)}
   /* Herunterscrollen: Tab-Leiste tritt zurück (nur Symbole) */
   body.leiste-klein .nav-klein .nav-text{opacity:0}
@@ -251,7 +251,7 @@ main>section{padding:8px calc(var(--rand-seite) + env(safe-area-inset-right)) 40
     max-height:min(70vh,600px);overflow:auto;padding:8px;border-radius:30px;background:var(--hoch);border:1px solid var(--glas-rand);box-shadow:var(--schatten-gross);z-index:30;transform-origin:50% 100%}
   body.nav-offen .nav-gross .nav-knopf{flex-direction:row;gap:14px;padding:11px 12px;min-height:48px;font-size:var(--t-kopf)}
   body.nav-offen .nav-gross .nav-knopf[aria-current=page]{background:color-mix(in srgb,var(--primaer) 14%,transparent);color:var(--primaer)}
-  body.nav-offen .nav-gross .nav-knopf .zahl{position:static;margin-left:auto;width:auto;height:auto;min-width:20px;padding:0 6px;font-size:var(--t-mini);line-height:20px}
+  body.nav-offen .nav-gross .nav-knopf .zahl{position:static;margin-left:auto;width:auto;height:auto;min-width:20px;padding:0 6px;font-size:var(--t-mini);line-height:20px;color:#fff;text-indent:0;overflow:visible}
   body.nav-offen #nav-schleier{display:block;position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:29}
   body.nav-offen #navi{z-index:31}
   main>section{padding-bottom:calc(var(--tab-hoehe) + 48px + env(safe-area-inset-bottom))}
@@ -495,6 +495,7 @@ pre.vorschau{white-space:pre-wrap;font:inherit;background:var(--flaeche2);paddin
 .verlauf .inhalt{white-space:pre-wrap;overflow-wrap:anywhere}
 .termin{display:flex;align-items:center;gap:10px}
 .termin-symbol{width:22px;text-align:center;flex:none;color:var(--primaer)}
+.termin > .vorlage{padding-left:2px} /* Text direkt neben dem Symbol, keine Lücke */
 .termin-symbol .ico{margin:0}
 .aufgabe.erledigt b{text-decoration:line-through;opacity:.5}
 .positionen{width:100%;border-collapse:collapse;margin:6px 0}.positionen th{text-align:left;font-size:var(--t-klein);color:var(--leise);padding:4px}
@@ -588,8 +589,8 @@ pre.vorschau{white-space:pre-wrap;font:inherit;background:var(--flaeche2);paddin
 .kal-zelle:hover{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--primaer) 35%,transparent)}
 .kal-kopf{font-size:var(--t-fuss);margin-bottom:4px;text-align:center} /* wie der Apple-Kalender: Tageszahl mittig, „heute“ als Kreis frei von der Ecke */
 .kal-eintrag{font-size:var(--t-mini);line-height:1.3;border-radius:6px;padding:2px 5px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
-@media (max-width:700px){.kal-gitter{gap:3px}.kal-zelle{min-height:58px;padding:4px;border-radius:10px}.kal-eintrag{font-size:0;height:5px;padding:0;margin-top:2px;border-radius:3px}.kal-gitter.woche{grid-template-columns:1fr}.kal-gitter.woche .kal-wt{display:none}
-  .kal-gitter.woche .kal-zelle{min-height:auto}.kal-gitter.woche .kal-eintrag{font-size:var(--t-klein);height:auto;padding:2px 5px}}
+@media (max-width:700px){.kal-gitter{gap:3px}.kal-zelle{min-height:58px;padding:4px;border-radius:10px}.kal-eintrag{height:5px;padding:0;margin-top:2px;border-radius:3px;color:transparent;text-indent:200%;overflow:hidden}.kal-gitter.woche{grid-template-columns:1fr}.kal-gitter.woche .kal-wt{display:none}
+  .kal-gitter.woche .kal-zelle{min-height:auto}.kal-gitter.woche .kal-eintrag{font-size:var(--t-klein);height:auto;padding:2px 5px;color:inherit;text-indent:0}}
 .rk-tabelle{border-collapse:collapse;font-size:var(--t-fuss);min-width:100%}.rk-tabelle th,.rk-tabelle td{padding:5px;border-bottom:.5px solid var(--linie);text-align:left;vertical-align:top}.rk-tabelle input.unsicher{background:var(--gelb-f);color:var(--gelb-t)}
 .rk-tabelle input:not([type=checkbox]){width:100%;min-width:90px;min-height:34px;padding:5px 8px;border:0;border-radius:8px;background:var(--flaeche2);color:var(--text);font:inherit}
 .rk-tabelle tr.pruefen{background:var(--gelb-f)}.rk-tabelle thead th{position:sticky;top:0;background:var(--hoch);color:var(--leise);font-size:var(--t-klein)}
@@ -1913,8 +1914,14 @@ function einblenden(el, seitlich = false) {
 const bewegung = () => !matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** Tab-Leiste (Handy): eine Glaslinse liegt unter dem aktiven Punkt und gleitet beim Wechsel federnd hinüber (dehnt sich unterwegs wie Flüssigkeit). */
 let linseVorher = null;
+/** Tab-Beschriftungen passen immer ganz in ihre Blase – auch mit breiteren Systemschriften (Android, Windows): Schrift notfalls etwas kleiner, nie „…“. */
+function tabsEinpassen() {
+  for (const t of document.querySelectorAll('#navi .nav-klein .nav-text')) { if (!t.clientWidth) continue; einpassen(t, t.clientWidth, 8.5); t.style.whiteSpace = ''; }
+}
+addEventListener('resize', () => tabsEinpassen());
 function navLinse() {
   const leiste = $('#navi .nav-klein'); if (!leiste || !leiste.offsetParent) return;
+  tabsEinpassen();
   const aktiv = leiste.querySelector('.nav-knopf[aria-current=page]'); if (!aktiv) { linseVorher = null; return; }
   // liegt im aktiven Knopf: folgt so jeder Größenänderung (z. B. wenn die Leiste beim Scrollen zurücktritt)
   const l = aktiv.insertBefore(Object.assign(document.createElement('span'), { className: 'nav-linse' }), aktiv.firstChild), x = aktiv.offsetLeft;
@@ -2170,13 +2177,13 @@ function zeichneUebersicht() {
       <div class="karte block"><h3>🚚 Heute unterwegs</h3>
         <div class="kennzahlen vier" style="margin:0">${kachel(heuteTouren.length, 'Touren heute', 'touren')}${kachel(Object.keys(lage.personen).length, 'Personal im Einsatz', 'touren')}
           ${kachel(fr.weg.length, 'abwesend', 'personal', fr.weg.length ? 'gelb' : '')}${kachel(probleme, 'Probleme im Plan', 'touren', probleme ? 'rot' : '')}</div>
-        <p class="leise" style="margin-top:8px">${fr.frei.length} Leute und ${fr.fahrzeuge.length} Fahrzeuge frei · morgen ${morgen.length ? morgen.length + ' Touren geplant' : '<b>noch nichts geplant</b>'}</p>
+        <p class="leise" style="margin-top:8px">${fr.frei.length} ${fr.frei.length === 1 ? 'Person' : 'Leute'} und ${fr.fahrzeuge.length} ${fr.fahrzeuge.length === 1 ? 'Fahrzeug' : 'Fahrzeuge'} frei · morgen ${morgen.length ? morgen.length + ' Touren geplant' : '<b>noch nichts geplant</b>'}</p>
         <div class="zeile" style="margin-top:8px"><button class="knopf voll" data-gehe-bereich="touren">Tagesplan öffnen</button>${!morgen.length ? `<button class="knopf" data-tour-tag="${plusTage(t, 1)}">Morgen planen</button>` : ''}</div></div>
       <div class="karte block"><h3>⏱ Heute zu tun (${w.ueberfaellig.length + w.heute.length})</h3>
         ${[...w.ueberfaellig, ...w.heute].slice(0, 7).map(x => terminEintrag(x)).join('') || '<p class="leise">Nichts fällig. 👍</p>'}
         ${w.ueberfaellig.length + w.heute.length > 7 ? '<button class="knopf text" data-gehe-bereich="termine">Alle Termine →</button>' : ''}</div>
       <div class="karte block"><h3>✅ Aufgaben</h3>${aufgabenListe().filter(a => !a.erledigt).slice(0, 5).map(aufgabeZeile).join('') || '<p class="leise">Keine offenen Aufgaben.</p>'}
-        <form id="aufgabe-schnell" class="zeile eng" style="margin-top:6px"><input class="feld-eingabe fuell" style="margin:0" name="titel" placeholder="Neue Aufgabe … (z. B. „TÜV RS-AT 100 morgen @Ali“)" autocomplete="off"></form></div>
+        <form id="aufgabe-schnell" class="zeile eng" style="margin-top:6px"><input class="feld-eingabe fuell" style="margin:0" name="titel" placeholder="Neue Aufgabe …" title="z. B. „TÜV RS-AT 100 morgen @Ali“ – Datum und @Person werden erkannt" autocomplete="off"></form></div>
       <div class="karte block"><h3>⚠ Schäden</h3><div class="kennzahlen vier" style="margin:0">${kachel(kz.offen, 'offen', 'faelle')}${kachel(kz.faellig, 'fällig', 'faelle', kz.faellig ? 'rot' : '')}
         ${kachel(geld(kz.forderung), 'Forderungen', 'faelle')}${kachel(faelle().filter(f => (f.schadensdatum || '') >= zeitraum('MONAT').von).length, 'diesen Monat', 'faelle')}</div></div>
       <div class="karte block"><h3>€ Finanzen</h3><div class="kennzahlen vier" style="margin:0">${kachel(geld(k.offen), `offen (${k.offenAnzahl})`, 'finanzen')}${kachel(geld(k.ueberfaellig), `überfällig (${k.ueberfaelligAnzahl})`, 'finanzen', k.ueberfaelligAnzahl ? 'rot' : '')}
@@ -6819,7 +6826,7 @@ function zeichneAufgaben() {
   const liste = aufgabenListe().filter(passt), n = k => aufgabenListe().filter(a => ({ ...ANSICHT, aufgabenFilter: k }) && ({ OFFEN: !a.erledigt, UEBERFAELLIG: !a.erledigt && a.faelligAm && a.faelligAm < t })[k]).length;
   const gruppen = f === 'ERLEDIGT' || f === 'ALLE' ? [['', liste]] : Object.entries(liste.reduce((o, a) => { const k = a.zustaendigId ? maName(a.zustaendigId) : 'Ohne Zuständige'; (o[k] = o[k] || []).push(a); return o; }, {}));
   return seitenkopf('Aufgaben', '<button class="knopf voll" data-neue-aufgabe>＋ Aufgabe</button>', '<button class="knopf" data-aufgaben-csv>CSV</button>')
-    + `<form id="aufgabe-schnell" class="zeile eng" style="margin-bottom:10px"><input class="feld-eingabe fuell" style="margin:0" name="titel" placeholder="Neue Aufgabe eintippen und Enter …" aria-label="Neue Aufgabe" autocomplete="off"></form>
+    + `<form id="aufgabe-schnell" class="zeile eng" style="margin-bottom:10px"><input class="feld-eingabe fuell" style="margin:0" name="titel" placeholder="Neue Aufgabe …" title="Eintippen und Enter – z. B. „TÜV RS-AT 100 morgen @Ali“" aria-label="Neue Aufgabe" autocomplete="off"></form>
     <div class="chips">${Object.entries(AUFGABEN_FILTER).map(([k, l]) => `<button class="chip" data-aufgaben-filter="${k}" aria-pressed="${f === k}">${l}${k === 'OFFEN' || k === 'UEBERFAELLIG' ? ` (${n(k)})` : ''}</button>`).join('')}</div>
     ${f === 'MEINE' && !ichId() ? '<p class="leise">Unter ⚙ → Bedienung festlegen, wer dieses Gerät nutzt („Ich bin …“).</p>' : ''}
     <div id="aufgaben">${liste.length ? gruppen.map(([g, l]) => `${g ? `<h3 class="abschnitt">${esc(g)} (${l.length})</h3>` : ''}${l.map(aufgabeZeile).join('')}`).join('') : '<div class="leer">✅<b>Nichts zu tun</b>Aufgaben für dich und das Team – mit Zuständigen, Fälligkeit, Priorität und Bezug zu Fall, Tour, Fahrzeug, Firma oder Mitarbeiter.</div>'}</div>`;
@@ -10724,7 +10731,7 @@ for (const [sel, name] of [['#menue-knopf', 'menu'], ['#mehr-knopf', 'ellipsis']
 const EMOJI_VORN = new RegExp('^\\s*(' + Object.keys(SYMBOL_EMOJI).map(e => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\uFE0F?\\s*');
 /** Emoji am Anfang von Knöpfen, Kacheln und Überschriften durch das Symbol ersetzen. Das Emoji bleibt versteckt im Text (Suche, Kopieren, Tests). */
 function symboleEinsetzen(wurzel = document.body) {
-  for (const el of wurzel.querySelectorAll('.leer, .knopf, .chip, .symbol, .kachel > span:first-child, .pf-o > span:first-child, .pf-schnell button, .stopp b, .karte h2, .karte h3, dialog h2, dialog h3, .seitenkopf h1, .treffer-gruppe, .vorlage > b, .nav-symbol')) {
+  for (const el of wurzel.querySelectorAll('.leer, .termin-symbol, .knopf, .chip, .symbol, .kachel > span:first-child, .pf-o > span:first-child, .pf-schnell button, .stopp b, .karte h2, .karte h3, dialog h2, dialog h3, .seitenkopf h1, .treffer-gruppe, .vorlage > b, .nav-symbol')) {
     const t = el.firstChild; if (!t || t.nodeType !== 3) continue;
     const m = t.data.match(EMOJI_VORN); if (!m) continue;
     t.data = t.data.slice(m[0].length);
