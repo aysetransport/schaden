@@ -18,7 +18,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795613902; window.WEB_VERSION = '4.22.0';
+window.WEB_STAND = 1795615568; window.WEB_VERSION = '4.22.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -195,6 +195,8 @@ main>section{padding:8px calc(var(--rand-seite) + env(safe-area-inset-right)) 40
   body.nav-schmal{--nav-breite:92px}
   body.nav-schmal .nav-knopf{flex-direction:column;gap:3px;padding:8px 2px;text-align:center;font-size:var(--t-mini)}
   body.nav-schmal .nav-knopf .zahl{position:absolute;top:3px;right:8px;margin:0}
+  body.nav-schmal #navi{padding:10px 6px;overflow-x:hidden}
+  body.nav-schmal .nav-knopf .nav-text{max-width:100%;overflow:hidden;white-space:nowrap;line-height:1.2;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:anywhere} /* Größe passt tabsEinpassen() an */
   body.nav-schmal .nav-gruppe:not(:empty){height:0;overflow:hidden;color:transparent;padding:0;border-top:.5px solid var(--linie);margin:8px 6px}
   header{position:fixed;left:0;right:0}
   header #app-titel{width:calc(var(--nav-breite) - 24px);text-align:left;font-size:var(--t-titel3);font-weight:700}
@@ -213,6 +215,8 @@ main>section{padding:8px calc(var(--rand-seite) + env(safe-area-inset-right)) 40
   :root{--nav-breite:96px}
   .nav-knopf{flex-direction:column;gap:3px;padding:8px 2px;text-align:center;font-size:var(--t-mini)}
   .nav-knopf .zahl{position:absolute;top:3px;right:8px;margin:0}
+  #navi{padding:10px 6px;overflow-x:hidden}
+  .nav-gross .nav-knopf .nav-text{max-width:100%;overflow:hidden;white-space:nowrap;line-height:1.2;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:anywhere} /* Größe passt tabsEinpassen() an */
   .nav-gruppe:not(:empty){height:0;overflow:hidden;color:transparent;padding:0;border-top:.5px solid var(--linie);margin:8px 6px}
   header #app-titel{font-size:var(--t-kopf)}
 }
@@ -882,6 +886,8 @@ dialog.ruhig:not(.menue):not(.aktionsblatt){background:var(--glas-dicht);-webkit
   :root{--glas:var(--hoch);--glas-dicht:var(--hoch);--glas-rand:var(--text);--linie:var(--leise)}
   :is(.karte,.knopf,.chip,.kennzahl,.kachel,label.feld input,label.feld select,label.feld textarea){outline:1px solid var(--leise);outline-offset:-1px}
 }
+/* Windows-App: keine Scrollbalken (wie macOS/iPadOS) – gescrollt wird mit Rad, Touchpad, Touch und Tastatur */
+html.fenster *{scrollbar-width:none}
 /* Scrollbalken schmal und rund (iPad/PC) */
 @media (pointer:fine){
   ::-webkit-scrollbar{width:12px;height:12px}
@@ -1932,7 +1938,7 @@ function zeichneNaviInhalt() {
   $('#navi').innerHTML = `<div class="nav-gross">${gruppen.map(g => `<div class="nav-gruppe">${esc(g)}</div>${Object.keys(BEREICHE).filter(k => BEREICHE[k][2] === g && bereichSichtbar(k)).map(k => knopf(k)).join('')}`).join('')}
       <div class="nav-gruppe"></div><button class="nav-knopf" data-nav-einstellungen><span class="nav-symbol" aria-hidden="true">${winSymbol('einstellungen', '⚙')}</span><span class="nav-text">Einstellungen</span></button>
       <button class="nav-knopf" data-nav-thema><span class="nav-symbol" aria-hidden="true">${winSymbol('thema', { hell: '☀', dunkel: '🌙' }[S.einstellungen.thema] || '🌓')}</span><span class="nav-text">Darstellung: ${{ hell: 'hell', dunkel: 'dunkel' }[S.einstellungen.thema] || THEMA_STANDARD()}</span></button>
-      ${window.desktop && window.desktop.fenster && window.desktop.fenster.neu ? `<button class="nav-knopf" data-nav-fenster title="Aktuelle Ansicht in einem eigenen Fenster (Strg+Umschalt+N) – Strg-Klick auf einen Bereich öffnet ihn dort"><span class="nav-symbol" aria-hidden="true">⧉</span><span class="nav-text">Neues Fenster</span></button>` : ''}
+      ${window.desktop && window.desktop.fenster && window.desktop.fenster.neu ? `<button class="nav-knopf" data-nav-fenster title="Aktuelle Ansicht in einem eigenen Fenster (Strg+Umschalt+N) – Strg-Klick auf einen Bereich öffnet ihn dort"><span class="nav-symbol" aria-hidden="true">🗗</span><span class="nav-text">Neues Fenster</span></button>` : ''}
       <button class="nav-knopf" data-nav-hilfe><span class="nav-symbol" aria-hidden="true">${winSymbol('hilfe', '⌨')}</span><span class="nav-text">Tastenkürzel</span></button></div>
     <div class="nav-klein">${unten.filter(bereichSichtbar).map(k => knopf(k, '', true)).join('')}
       <button class="nav-knopf" data-nav-mehr aria-current="${mehrAktiv ? 'page' : 'false'}"><span class="nav-symbol" aria-hidden="true">${mehrAktiv ? winSymbol(aktiv, '☰') : winSymbol('mehr', '☰')}</span><span class="nav-text">${mehrAktiv ? esc(tabName(aktiv)) : 'Mehr'}</span>
@@ -1951,13 +1957,15 @@ const bewegung = () => !matchMedia('(prefers-reduced-motion: reduce)').matches;
 let linseVorher = null;
 /** Tab-Beschriftungen passen immer ganz in ihre Blase – auch mit breiteren Systemschriften (Android, Windows): Schrift notfalls etwas kleiner, nie „…“. */
 function tabsEinpassen() {
-  for (const t of document.querySelectorAll('#navi .nav-klein .nav-text')) if (t.clientWidth) einpassen(t, t.clientWidth, 8.5); // reicht auch die kleinste Größe nicht: zwei Zeilen statt abgeschnitten
+  for (const t of document.querySelectorAll('#navi .nav-klein .nav-text')) if (t.clientWidth) einpassen(t, t.clientWidth, 8.5);
+  // schmale Seitenleiste am PC (Symbol über Text): ebenso; breite Seitenleiste hat Platz
+  for (const t of document.querySelectorAll('#navi .nav-gross .nav-text')) { if (getComputedStyle(t.parentNode).flexDirection === 'column' && t.clientWidth) einpassen(t, t.clientWidth, 8.5); else t.style.fontSize = t.style.whiteSpace = ''; } // reicht auch die kleinste Größe nicht: zwei Zeilen statt abgeschnitten
 }
 addEventListener('resize', () => tabsEinpassen());
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => tabsEinpassen()); // nach dem Laden der Schriften neu einpassen
 function navLinse() {
-  const leiste = $('#navi .nav-klein'); if (!leiste || !leiste.offsetParent) return;
   tabsEinpassen();
+  const leiste = $('#navi .nav-klein'); if (!leiste || !leiste.offsetParent) return;
   const aktiv = leiste.querySelector('.nav-knopf[aria-current=page]'); if (!aktiv) { linseVorher = null; return; }
   // liegt im aktiven Knopf: folgt so jeder Größenänderung (z. B. wenn die Leiste beim Scrollen zurücktritt)
   const l = aktiv.insertBefore(Object.assign(document.createElement('span'), { className: 'nav-linse' }), aktiv.firstChild), x = aktiv.offsetLeft;
