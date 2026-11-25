@@ -216,7 +216,7 @@ async function api(fn, ...args) {
 const abgelaufen = e => /Anmeldung abgelaufen|PIN falsch|PIN_AUS/.test(e.message);
 /** Offene Änderungen hochladen, dann den ganzen Stand holen (er ist klein). Ein veraltetes Cloud-Skript wird einmal selbst aktualisiert. */
 async function abgleichen(still) {
-  if (!Z.token || abgleichen.laeuft) return; abgleichen.laeuft = true; zeigeStatus('Wird abgeglichen …');
+  if (!Z.token) return; if (abgleichen.laeuft) { abgleichen.nochmal = true; return; } abgleichen.laeuft = true; abgleichen.nochmal = false; zeigeStatus('Wird abgeglichen …');
   try {
     let st;
     try { st = await api('vorschussSpeichern', Z.token, Object.values(Z.offen)); }
@@ -229,7 +229,7 @@ async function abgleichen(still) {
     if (/Nur der Hauptadmin/.test(e.message)) { Z.token = ''; sichern(); zeichne(); toast('Nur der Chef (Hauptadmin) hat Zugriff.'); return; }
     zeigeStatus(Object.keys(Z.offen).length ? `Offline – ${Object.keys(Z.offen).length} Änderung(en) werden später übertragen` : 'Offline – zuletzt geladener Stand');
     if (!still) toast('Cloud nicht erreichbar: ' + e.message);
-  } finally { abgleichen.laeuft = false; zeichne(); }
+  } finally { abgleichen.laeuft = false; zeichne(); if (abgleichen.nochmal && Z.token) abgleichen(true); } // während des Abgleichs Gebuchtes gleich hinterher
 }
 function zeigeStatus(t) { abgleichen.status = t; const el = $('#status'); if (el) el.textContent = t; }
 
