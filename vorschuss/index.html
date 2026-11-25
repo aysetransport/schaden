@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Vorschüsse</title>
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Vorschüsse">
+<meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="../icon-rund.png"><link rel="apple-touch-icon" href="../icon-192.png">
+<script>
+// Vorschüsse – eigene App des Chefs. Liest den Mitarbeiterstamm aus der Ayse-Cloud, hält ihre Einträge aber getrennt (vorschuesse.json, nur Hauptadmin).
+window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwhDnWP7p9XeoIz8NisZR7NApIj-Xfgd_lP5j8KjPE11OFbQuA/exec";
+</script>
+<style>
+/* shortcut: Farben, Schrift und Maße aus web/index.html kopiert (Apple-Designsystem der Haupt-App) – bei Änderungen dort hier nachziehen */
+:root{
+  /* Systemfarben (hell) */
+  --sys-rot:#FF3B30;--sys-orange:#FF9500;--sys-gelb:#FFCC00;--sys-gruen:#34C759;--sys-mint:#00C7BE;--sys-tuerkis:#30B0C7;--sys-blau:#007AFF;--sys-indigo:#5856D6;--sys-lila:#AF52DE;--sys-pink:#FF2D55;--sys-grau:#8E8E93;
+  /* gut lesbare Varianten für Text auf hellem Grund */
+  --txt-rot:#D70015;--txt-orange:#C93400;--txt-gelb:#A05A00;--txt-gruen:#248A3D;--txt-tuerkis:#008299;--txt-blau:#0040DD;--txt-indigo:#3634A3;--txt-lila:#8944AB;--txt-grau:#6C6C70;
+  --bg:#F2F2F7;            /* systemGroupedBackground */
+  --flaeche:#FFFFFF;       /* secondarySystemGroupedBackground: Zellen, Karten */
+  --flaeche2:rgba(118,118,128,.12); /* tertiarySystemFill: Felder, Kacheln */
+  --fuell:rgba(120,120,128,.20);    /* systemFill: Schalter, Griffe */
+  --hoch:#FFFFFF;          /* erhöhte Ebenen: Sheets, Menüs */
+  --text:#000000;--leise:rgba(60,60,67,.60);--leise3:rgba(60,60,67,.30);
+  --linie:rgba(60,60,67,.29);--rand:#C6C6C8;
+  --marke:#D7192E;--primaer:var(--marke);--auf-primaer:#FFFFFF;
+  --primaer-hell:color-mix(in srgb,var(--primaer) 14%,transparent);--auf-primaer-hell:var(--primaer);
+  --fehler:var(--sys-rot);
+  --glas:rgba(250,250,252,.72);--glas-dicht:rgba(250,250,252,.92);--glas-rand:rgba(0,0,0,.06);--glas-licht:rgba(255,255,255,.9);
+  --schatten:0 8px 28px rgba(0,0,0,.12),0 1px 3px rgba(0,0,0,.06);--schatten-gross:0 24px 64px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.08);
+  --unschaerfe:blur(24px) saturate(190%);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-thema=hell]){
+  --sys-rot:#FF453A;--sys-orange:#FF9F0A;--sys-gelb:#FFD60A;--sys-gruen:#30D158;--sys-mint:#63E6E2;--sys-tuerkis:#40C8E0;--sys-blau:#0A84FF;--sys-indigo:#5E5CE6;--sys-lila:#BF5AF2;--sys-pink:#FF375F;--sys-grau:#8E8E93;
+  --txt-rot:#FF6961;--txt-orange:#FFB340;--txt-gelb:#FFD426;--txt-gruen:#30DB5B;--txt-tuerkis:#5DE6FF;--txt-blau:#409CFF;--txt-indigo:#7D7AFF;--txt-lila:#DA8FFF;--txt-grau:#AEAEB2;
+  --bg:#000000;--flaeche:#1C1C1E;--flaeche2:rgba(118,118,128,.24);--fuell:rgba(120,120,128,.36);--hoch:#2C2C2E;
+  --text:#FFFFFF;--leise:rgba(235,235,245,.60);--leise3:rgba(235,235,245,.30);--linie:rgba(84,84,88,.65);--rand:#38383A;
+  --marke:#FF4F61;
+  --glas:rgba(30,30,32,.62);--glas-dicht:rgba(36,36,38,.92);--glas-rand:rgba(255,255,255,.10);--glas-licht:rgba(255,255,255,.16);
+  --schatten:0 8px 28px rgba(0,0,0,.45);--schatten-gross:0 24px 64px rgba(0,0,0,.6);
+  color-scheme:dark;
+}}
+:root[data-thema=dunkel]{
+  --sys-rot:#FF453A;--sys-orange:#FF9F0A;--sys-gelb:#FFD60A;--sys-gruen:#30D158;--sys-mint:#63E6E2;--sys-tuerkis:#40C8E0;--sys-blau:#0A84FF;--sys-indigo:#5E5CE6;--sys-lila:#BF5AF2;--sys-pink:#FF375F;--sys-grau:#8E8E93;
+  --txt-rot:#FF6961;--txt-orange:#FFB340;--txt-gelb:#FFD426;--txt-gruen:#30DB5B;--txt-tuerkis:#5DE6FF;--txt-blau:#409CFF;--txt-indigo:#7D7AFF;--txt-lila:#DA8FFF;--txt-grau:#AEAEB2;
+  --bg:#000000;--flaeche:#1C1C1E;--flaeche2:rgba(118,118,128,.24);--fuell:rgba(120,120,128,.36);--hoch:#2C2C2E;
+  --text:#FFFFFF;--leise:rgba(235,235,245,.60);--leise3:rgba(235,235,245,.30);--linie:rgba(84,84,88,.65);--rand:#38383A;
+  --marke:#FF4F61;
+  --glas:rgba(30,30,32,.62);--glas-dicht:rgba(36,36,38,.92);--glas-rand:rgba(255,255,255,.10);--glas-licht:rgba(255,255,255,.16);
+  --schatten:0 8px 28px rgba(0,0,0,.45);--schatten-gross:0 24px 64px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+/* Kennfarben (Abzeichen, Kalender, Hinweise): Systemfarbe als zarte Fläche, Text in der gut lesbaren Variante */
+:root{
+  --rot-f:color-mix(in srgb,var(--sys-rot) 15%,transparent);--rot-t:var(--txt-rot);
+  --orange-f:color-mix(in srgb,var(--sys-orange) 16%,transparent);--orange-t:var(--txt-orange);
+  --gelb-f:color-mix(in srgb,var(--sys-gelb) 22%,transparent);--gelb-t:var(--txt-gelb);
+  --gruen-f:color-mix(in srgb,var(--sys-gruen) 16%,transparent);--gruen-t:var(--txt-gruen);
+  --tuerkis-f:color-mix(in srgb,var(--sys-tuerkis) 16%,transparent);--tuerkis-t:var(--txt-tuerkis);
+  --blau-f:color-mix(in srgb,var(--sys-blau) 14%,transparent);--blau-t:var(--txt-blau);
+  --violett-f:color-mix(in srgb,var(--sys-indigo) 16%,transparent);--violett-t:var(--txt-indigo);
+  --lila-f:color-mix(in srgb,var(--sys-lila) 16%,transparent);--lila-t:var(--txt-lila);
+  --grau-f:var(--flaeche2);--grau-t:var(--leise);
+  /* Schrift: Stufen wie Dynamic Type (Handy) – am großen Bildschirm etwas kleiner (wie iPad/Mac) */
+  --schrift:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,Roboto,"Helvetica Neue",sans-serif;
+  --schrift-rund:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+  --t-gross:34px;--t-titel1:28px;--t-titel2:22px;--t-titel3:20px;--t-kopf:17px;--t-text:17px;--t-callout:16px;--t-unter:15px;--t-fuss:13px;--t-klein:12px;--t-mini:11px;
+  /* Maße */
+  --r-zelle:26px;--r-feld:12px;--r-knopf:999px;--r-kachel:18px;--r-sheet:34px;
+  --rand-seite:16px;--kopf-hoehe:52px;--nav-breite:260px;--tab-hoehe:62px;
+  --feder:cubic-bezier(.2,.9,.25,1.12);--weich:cubic-bezier(.2,.8,.2,1);
+  font:400 var(--t-text)/1.29 var(--schrift);letter-spacing:-.01em;
+}
+@media (min-width:900px){:root{--t-gross:30px;--t-titel1:24px;--t-titel2:20px;--t-titel3:18px;--t-kopf:15px;--t-text:15px;--t-callout:14px;--t-unter:14px;--t-fuss:12px;--t-klein:11.5px;--t-mini:10.5px;--r-zelle:18px;--r-feld:9px;--r-kachel:14px;--rand-seite:28px}}
+
+/* ===== Grundlagen ===== */
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+body{min-height:100vh;-webkit-font-smoothing:antialiased;padding:0 0 calc(32px + env(safe-area-inset-bottom))}
+h1,h2,p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+[hidden]{display:none!important}
+:focus-visible{outline:3px solid color-mix(in srgb,var(--primaer) 55%,transparent);outline-offset:2px}
+.leise{color:var(--leise)}
+.ico{width:1.1em;height:1.1em;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.wrap{max-width:720px;margin:0 auto}
+/* ===== Navigationsleiste (Glas) mit großem Titel im Inhalt, kleinem Titel beim Scrollen ===== */
+header{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;
+  min-height:calc(52px + env(safe-area-inset-top));padding:env(safe-area-inset-top) max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left));
+  background:transparent;transition:background .2s,box-shadow .2s}
+body.gescrollt header{background:var(--glas-dicht);-webkit-backdrop-filter:var(--unschaerfe,blur(20px) saturate(180%));backdrop-filter:var(--unschaerfe,blur(20px) saturate(180%));box-shadow:0 .5px 0 var(--linie)}
+#kopf-titel{font-size:var(--t-kopf);font-weight:600;text-align:center;opacity:0;transition:opacity .2s;overflow-wrap:anywhere}
+body.titel-klein #kopf-titel{opacity:1}
+.kopf-knopf{justify-self:start;display:inline-flex;align-items:center;gap:2px;min-height:44px;min-width:44px;padding:0 10px 0 6px;border:0;border-radius:999px;
+  background:var(--glas);box-shadow:inset 0 0 0 1px var(--glas-rand),var(--schatten);color:var(--primaer);font-weight:500;cursor:pointer;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+.kopf-knopf .ico{width:22px;height:22px}
+#zurueck{grid-column:1}#kopf-titel{grid-column:2}
+#plus{grid-column:3;justify-self:end;padding:0;justify-content:center;width:44px} /* feste Spalten: auch ohne Zurück-Knopf bleibt das Plus rechts */
+h1{font-size:var(--t-gross);font-weight:700;letter-spacing:-.02em;margin:2px 20px 14px;overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto}
+/* ===== Gruppen und Zellen (inset grouped) ===== */
+.gruppe{margin:0 16px 26px}
+.gruppe-titel{font-size:var(--t-fuss);color:var(--leise);margin:0 16px 7px;display:flex;justify-content:space-between;gap:8px}
+.liste{background:var(--flaeche);border-radius:var(--r-zelle);overflow:hidden}
+.zelle{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:10px 16px;border:0;background:transparent;text-align:left;color:var(--text);cursor:pointer}
+button.zelle:active{background:var(--flaeche2)}
+.zelle + .zelle::before{content:"";position:absolute;left:var(--trenn,16px);right:0;top:0;border-top:.5px solid var(--linie)}
+.liste.mit-bild{--trenn:64px}
+.zelle .mitte{flex:1;min-width:0}
+.zelle .name{font-size:var(--t-text);overflow-wrap:anywhere}
+.zelle .unter{font-size:var(--t-fuss);color:var(--leise);margin-top:1px;overflow-wrap:anywhere}
+.zelle .betrag{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:var(--t-text)}
+.zelle .betrag.minus{color:var(--txt-gruen)}
+.zelle.pfeil::after{content:"";flex:none;width:8px;height:13px;margin-left:2px;background:var(--leise3);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 13'%3E%3Cpath d='M1.5 1.5 6.5 6.5 1.5 11.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 13'%3E%3Cpath d='M1.5 1.5 6.5 6.5 1.5 11.5' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat}
+.avatar{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:600;color:#fff;
+  background:linear-gradient(180deg,#A5A5AA,#86868B)}
+.leer{padding:22px 16px;text-align:center;color:var(--leise);font-size:var(--t-unter)}
+/* ===== Kennzahl oben ===== */
+.kennzahl{margin:0 16px 26px;padding:16px 18px;background:var(--flaeche);border-radius:var(--r-zelle)}
+.kennzahl .ueber{font-size:var(--t-fuss);color:var(--leise);font-weight:600}
+.kennzahl .zahl{font:700 var(--t-gross)/1.15 var(--schrift-rund);letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-top:2px;overflow-wrap:anywhere}
+.kennzahl .unter{font-size:var(--t-fuss);color:var(--leise);margin-top:4px}
+.knoepfe{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 16px 26px}
+.knopf{min-height:50px;border:0;border-radius:999px;padding:0 18px;font-weight:600;font-size:var(--t-text);cursor:pointer;background:var(--flaeche);color:var(--primaer);display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.knopf.voll{background:var(--primaer);color:var(--auf-primaer)}
+.knopf:active{opacity:.7}
+.knopf:disabled{opacity:.4}
+.suche{display:flex;align-items:center;gap:6px;margin:0 16px 18px;padding:0 10px;min-height:38px;border-radius:12px;background:var(--fuell,var(--flaeche2));color:var(--leise)}
+.suche input{flex:1;min-width:0;border:0;background:transparent;outline:0;color:var(--text);font-size:var(--t-text);padding:8px 0}
+/* ===== Formular und Sheet ===== */
+dialog{border:0;padding:0;background:var(--bg);color:var(--text);width:min(560px,100vw);max-width:100vw;max-height:calc(100dvh - 10px);border-radius:var(--r-sheet);box-shadow:var(--schatten-gross);overflow:auto}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+@media (max-width:600px){dialog{margin:auto 0 0;width:100vw;border-radius:var(--r-sheet) var(--r-sheet) 0 0;padding-bottom:env(safe-area-inset-bottom)}}
+.sheet-kopf{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:10px 10px 8px;background:var(--bg)}
+.sheet-kopf h2{font-size:var(--t-kopf);font-weight:600;text-align:center}
+.sheet-kopf .text-knopf{border:0;background:transparent;color:var(--primaer);font-size:var(--t-text);min-height:44px;padding:0 10px;cursor:pointer}
+.sheet-kopf .text-knopf:last-child{justify-self:end;font-weight:600}
+.sheet-kopf .text-knopf:disabled{color:var(--leise3)}
+.feld{display:flex;align-items:center;gap:12px;min-height:50px;padding:6px 16px;position:relative}
+.feld + .feld::before{content:"";position:absolute;left:16px;right:0;top:0;border-top:.5px solid var(--linie)}
+.feld > span{flex:none;min-width:84px}
+.feld input,.feld select,.feld textarea{flex:1;min-width:0;border:0;background:transparent;outline:0;text-align:right;font-size:var(--t-text);color:var(--text);padding:6px 0;-webkit-appearance:none;appearance:none}
+.feld select{direction:rtl;color:var(--primaer)}
+.feld textarea{text-align:left;resize:none;min-height:66px}
+.feld.block{align-items:flex-start}
+.feld input.betrag-feld{font:600 var(--t-titel2) var(--schrift-rund);font-variant-numeric:tabular-nums}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px;padding:2px;margin:6px 16px 18px;border-radius:999px;background:var(--fuell,var(--flaeche2))}
+.seg button{min-height:34px;border:0;border-radius:999px;background:transparent;font-size:var(--t-unter);font-weight:500;cursor:pointer;color:var(--text)}
+.seg button[aria-pressed=true]{background:var(--flaeche);box-shadow:0 2px 6px rgba(0,0,0,.12);font-weight:600}
+.loeschen{display:block;width:calc(100% - 32px);margin:0 16px 24px;min-height:50px;border:0;border-radius:var(--r-zelle);background:var(--flaeche);color:var(--txt-rot);font-size:var(--t-text);cursor:pointer}
+/* ===== Anmeldung ===== */
+.anmeldung{max-width:420px;margin:0 auto;padding:calc(48px + env(safe-area-inset-top)) 0 0}
+.anmeldung .logo{display:block;width:84px;height:84px;margin:0 auto 18px;border-radius:20px;box-shadow:var(--schatten)}
+.anmeldung h1{text-align:center;margin-bottom:6px}
+.anmeldung p{text-align:center;color:var(--leise);margin:0 32px 26px;font-size:var(--t-unter)}
+.anmeldung .knopf{width:calc(100% - 32px);margin:0 16px}
+.fehler{color:var(--txt-rot);font-size:var(--t-fuss);margin:-14px 32px 18px;text-align:center}
+#status{margin:-18px 20px 14px;font-size:var(--t-fuss);color:var(--leise)}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;pointer-events:none;z-index:30;
+  padding:12px 18px;border-radius:999px;background:var(--glas-dicht);box-shadow:var(--schatten);font-size:var(--t-unter);transition:opacity .25s,transform .3s var(--weich);max-width:calc(100vw - 32px);text-align:center}
+#toast.zeigen{opacity:1;transform:translate(-50%,0)}
+@media (min-width:700px){h1{margin-left:20px}}
+</style>
+</head>
+<body>
+<svg aria-hidden="true" style="position:absolute;width:0;height:0"><!-- Lucide, ISC-Lizenz -->
+  <symbol id="i-zurueck" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-suche" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
+  <symbol id="i-geld" viewBox="0 0 24 24"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></symbol>
+  <symbol id="i-zurueckzahlen" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></symbol>
+</svg>
+<header><button class="kopf-knopf" id="zurueck" hidden><svg class="ico"><use href="#i-zurueck"/></svg><span>Übersicht</span></button><span id="kopf-titel"></span><button class="kopf-knopf" id="plus" aria-label="Neuer Vorschuss" hidden><svg class="ico"><use href="#i-plus"/></svg></button></header>
+<main id="inhalt" class="wrap"></main>
+<dialog id="blatt"></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const SPEICHER = 'vorschuss-v1', MIN_API = 18;
+const ARTEN = { VORSCHUSS: 'Vorschuss', RUECKZAHLUNG: 'Rückzahlung' }, WEGE = { BAR: 'Bar', UEBERWEISUNG: 'Überweisung', LOHN: 'Mit Lohn verrechnet' };
+/** Zustand auf dem Gerät: Anmeldung, zuletzt geladener Stand und noch nicht hochgeladene Änderungen (offen). */
+let Z = laden();
+function laden() { try { return Object.assign(leer(), JSON.parse(localStorage.getItem(SPEICHER) || '{}')); } catch { return leer(); } }
+function leer() { return { url: '', token: '', name: '', mitarbeiter: [], eintraege: {}, offen: {}, zuletzt: 0 }; }
+function sichern() { try { localStorage.setItem(SPEICHER, JSON.stringify(Z)); } catch { toast('Speichern auf dem Gerät fehlgeschlagen'); } }
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16)));
+const heute = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+const euro = c => (c / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+const datumText = d => (d ? new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '');
+/** Euro-Eingabe („1.234,50“, „50“, „12.5“) → Cent; null bei Unlesbarem. */
+function centAus(text) {
+  let s = String(text || '').replace(/[€\s]/g, '');
+  if (/,\d{1,2}$/.test(s) || s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return null;
+  const c = Math.round(Number(s) * 100);
+  return c > 0 ? c : null;
+}
+const initialen = n => String(n || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('zeigen'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('zeigen'), 2600); }
+
+// ---------- Cloud ----------
+async function api(fn, ...args) {
+  const r = await fetch(Z.url || window.API_URL, { method: 'POST', body: JSON.stringify({ fn, args }) });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j.ok;
+}
+const abgelaufen = e => /Anmeldung abgelaufen|PIN falsch|PIN_AUS/.test(e.message);
+/** Offene Änderungen hochladen, dann den ganzen Stand holen (er ist klein). Ein veraltetes Cloud-Skript wird einmal selbst aktualisiert. */
+async function abgleichen(still) {
+  if (!Z.token || abgleichen.laeuft) return; abgleichen.laeuft = true; zeigeStatus('Wird abgeglichen …');
+  try {
+    let st;
+    try { st = await api('vorschussSpeichern', Z.token, Object.values(Z.offen)); }
+    catch (e) { if (!/Unbekannte Funktion/.test(e.message)) throw e; await api('cloudAktualisieren', Z.token); st = await api('vorschussSpeichern', Z.token, Object.values(Z.offen)); }
+    for (const id of Object.keys(Z.offen)) if (st.eintraege.some(x => x.id === id)) delete Z.offen[id];
+    Z.mitarbeiter = st.mitarbeiter; Z.eintraege = Object.fromEntries(st.eintraege.map(e => [e.id, e])); Z.zuletzt = Date.now(); sichern();
+    zeigeStatus('');
+  } catch (e) {
+    if (abgelaufen(e)) { Z.token = ''; sichern(); zeichne(); toast('Bitte neu anmelden'); return; }
+    if (/Nur der Hauptadmin/.test(e.message)) { Z.token = ''; sichern(); zeichne(); toast('Nur der Chef (Hauptadmin) hat Zugriff.'); return; }
+    zeigeStatus(Object.keys(Z.offen).length ? `Offline – ${Object.keys(Z.offen).length} Änderung(en) werden später übertragen` : 'Offline – zuletzt geladener Stand');
+    if (!still) toast('Cloud nicht erreichbar: ' + e.message);
+  } finally { abgleichen.laeuft = false; zeichne(); }
+}
+function zeigeStatus(t) { abgleichen.status = t; const el = $('#status'); if (el) el.textContent = t; }
+
+// ---------- Daten ----------
+/** Alle gültigen Einträge (Cloud-Stand, darüber noch nicht übertragene Änderungen). */
+function eintraege() { const a = { ...Z.eintraege, ...Z.offen }; return Object.values(a).filter(e => !e.geloescht); }
+const saldo = l => l.reduce((s, e) => s + (e.art === 'RUECKZAHLUNG' ? -e.betragCent : e.betragCent), 0);
+const vonMa = id => eintraege().filter(e => e.mitarbeiterId === id).sort((a, b) => b.datum.localeCompare(a.datum) || String(b.geaendertAm).localeCompare(String(a.geaendertAm)));
+const maName = id => (Z.mitarbeiter.find(m => m.id === id) || {}).name || 'Unbekannt';
+function speichereEintrag(e) { e.geaendertAm = new Date().toISOString(); Z.offen[e.id] = e; sichern(); zeichne(); abgleichen(true); }
+
+// ---------- Ansichten ----------
+const route = () => { const m = location.hash.match(/^#\/ma\/([\w-]+)/); return m ? { ma: m[1] } : {}; };
+addEventListener('hashchange', () => { zeichne(); scrollTo(0, 0); });
+function zeichne() {
+  const r = route(), el = $('#inhalt');
+  $('#zurueck').hidden = !Z.token || !r.ma; $('#plus').hidden = !Z.token;
+  if (!Z.token) { el.innerHTML = anmeldung(); $('#kopf-titel').textContent = ''; return; }
+  const titel = r.ma ? maName(r.ma) : 'Vorschüsse';
+  $('#kopf-titel').textContent = titel;
+  el.innerHTML = r.ma ? person(r.ma) : uebersicht();
+  const s = $('#suchfeld'); if (s) { s.value = zeichne.suche || ''; s.oninput = () => { zeichne.suche = s.value; const p = s.selectionStart; zeichne(); const n = $('#suchfeld'); n.focus(); n.setSelectionRange(p, p); }; }
+}
+function anmeldung() {
+  return `<div class="anmeldung"><img class="logo" src="../icon-192.png" alt="">
+    <h1>Vorschüsse</h1><p>Anmeldung als Chef (Hauptadmin) – mit Benutzername und Passwort aus Ayse CRM oder mit der Cloud-PIN.</p>
+    <form id="login" autocomplete="on"><div class="gruppe"><div class="liste">
+      <label class="feld"><span>Benutzer</span><input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="leer = Cloud-PIN"></label>
+      <label class="feld"><span>Passwort</span><input name="passwort" type="password" autocomplete="current-password" required placeholder="Passwort bzw. PIN"></label>
+    </div></div>
+    ${anmeldung.fehler ? `<div class="fehler" role="alert">${esc(anmeldung.fehler)}</div>` : ''}
+    <button class="knopf voll" type="submit">Anmelden</button></form></div>`;
+}
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'login') return; e.preventDefault();
+  const f = new FormData(e.target), login = String(f.get('login') || '').trim(), pw = String(f.get('passwort') || ''), knopf = e.target.querySelector('button');
+  knopf.disabled = true; anmeldung.fehler = '';
+  try {
+    let token = pw, name = 'Chef';
+    if (login) { const a = await api('einloggen', login, pw); if (!a.hauptadmin) throw new Error('Nur der Chef (Hauptadmin) hat Zugriff auf die Vorschüsse.'); token = a.token; name = a.name; }
+    else await api('anmelden', pw);
+    Object.assign(Z, { token, name }); sichern(); await abgleichen();
+  } catch (x) { anmeldung.fehler = /PIN falsch|Passwort falsch/.test(x.message) ? 'Benutzername, Passwort oder PIN falsch' : x.message; zeichne(); }
+  finally { knopf.disabled = false; }
+});
+function uebersicht() {
+  const such = (zeichne.suche || '').toLowerCase().trim(), alle = eintraege();
+  const zeilen = Z.mitarbeiter.map(m => { const l = alle.filter(e => e.mitarbeiterId === m.id); return { m, s: saldo(l), n: l.length }; })
+    .filter(z => (z.m.aktiv || z.s) && (!such || (z.m.name + ' ' + z.m.personalnummer).toLowerCase().includes(such)));
+  const offen = zeilen.filter(z => z.s > 0).sort((a, b) => b.s - a.s), rest = zeilen.filter(z => z.s <= 0).sort((a, b) => a.m.name.localeCompare(b.m.name, 'de'));
+  const gesamt = offen.reduce((s, z) => s + z.s, 0);
+  const zelle = z => `<a class="zelle pfeil" href="#/ma/${esc(z.m.id)}" style="text-decoration:none"><span class="avatar" aria-hidden="true">${esc(initialen(z.m.name))}</span>
+    <span class="mitte"><div class="name">${esc(z.m.name)}</div><div class="unter">${z.m.personalnummer ? 'Nr. ' + esc(z.m.personalnummer) + ' · ' : ''}${z.n === 1 ? '1 Buchung' : z.n ? z.n + ' Buchungen' : 'keine Buchungen'}${z.m.aktiv ? '' : ' · ausgeschieden'}</div></span>
+    <span class="betrag ${z.s < 0 ? 'minus' : ''}">${z.s ? euro(z.s) : '<span class="leise">–</span>'}</span></a>`;
+  return `<h1>Vorschüsse</h1><div id="status">${esc(abgleichen.status || '')}</div>
+    <div class="kennzahl"><div class="ueber">Offen insgesamt</div><div class="zahl">${euro(gesamt)}</div><div class="unter">${offen.length === 1 ? '1 Mitarbeiter' : offen.length + ' Mitarbeiter'} mit offenem Vorschuss</div></div>
+    <label class="suche"><svg class="ico"><use href="#i-suche"/></svg><input id="suchfeld" type="search" placeholder="Mitarbeiter suchen" aria-label="Mitarbeiter suchen"></label>
+    <section class="gruppe"><div class="gruppe-titel">Offen</div><div class="liste mit-bild">${offen.map(zelle).join('') || '<div class="leer">Keine offenen Vorschüsse</div>'}</div></section>
+    ${rest.length ? `<section class="gruppe"><div class="gruppe-titel">Ohne offenen Betrag</div><div class="liste mit-bild">${rest.map(zelle).join('')}</div></section>` : ''}
+    ${!Z.mitarbeiter.length ? '<div class="leer">Noch keine Mitarbeiter – sie kommen aus dem Personal in Ayse CRM.</div>' : ''}
+    <section class="gruppe"><div class="liste"><button class="zelle" data-abmelden style="color:var(--txt-rot);justify-content:center">Abmelden${Z.name ? ' (' + esc(Z.name) + ')' : ''}</button></div></section>`;
+}
+function person(id) {
+  const m = Z.mitarbeiter.find(x => x.id === id); if (!m) return '<h1>Nicht gefunden</h1><div class="leer">Diesen Mitarbeiter gibt es nicht mehr im Personal.</div>';
+  const l = vonMa(id), s = saldo(l), jahre = {};
+  for (const e of l) (jahre[e.datum.slice(0, 4)] = jahre[e.datum.slice(0, 4)] || []).push(e);
+  return `<h1>${esc(m.name)}</h1><div id="status">${esc(abgleichen.status || '')}</div>
+    <div class="kennzahl"><div class="ueber">${s < 0 ? 'Zu viel zurückgezahlt' : 'Offen'}</div><div class="zahl">${euro(Math.abs(s))}</div>
+      <div class="unter">${esc([m.personalnummer && 'Personalnummer ' + m.personalnummer, !m.aktiv && 'ausgeschieden'].filter(Boolean).join(' · ') || 'Vorschuss abzüglich Rückzahlungen')}</div></div>
+    <div class="knoepfe"><button class="knopf voll" data-neu="VORSCHUSS"><svg class="ico"><use href="#i-geld"/></svg>Vorschuss</button><button class="knopf" data-neu="RUECKZAHLUNG"><svg class="ico"><use href="#i-zurueckzahlen"/></svg>Rückzahlung</button></div>
+    ${Object.keys(jahre).sort().reverse().map(j => `<section class="gruppe"><div class="gruppe-titel"><span>${j}</span></div><div class="liste">${jahre[j].map(e => `<button class="zelle pfeil" data-eintrag="${esc(e.id)}">
+      <span class="mitte"><div class="name">${ARTEN[e.art]}${Z.offen[e.id] ? ' <span class="leise" title="Noch nicht übertragen">· wartet</span>' : ''}</div><div class="unter">${esc(datumText(e.datum))} · ${esc(WEGE[e.weg])}${e.notiz ? ' · ' + esc(e.notiz) : ''}</div></span>
+      <span class="betrag ${e.art === 'RUECKZAHLUNG' ? 'minus' : ''}">${e.art === 'RUECKZAHLUNG' ? '−' : ''}${euro(e.betragCent)}</span></button>`).join('')}</div></section>`).join('')
+      || '<section class="gruppe"><div class="liste"><div class="leer">Noch keine Buchungen</div></div></section>'}`;
+}
+// ---------- Sheet: Buchung anlegen/ändern ----------
+function blatt(e) {
+  const neu = !e.id, d = $('#blatt'), ma = Z.mitarbeiter.filter(m => m.aktiv || m.id === e.mitarbeiterId).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  e = { id: e.id || uuid(), art: 'VORSCHUSS', weg: 'BAR', datum: heute(), notiz: '', ...e };
+  d.innerHTML = `<form id="buchung" method="dialog"><div class="sheet-kopf"><button type="button" class="text-knopf" data-schliessen>Abbrechen</button><h2>${neu ? 'Neue Buchung' : 'Buchung'}</h2><button class="text-knopf" type="submit">Sichern</button></div>
+    <div class="seg" role="group" aria-label="Art">${Object.entries(ARTEN).map(([k, t]) => `<button type="button" data-art="${k}" aria-pressed="${e.art === k}">${t}</button>`).join('')}</div>
+    <div class="gruppe"><div class="liste">
+      <label class="feld"><span>Betrag</span><input class="betrag-feld" name="betrag" inputmode="decimal" placeholder="0,00 €" required value="${e.betragCent ? esc((e.betragCent / 100).toLocaleString('de-DE', { minimumFractionDigits: 2 })) : ''}" aria-label="Betrag in Euro"></label>
+      <label class="feld"><span>Mitarbeiter</span><select name="mitarbeiterId" required>${e.mitarbeiterId ? '' : '<option value="">Auswählen</option>'}${ma.map(m => `<option value="${esc(m.id)}" ${m.id === e.mitarbeiterId ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
+      <label class="feld"><span>Datum</span><input name="datum" type="date" required value="${esc(e.datum)}"></label>
+      <label class="feld"><span>Weg</span><select name="weg">${Object.entries(WEGE).map(([k, t]) => `<option value="${k}" ${e.weg === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+      <label class="feld block"><span>Notiz</span><textarea name="notiz" maxlength="1000" placeholder="z. B. Grund, Absprache zur Rückzahlung">${esc(e.notiz)}</textarea></label>
+    </div></div>
+    ${neu ? '' : '<button type="button" class="loeschen" data-loeschen>Buchung löschen</button>'}</form>`;
+  const f = d.querySelector('form');
+  d.querySelectorAll('[data-art]').forEach(b => b.onclick = () => { e.art = b.dataset.art; d.querySelectorAll('[data-art]').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+  d.querySelector('[data-schliessen]').onclick = () => d.close();
+  const weg = d.querySelector('[data-loeschen]'); if (weg) weg.onclick = () => { if (confirm('Diese Buchung löschen?')) { speichereEintrag({ ...e, geloescht: true }); d.close(); toast('Buchung gelöscht'); } };
+  f.onsubmit = ev => {
+    ev.preventDefault();
+    const w = Object.fromEntries(new FormData(f)), c = centAus(w.betrag);
+    if (!c) { toast('Bitte einen Betrag eingeben, z. B. 250,00'); f.betrag.focus(); return; }
+    if (!w.mitarbeiterId) { toast('Bitte den Mitarbeiter auswählen'); return; }
+    speichereEintrag({ id: e.id, art: e.art, weg: w.weg, datum: w.datum || heute(), betragCent: c, mitarbeiterId: w.mitarbeiterId, notiz: w.notiz.trim(), geloescht: false });
+    d.close(); toast(neu ? 'Gebucht' : 'Gesichert');
+  };
+  d.showModal(); if (neu) setTimeout(() => f.betrag.focus(), 50);
+}
+document.addEventListener('click', e => {
+  const n = e.target.closest('[data-neu]'); if (n) { blatt({ art: n.dataset.neu, mitarbeiterId: route().ma }); return; }
+  const b = e.target.closest('[data-eintrag]'); if (b) { const x = eintraege().find(y => y.id === b.dataset.eintrag); if (x) blatt({ ...x }); return; }
+  if (e.target.closest('[data-abmelden]')) { if (Object.keys(Z.offen).length && !confirm('Es gibt noch nicht übertragene Buchungen. Trotzdem abmelden? Sie gehen dann verloren.')) return;
+    if (Z.token.startsWith('T:')) api('abmelden', Z.token).catch(() => {}); Z = leer(); sichern(); location.hash = ''; zeichne(); }
+});
+$('#zurueck').onclick = () => { location.hash = '#/'; };
+$('#plus').onclick = () => blatt({ art: 'VORSCHUSS', mitarbeiterId: route().ma });
+addEventListener('scroll', () => { document.body.classList.toggle('gescrollt', scrollY > 2); document.body.classList.toggle('titel-klein', scrollY > 44); }, { passive: true });
+addEventListener('online', () => abgleichen(true));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - Z.zuletzt > 60000) abgleichen(true); });
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+zeichne(); abgleichen(true);
+window.__appBereit = true;
+</script>
+</body>
+</html>

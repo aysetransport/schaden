@@ -3,7 +3,7 @@ const SPEICHER = 'schadensfaelle-v39';
 const DATEIEN = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-rund.png'];
 self.addEventListener('install', e => e.waitUntil(caches.open(SPEICHER).then(c => c.addAll(DATEIEN)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(
-  caches.keys().then(namen => Promise.all(namen.filter(n => n !== SPEICHER).map(n => caches.delete(n)))).then(() => self.clients.claim())));
+  caches.keys().then(namen => Promise.all(namen.filter(n => n.startsWith('schadensfaelle-') && n !== SPEICHER).map(n => caches.delete(n)))) /* nur eigene: die Vorschuss-App (vorschuss/) hat ihren eigenen */.then(() => self.clients.claim())));
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return; // Cloud-Aufrufe nie zwischenspeichern
   e.respondWith(fetch(e.request)

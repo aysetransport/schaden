@@ -30,7 +30,7 @@ var SPERRE_MINUTEN = 60;
 
 var MAX_ANLAGE_BYTES = 25 * 1024 * 1024;
 var MAX_TEXT = 20000;
-var API_VERSION = 17; // 17: Firmen-Aliase (frühere Namen); 16: Eingangsrechnungen, Gutschriftverfahren; 15: Korrekturrechnungen (korrekturVon/ersetztDurch); 14: Selbst-Update, E-Rechnung (Leitweg-ID), externe Rechnungen/Leistungszeitraum; 13: Hauptadmin, Cloud-PIN abschaltbar; 12: Auftragsnummer, Betrag und Ankunftszeit an Stopps (Rollkarte); 11: Stopps (mehrere Kunden je Tour); 10: Statuslink, Lieferavis-Felder und Kundenbewertung an Touren; 9: Benutzer-Logins mit Rollen; 8: Zeiterfassung, Aufgaben, Tour-Status und Fahrtenbuch; 7: Tourenplanung und Personal; 6: Fuhrpark; 2: Kontaktdaten des Auftraggebers und Auftraggeber-Liste; 3: Zeichen des Auftraggebers; 4: CRM; 5: Verkaufschancen, Schlagworte
+var API_VERSION = 18; // 18: Vorschüsse (eigene Datei, nur Hauptadmin); 17: Firmen-Aliase (frühere Namen); 16: Eingangsrechnungen, Gutschriftverfahren; 15: Korrekturrechnungen (korrekturVon/ersetztDurch); 14: Selbst-Update, E-Rechnung (Leitweg-ID), externe Rechnungen/Leistungszeitraum; 13: Hauptadmin, Cloud-PIN abschaltbar; 12: Auftragsnummer, Betrag und Ankunftszeit an Stopps (Rollkarte); 11: Stopps (mehrere Kunden je Tour); 10: Statuslink, Lieferavis-Felder und Kundenbewertung an Touren; 9: Benutzer-Logins mit Rollen; 8: Zeiterfassung, Aufgaben, Tour-Status und Fahrtenbuch; 7: Tourenplanung und Personal; 6: Fuhrpark; 2: Kontaktdaten des Auftraggebers und Auftraggeber-Liste; 3: Zeichen des Auftraggebers; 4: CRM; 5: Verkaufschancen, Schlagworte
 
 /**
  * CRM-Tabellen: alle hängen über firmaId an einem Auftraggeber (Tabelle „auftraggeber“).
@@ -125,7 +125,9 @@ var GESCHUETZT = {
   anlageLaden: anlageLaden,
   cloudUpdateInfo: cloudUpdateInfo,
   cloudAktualisieren: cloudAktualisieren,
-  cloudAutoUpdate: cloudAutoUpdate
+  cloudAutoUpdate: cloudAutoUpdate,
+  vorschussLaden: vorschussLaden,
+  vorschussSpeichern: vorschussSpeichern
 };
 
 function aufruf_(fn, args) {
@@ -961,6 +963,58 @@ function auswahl_(tabelle, seit, zusaetzlich) {
     .map(function (k) { return tabelle[k]; });
 }
 
+// ============================== Vorschüsse (eigene App des Chefs) ==============================
+/**
+ * Vorschüsse an Mitarbeiter: eigene Datei vorschuesse.json, nie in daten.json und nie im Abgleich der CRM-Apps.
+ * Nur der Hauptadmin (bzw. die Cloud-PIN) sieht und ändert sie. Aus dem CRM kommt nur der Mitarbeiterstamm (Name,
+ * Personalnummer, aktiv), lesend. Einträge: art VORSCHUSS (ausgezahlt) oder RUECKZAHLUNG; weg BAR, UEBERWEISUNG, LOHN (verrechnet).
+ */
+var VORSCHUSS_DATEI = 'vorschuesse.json';
+var VORSCHUSS_ARTEN = { VORSCHUSS: 1, RUECKZAHLUNG: 1 };
+var VORSCHUSS_WEGE = { BAR: 1, UEBERWEISUNG: 1, LOHN: 1 };
+function vorschussDatei_() {
+  var props = PropertiesService.getScriptProperties(), ordner = ordner_(), gemerkt = String(props.getProperty('VORSCHUSS_ID') || '').split('|');
+  if (gemerkt[0] === ordner.getId() && gemerkt[1]) { try { var f = DriveApp.getFileById(gemerkt[1]); if (!f.isTrashed()) return f; } catch (e) { /* neu suchen */ } }
+  var treffer = ordner.getFilesByName(VORSCHUSS_DATEI);
+  var datei = treffer.hasNext() ? treffer.next() : ordner.createFile(VORSCHUSS_DATEI, JSON.stringify({ eintraege: {} }), 'application/json');
+  props.setProperty('VORSCHUSS_ID', ordner.getId() + '|' + datei.getId());
+  return datei;
+}
+function vorschussStand_() {
+  var v = JSON.parse(vorschussDatei_().getBlob().getDataAsString('UTF-8'));
+  v.eintraege = v.eintraege || {};
+  return v;
+}
+/** Mitarbeiterstamm aus dem CRM (nur lesen, nur was die Vorschuss-App braucht) und alle Vorschuss-Einträge. */
+function vorschussLaden() {
+  nurHauptadmin_();
+  var d = ladeDaten_(), v = vorschussStand_();
+  var mitarbeiter = Object.keys(d.mitarbeiter).map(function (k) { return d.mitarbeiter[k]; }).filter(function (m) { return !m.geloescht; })
+    .map(function (m) { return { id: m.id, name: m.name || '', personalnummer: m.personalnummer || '', aktiv: m.aktiv !== false && !(m.austritt && m.austritt < new Date().toISOString().slice(0, 10)), rolle: m.rolle || '' }; });
+  return { mitarbeiter: mitarbeiter, eintraege: Object.keys(v.eintraege).map(function (k) { return v.eintraege[k]; }) };
+}
+/** Einträge anlegen, ändern oder löschen (geloescht: true). Spätere Änderung gewinnt. Antwort wie vorschussLaden(). */
+function vorschussSpeichern(liste) {
+  nurHauptadmin_();
+  var sperre = LockService.getScriptLock(); sperre.waitLock(25000);
+  try {
+    var datei = vorschussDatei_(), v = vorschussStand_(), geaendert = false;
+    liste_(liste).slice(0, 500).forEach(function (roh) {
+      roh = roh || {};
+      var e = { id: kennung_(roh.id), mitarbeiterId: kennung_(roh.mitarbeiterId), art: VORSCHUSS_ARTEN[roh.art] ? roh.art : 'VORSCHUSS',
+        weg: VORSCHUSS_WEGE[roh.weg] ? roh.weg : 'BAR', datum: datum_(roh.datum), betragCent: cent_(roh.betragCent), notiz: text_(roh.notiz).slice(0, 1000),
+        geaendertAm: zeitpunkt_(roh.geaendertAm), geloescht: roh.geloescht === true };
+      if (!e.datum) throw new Error('Vorschuss: Datum fehlt');
+      if (!e.betragCent) throw new Error('Vorschuss: Betrag fehlt');
+      var alt = v.eintraege[e.id];
+      if (alt && zeit_(alt.geaendertAm) > zeit_(e.geaendertAm)) return; // dort schon neuer
+      v.eintraege[e.id] = e; geaendert = true;
+    });
+    if (geaendert) { sichereTaeglich_(datei, 'sicherungen-vorschuesse', 'vorschuesse-', 'LETZTE_SICHERUNG_VORSCHUSS'); datei.setContent(JSON.stringify(v)); }
+  } finally { sperre.releaseLock(); }
+  return vorschussLaden();
+}
+
 // ============================== Ablage in Google Drive ==============================
 
 function ordner_() {
@@ -1054,15 +1108,16 @@ function speichereDaten_(d) {
 }
 
 /** Hebt vor der ersten Änderung des Tages den bisherigen Stand auf. */
-function sichereTaeglich_(datei) {
+function sichereTaeglich_(datei, ordnerName, praefix, merker) {
   var props = PropertiesService.getScriptProperties();
   var heute = new Date().toISOString().slice(0, 10);
-  if (props.getProperty('LETZTE_SICHERUNG') === heute) return;
+  merker = merker || 'LETZTE_SICHERUNG';
+  if (props.getProperty(merker) === heute) return;
   var bisher = datei.getBlob().getDataAsString('UTF-8');
   if (JSON.parse(bisher).rev === 0) return; // ein leerer Bestand braucht keine Sicherung
-  var ziel = unterordner_(SICHERUNG_ORDNER);
-  ziel.createFile('daten-' + heute + '.json', bisher, 'application/json');
-  props.setProperty('LETZTE_SICHERUNG', heute);
+  var ziel = unterordner_(ordnerName || SICHERUNG_ORDNER); // je Datei ein eigener Ordner – das Aufräumen unten zählt alle Dateien darin
+  ziel.createFile((praefix || 'daten-') + heute + '.json', bisher, 'application/json');
+  props.setProperty(merker, heute);
 
   var namen = [];
   var dateien = ziel.getFiles();
