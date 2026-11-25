@@ -18,7 +18,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795643078; window.WEB_VERSION = '4.22.0';
+window.WEB_STAND = 1795643738; window.WEB_VERSION = '4.22.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -48,7 +48,7 @@ window.WEB_STAND = 1795643078; window.WEB_VERSION = '4.22.0';
   --marke:#D7192E;--primaer:var(--marke);--auf-primaer:#FFFFFF;
   --primaer-hell:color-mix(in srgb,var(--primaer) 14%,transparent);--auf-primaer-hell:var(--primaer);
   --fehler:var(--sys-rot);
-  --glas:rgba(250,250,252,.72);--glas-dicht:rgba(250,250,252,.92);--glas-rand:rgba(0,0,0,.06);--glas-licht:rgba(255,255,255,.9);
+  --glas:rgba(250,250,252,.72);--glas-dicht:rgba(250,250,252,.92);--glas-rand:rgba(0,0,0,.06);--glas-licht:rgba(255,255,255,.9);--maus-licht:rgba(255,255,255,.55);
   --schatten:0 8px 28px rgba(0,0,0,.12),0 1px 3px rgba(0,0,0,.06);--schatten-gross:0 24px 64px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.08);
   --unschaerfe:blur(24px) saturate(190%);
   color-scheme:light;
@@ -59,7 +59,7 @@ window.WEB_STAND = 1795643078; window.WEB_VERSION = '4.22.0';
   --bg:#000000;--flaeche:#1C1C1E;--flaeche2:rgba(118,118,128,.24);--fuell:rgba(120,120,128,.36);--hoch:#2C2C2E;
   --text:#FFFFFF;--leise:rgba(235,235,245,.60);--leise3:rgba(235,235,245,.30);--linie:rgba(84,84,88,.65);--rand:#38383A;
   --marke:#FF4F61;
-  --glas:rgba(30,30,32,.62);--glas-dicht:rgba(36,36,38,.92);--glas-rand:rgba(255,255,255,.10);--glas-licht:rgba(255,255,255,.16);
+  --glas:rgba(30,30,32,.62);--glas-dicht:rgba(36,36,38,.92);--glas-rand:rgba(255,255,255,.10);--glas-licht:rgba(255,255,255,.16);--maus-licht:rgba(255,255,255,.16);
   --schatten:0 8px 28px rgba(0,0,0,.45);--schatten-gross:0 24px 64px rgba(0,0,0,.6);
   color-scheme:dark;
 }}
@@ -69,7 +69,7 @@ window.WEB_STAND = 1795643078; window.WEB_VERSION = '4.22.0';
   --bg:#000000;--flaeche:#1C1C1E;--flaeche2:rgba(118,118,128,.24);--fuell:rgba(120,120,128,.36);--hoch:#2C2C2E;
   --text:#FFFFFF;--leise:rgba(235,235,245,.60);--leise3:rgba(235,235,245,.30);--linie:rgba(84,84,88,.65);--rand:#38383A;
   --marke:#FF4F61;
-  --glas:rgba(30,30,32,.62);--glas-dicht:rgba(36,36,38,.92);--glas-rand:rgba(255,255,255,.10);--glas-licht:rgba(255,255,255,.16);
+  --glas:rgba(30,30,32,.62);--glas-dicht:rgba(36,36,38,.92);--glas-rand:rgba(255,255,255,.10);--glas-licht:rgba(255,255,255,.16);--maus-licht:rgba(255,255,255,.16);
   --schatten:0 8px 28px rgba(0,0,0,.45);--schatten-gross:0 24px 64px rgba(0,0,0,.6);
   color-scheme:dark;
 }
@@ -854,13 +854,29 @@ tr.im-bild td{background:color-mix(in srgb,var(--primaer) 12%,transparent)}
 /* Echtes Liquid Glass (Chromium: Android, Windows, Chrome – html.lichtbrechung): der Rand bricht den Hintergrund wie eine Linse
    (SVG-Verschiebungskarte je Element, --linse), dafür weniger Milchglas; ein Glanzlicht wandert mit der Neigung bzw. der Maus. */
 /* klares Glas (keine Milchglas-Unschärfe): Linse am Rand + Glanzlicht machen das Material */
-:is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue){--unschaerfe:blur(2px) saturate(170%) brightness(1.06);--glas:rgba(255,255,255,.16)} /* ohne Linse (iPhone/Safari): klar mit Hauch Unschärfe */
-.lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue){--unschaerfe:blur(.6px) saturate(175%) brightness(1.07);--glas:rgba(255,255,255,.08)}
-@media (prefers-color-scheme:dark){:root:not([data-thema=hell]) :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue){--glas:rgba(40,40,44,.2)}:root:not([data-thema=hell]).lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue){--glas:rgba(40,40,44,.12)}}
-:root[data-thema=dunkel] :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue){--glas:rgba(40,40,44,.2)}:root[data-thema=dunkel].lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue){--glas:rgba(40,40,44,.12)}
-:is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue) *{--linse:initial} /* Linse gilt nur für das Element selbst (und sein Glas-::before) */
+:is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)){--unschaerfe:blur(2px) saturate(170%) brightness(1.06);--glas:rgba(255,255,255,.16)} /* ohne Linse (iPhone/Safari): klar mit Hauch Unschärfe */
+.lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)){--unschaerfe:blur(.6px) saturate(175%) brightness(1.07);--glas:rgba(255,255,255,.08)}
+@media (prefers-color-scheme:dark){:root:not([data-thema=hell]) :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)){--glas:rgba(40,40,44,.2)}:root:not([data-thema=hell]).lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)){--glas:rgba(40,40,44,.12)}}
+:root[data-thema=dunkel] :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)){--glas:rgba(40,40,44,.2)}:root[data-thema=dunkel].lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)){--glas:rgba(40,40,44,.12)}
+:is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)) *{--linse:initial} /* Linse gilt nur für das Element selbst (und sein Glas-::before) */
 .lichtbrechung :is(header .symbol,#sync,#suche-knopf,#toast,dialog.menue),.lichtbrechung #navi::before{
   background-image:radial-gradient(140% 120% at var(--glanz-x,30%) var(--glanz-y,0%),rgba(255,255,255,.24),rgba(255,255,255,.05) 45%,transparent 70%)}
+/* Weitere Bedienelemente aus Glas: Suchfeld, Werkzeugknöpfe, Segmente, Mail-Werkzeugleiste, Aktionsblätter, Sheets */
+:is(#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4)))){position:relative;background-color:var(--glas);border:1px solid var(--glas-rand);
+  -webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten)}
+:is(.werkzeuge .knopf:not(.voll),.pf-tabs,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.pf-leiste,.ab-gruppe,.ab-abbrechen)::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(var(--licht-winkel,140deg),rgba(255,255,255,.6),rgba(255,255,255,.06) 30%,rgba(255,255,255,0) 55%,rgba(255,255,255,.2));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+:is(.ab-gruppe,.ab-abbrechen){position:relative}
+dialog.ruhig:not(.menue):not(.aktionsblatt){--glas-dicht:color-mix(in srgb,var(--hoch) 80%,transparent)} /* Sheets: dichtes Glas (Formulare bleiben lesbar), Rand bricht */
+/* Maus (PC, Windows): Licht unter dem Zeiger – ein weicher Lichtfleck folgt der Maus über das Glas (--mx/--my, JS), Knöpfe heben sich leicht */
+@media (hover:hover) and (pointer:fine){
+  :is(header .symbol,#sync,#neu-knopf,.werkzeuge .knopf,.pf-leiste .knopf,.pf-tabs > *,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))) > .chip,#navi .nav-gross .nav-knopf,.ab-knopf,.kachel.klickbar,.karte.klickbar):hover{background-image:radial-gradient(circle at var(--mx,50%) var(--my,50%),var(--maus-licht),color-mix(in srgb,var(--maus-licht) 25%,transparent) 35%,transparent 70%)}
+  @media (prefers-reduced-motion:no-preference){
+    :is(header .symbol,#sync,.werkzeuge .knopf,.pf-leiste .knopf):hover{transform:translateY(-1px) scale(1.04)}
+    :is(header .symbol,#sync,.werkzeuge .knopf,.pf-leiste .knopf):hover:active{transform:scale(.97)}
+  }
+}
 /* Sheets, Menüs, Suche, Meldungen: beim Hereinfedern dichtes Material (flüssig), stehend echtes Glas (JS: .ruhig) */
 :is(dialog.menue,#toast,#suchtreffer).ruhig{background:var(--glas);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
 dialog.ruhig:not(.menue):not(.aktionsblatt){background:var(--glas-dicht);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
@@ -2323,20 +2339,29 @@ document.addEventListener('close', e => e.target.classList && e.target.classList
  * weiter Milchglas). (2) Licht – Glanzkante und Glanzlicht folgen der Neigung des Geräts (iPhone fragt beim ersten Tippen
  * nach der Erlaubnis), am PC der Maus. Aus bei „Bewegung reduzieren“ bzw. „Transparenz reduzieren“.
  */
-const GLAS_ELEMENTE = 'header .symbol, #sync, #suche-knopf, #neu-knopf, #navi, #toast, dialog.menue';
+const GLAS_ELEMENTE = 'header .symbol, #sync, #suche-knopf, #neu-knopf, #navi, #toast, dialog.menue, .werkzeuge .knopf:not(.voll), .pf-tabs, .pf-leiste, .chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))), .ab-gruppe, .ab-abbrechen, dialog.ruhig:not(.menue):not(.aktionsblatt)';
 function glasLicht(wurzel = document.documentElement) {
-  let lx = -0.35, ly = -0.8, warte = 0;
-  const setzen = () => { warte = 0;
-    wurzel.style.setProperty('--licht-winkel', `${(Math.atan2(-lx, ly) * 180 / Math.PI).toFixed(1)}deg`); // Verlauf beginnt auf der Lichtseite
-    wurzel.style.setProperty('--glanz-x', `${(50 + lx * 45).toFixed(1)}%`); wurzel.style.setProperty('--glanz-y', `${(50 + ly * 50).toFixed(1)}%`); };
-  const licht = (x, y) => { lx = Math.max(-1, Math.min(1, x)); ly = Math.max(-1, Math.min(1, y)); if (!warte) warte = requestAnimationFrame(setzen); };
+  // Ziel (aus Sensor bzw. Maus) und angezeigter Wert getrennt: das Licht gleitet weich hinterher, statt jedem Zittern zu folgen
+  let zx = -0.35, zy = -0.8, x = zx, y = zy, laeuft = 0;
+  const setzen = () => {
+    wurzel.style.setProperty('--licht-winkel', `${(Math.atan2(-x, y) * 180 / Math.PI).toFixed(1)}deg`); // Verlauf beginnt auf der Lichtseite
+    wurzel.style.setProperty('--glanz-x', `${(50 + x * 45).toFixed(1)}%`); wurzel.style.setProperty('--glanz-y', `${(50 + y * 50).toFixed(1)}%`); };
+  const schritt = () => {
+    x += (zx - x) * 0.06; y += (zy - y) * 0.06; setzen(); // ~0,8 s bis zur neuen Lage
+    laeuft = Math.abs(zx - x) + Math.abs(zy - y) > 0.003 ? requestAnimationFrame(schritt) : 0;
+  };
+  const licht = (nx, ny) => {
+    nx = Math.max(-1, Math.min(1, nx)); ny = Math.max(-1, Math.min(1, ny));
+    if (Math.abs(nx - zx) + Math.abs(ny - zy) < 0.02) return; // kleines Zittern der Hand ignorieren
+    zx = nx; zy = ny; if (!laeuft) laeuft = requestAnimationFrame(schritt);
+  };
   setzen();
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  // Neigung: gamma = links/rechts, beta = vor/zurück (normal gehalten ~45°) – das Licht kommt scheinbar von oben aus dem Raum
-  addEventListener('deviceorientation', e => { if (e.gamma != null) licht(-e.gamma / 40, -1 + (e.beta - 45) / 60); }, { passive: true });
+  // Neigung: gamma = links/rechts, beta = vor/zurück (normal gehalten ~45°); bewusst schwach – erst deutliches Kippen bewegt das Licht spürbar
+  addEventListener('deviceorientation', e => { if (e.gamma != null) licht(-0.35 - e.gamma / 90, -0.8 + (e.beta - 45) / 150); }, { passive: true });
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')
     addEventListener('touchend', () => DeviceOrientationEvent.requestPermission().catch(() => {}), { once: true }); // iPhone: nur nach einer Berührung erlaubt
-  if (matchMedia('(pointer:fine)').matches) addEventListener('pointermove', e => licht(e.clientX / innerWidth * 2 - 1, e.clientY / innerHeight * 2 - 1), { passive: true });
+  if (matchMedia('(pointer:fine)').matches) addEventListener('pointermove', e => licht(-0.35 + (e.clientX / innerWidth - 0.5) * 0.9, -0.8 + (e.clientY / innerHeight - 0.5) * 0.6), { passive: true });
 }
 /** Verschiebungskarte einer abgerundeten Fläche (w × h, Radius r): Rot/Grün = Verschiebung nach innen, stark am Rand, innen keine. */
 function linsenKarte(w, h, r, rand) {
@@ -2358,6 +2383,7 @@ function glasLinsen(auswahl) {
   if (!/Chrome\/\d/.test(ua) || /CriOS|EdgiOS/.test(ua) || matchMedia('(prefers-reduced-transparency: reduce)').matches) return; // Safari kann url() im backdrop-filter nicht
   document.documentElement.classList.add('lichtbrechung');
   const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), linsen = new WeakMap(); let nr = 0;
+  const aktiv = new Set(); // Elemente mit Linse – neu gezeichnete (entfernte) geben ihren Filter wieder frei
   svg.setAttribute('aria-hidden', 'true'); svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden'; document.body.append(svg);
   const linse = el => {
     const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight); if (!w || !h) return;
@@ -2367,7 +2393,7 @@ function glasLinsen(auswahl) {
       const id = `glas-linse-${++nr}`, filter = document.createElementNS(NS, 'filter');
       filter.id = id; filter.setAttribute('color-interpolation-filters', 'sRGB');
       filter.innerHTML = '<feImage x="0" y="0" preserveAspectRatio="none" result="karte"/><feDisplacementMap in="SourceGraphic" in2="karte" xChannelSelector="R" yChannelSelector="G"/>';
-      svg.append(filter); f = { filter }; linsen.set(el, f); el.style.setProperty('--linse', `url(#${id})`);
+      svg.append(filter); f = { filter }; linsen.set(el, f); aktiv.add(el); el.style.setProperty('--linse', `url(#${id})`);
     }
     if (f.w === w && f.h === h && f.r === r) return;
     Object.assign(f, { w, h, r });
@@ -2376,11 +2402,20 @@ function glasLinsen(auswahl) {
   };
   const beob = new ResizeObserver(l => { for (const e of l) linse(e.target); });
   let geplant = 0;
-  const suchen = () => { geplant = 0; for (const el of document.querySelectorAll(auswahl)) if (!linsen.has(el)) { beob.observe(el); linse(el); } };
+  const suchen = () => { geplant = 0;
+    for (const el of aktiv) if (!el.isConnected) { linsen.get(el).filter.remove(); beob.unobserve(el); aktiv.delete(el); }
+    for (const el of document.querySelectorAll(auswahl)) if (!linsen.has(el)) { beob.observe(el); linse(el); } };
   new MutationObserver(() => { if (!geplant) geplant = requestAnimationFrame(suchen); }).observe(document.body, { childList: true, subtree: true });
   suchen();
 }
 glasLicht(); glasLinsen(GLAS_ELEMENTE);
+/** Maus über Glas: Lichtfleck folgt dem Zeiger (CSS --mx/--my am überfahrenen Element). */
+if (matchMedia('(hover:hover) and (pointer:fine)').matches) {
+  let warte = 0, letzt = null;
+  addEventListener('pointermove', e => { letzt = e; if (!warte) warte = requestAnimationFrame(() => { warte = 0;
+    const g = letzt.target.closest && letzt.target.closest('header .symbol, #sync, #neu-knopf, .werkzeuge .knopf, .pf-leiste .knopf, .pf-tabs > *, .chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))) > .chip, #navi .nav-gross .nav-knopf, .ab-knopf, .kachel.klickbar, .karte.klickbar'); if (!g) return;
+    const r = g.getBoundingClientRect(); g.style.setProperty('--mx', `${letzt.clientX - r.left}px`); g.style.setProperty('--my', `${letzt.clientY - r.top}px`); }); }, { passive: true });
+}
 /** Licht folgt dem Finger: Berührungspunkt für den Lichtfleck auf Glas-Bedienelementen (CSS --lx/--ly). */
 document.addEventListener('pointerdown', e => {
   const g = e.target.closest && e.target.closest('header .symbol, #suche-knopf, #neu-knopf, .nav-klein .nav-knopf, .am-kachel, .am-gruppe > *, .ab-knopf'); if (!g) return;

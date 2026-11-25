@@ -98,10 +98,15 @@ body.titel-klein #kopf-titel{opacity:1}
 /* Liquid Glass: Linse (--linse, nur Chromium), Lichtkante und Glanzlicht folgen Neigung bzw. Maus (glasLicht) */
 .kopf-knopf{position:relative;justify-self:start;display:inline-flex;align-items:center;gap:2px;min-height:44px;min-width:44px;padding:0 10px 0 6px;border:0;border-radius:999px;
   background:var(--glas);box-shadow:inset 0 0 0 1px var(--glas-rand),var(--schatten);color:var(--primaer);font-weight:500;cursor:pointer;-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
-.kopf-knopf::after,#toast::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+.kopf-knopf::after,#toast::after,:is(.seg,.suche,.knoepfe .knopf:not(.voll),.kennzahl)::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
   background:linear-gradient(var(--licht-winkel,140deg),rgba(255,255,255,.6),rgba(255,255,255,.06) 30%,rgba(255,255,255,0) 55%,rgba(255,255,255,.2));
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
-.kopf-knopf *,#toast *{--linse:initial}
+.kopf-knopf *,#toast *,:is(.seg,.suche,.knoepfe .knopf:not(.voll),.kennzahl) *{--linse:initial}
+/* weitere Glasflächen (Segmente, Suche, Aktionsknöpfe, Kennzahl): getönt, damit sie auf dem ruhigen Grund sichtbar bleiben; Rand bricht, Glanz wandert */
+:is(.seg,.suche,.knoepfe .knopf:not(.voll),.kennzahl){position:relative;--unschaerfe:blur(2px) saturate(170%) brightness(1.06);--glas:rgba(255,255,255,.62);background:var(--glas);
+  -webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten)}
+.lichtbrechung :is(.seg,.suche,.knoepfe .knopf:not(.voll),.kennzahl){background-image:radial-gradient(140% 120% at var(--glanz-x,30%) var(--glanz-y,0%),rgba(255,255,255,.24),rgba(255,255,255,.05) 45%,transparent 70%)}
+@media (prefers-color-scheme:dark){:is(.seg,.suche,.knoepfe .knopf:not(.voll),.kennzahl){--glas:rgba(44,44,48,.6)}}
 /* klares Glas (keine Milchglas-Unschärfe): Linse am Rand + Glanzlicht machen das Material */
 :is(.kopf-knopf,#toast){--unschaerfe:blur(2px) saturate(170%) brightness(1.06);--glas:rgba(255,255,255,.16)} /* ohne Linse (iPhone/Safari): klar mit Hauch Unschärfe */
 .lichtbrechung :is(.kopf-knopf,#toast){--unschaerfe:blur(.6px) saturate(175%) brightness(1.07);--glas:rgba(255,255,255,.08);
@@ -163,6 +168,13 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 .seg button{min-height:34px;border:0;border-radius:999px;background:transparent;font-size:var(--t-unter);font-weight:500;cursor:pointer;color:var(--text)}
 .seg button[aria-pressed=true]{background:var(--flaeche);box-shadow:0 2px 6px rgba(0,0,0,.12);font-weight:600}
 .loeschen{display:block;width:calc(100% - 32px);margin:0 16px 24px;min-height:50px;border:0;border-radius:var(--r-zelle);background:var(--flaeche);color:var(--txt-rot);font-size:var(--t-text);cursor:pointer}
+/* Maus (PC): Lichtfleck folgt dem Zeiger, Knöpfe heben sich leicht */
+@media (hover:hover) and (pointer:fine){
+  :is(.kopf-knopf,.knopf,.seg button,a.zelle,button.zelle,.sheet-kopf .text-knopf):hover{background-image:radial-gradient(circle at var(--mx,50%) var(--my,50%),var(--maus-licht),color-mix(in srgb,var(--maus-licht) 25%,transparent) 35%,transparent 70%)}
+  :is(a.zelle,button.zelle):hover{background-color:var(--flaeche2)}
+  @media (prefers-reduced-motion:no-preference){:is(.kopf-knopf,.knopf){transition:transform .25s var(--feder)}:is(.kopf-knopf,.knopf):hover{transform:translateY(-1px) scale(1.03)}:is(.kopf-knopf,.knopf):hover:active{transform:scale(.97)}}
+}
+:root{--maus-licht:rgba(255,255,255,.55)}@media (prefers-color-scheme:dark){:root{--maus-licht:rgba(255,255,255,.14)}}
 /* ===== Anmeldung ===== */
 .anmeldung{max-width:420px;margin:0 auto;padding:calc(48px + env(safe-area-inset-top)) 0 0}
 .anmeldung .logo{display:block;width:84px;height:84px;margin:0 auto 18px;border-radius:20px;box-shadow:var(--schatten)}
@@ -380,18 +392,27 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.se
  * nach der Erlaubnis), am PC der Maus. Aus bei „Bewegung reduzieren“ bzw. „Transparenz reduzieren“.
  */
 function glasLicht(wurzel = document.documentElement) {
-  let lx = -0.35, ly = -0.8, warte = 0;
-  const setzen = () => { warte = 0;
-    wurzel.style.setProperty('--licht-winkel', `${(Math.atan2(-lx, ly) * 180 / Math.PI).toFixed(1)}deg`); // Verlauf beginnt auf der Lichtseite
-    wurzel.style.setProperty('--glanz-x', `${(50 + lx * 45).toFixed(1)}%`); wurzel.style.setProperty('--glanz-y', `${(50 + ly * 50).toFixed(1)}%`); };
-  const licht = (x, y) => { lx = Math.max(-1, Math.min(1, x)); ly = Math.max(-1, Math.min(1, y)); if (!warte) warte = requestAnimationFrame(setzen); };
+  // Ziel (aus Sensor bzw. Maus) und angezeigter Wert getrennt: das Licht gleitet weich hinterher, statt jedem Zittern zu folgen
+  let zx = -0.35, zy = -0.8, x = zx, y = zy, laeuft = 0;
+  const setzen = () => {
+    wurzel.style.setProperty('--licht-winkel', `${(Math.atan2(-x, y) * 180 / Math.PI).toFixed(1)}deg`); // Verlauf beginnt auf der Lichtseite
+    wurzel.style.setProperty('--glanz-x', `${(50 + x * 45).toFixed(1)}%`); wurzel.style.setProperty('--glanz-y', `${(50 + y * 50).toFixed(1)}%`); };
+  const schritt = () => {
+    x += (zx - x) * 0.06; y += (zy - y) * 0.06; setzen(); // ~0,8 s bis zur neuen Lage
+    laeuft = Math.abs(zx - x) + Math.abs(zy - y) > 0.003 ? requestAnimationFrame(schritt) : 0;
+  };
+  const licht = (nx, ny) => {
+    nx = Math.max(-1, Math.min(1, nx)); ny = Math.max(-1, Math.min(1, ny));
+    if (Math.abs(nx - zx) + Math.abs(ny - zy) < 0.02) return; // kleines Zittern der Hand ignorieren
+    zx = nx; zy = ny; if (!laeuft) laeuft = requestAnimationFrame(schritt);
+  };
   setzen();
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  // Neigung: gamma = links/rechts, beta = vor/zurück (normal gehalten ~45°) – das Licht kommt scheinbar von oben aus dem Raum
-  addEventListener('deviceorientation', e => { if (e.gamma != null) licht(-e.gamma / 40, -1 + (e.beta - 45) / 60); }, { passive: true });
+  // Neigung: gamma = links/rechts, beta = vor/zurück (normal gehalten ~45°); bewusst schwach – erst deutliches Kippen bewegt das Licht spürbar
+  addEventListener('deviceorientation', e => { if (e.gamma != null) licht(-0.35 - e.gamma / 90, -0.8 + (e.beta - 45) / 150); }, { passive: true });
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')
     addEventListener('touchend', () => DeviceOrientationEvent.requestPermission().catch(() => {}), { once: true }); // iPhone: nur nach einer Berührung erlaubt
-  if (matchMedia('(pointer:fine)').matches) addEventListener('pointermove', e => licht(e.clientX / innerWidth * 2 - 1, e.clientY / innerHeight * 2 - 1), { passive: true });
+  if (matchMedia('(pointer:fine)').matches) addEventListener('pointermove', e => licht(-0.35 + (e.clientX / innerWidth - 0.5) * 0.9, -0.8 + (e.clientY / innerHeight - 0.5) * 0.6), { passive: true });
 }
 /** Verschiebungskarte einer abgerundeten Fläche (w × h, Radius r): Rot/Grün = Verschiebung nach innen, stark am Rand, innen keine. */
 function linsenKarte(w, h, r, rand) {
@@ -413,6 +434,7 @@ function glasLinsen(auswahl) {
   if (!/Chrome\/\d/.test(ua) || /CriOS|EdgiOS/.test(ua) || matchMedia('(prefers-reduced-transparency: reduce)').matches) return; // Safari kann url() im backdrop-filter nicht
   document.documentElement.classList.add('lichtbrechung');
   const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), linsen = new WeakMap(); let nr = 0;
+  const aktiv = new Set(); // Elemente mit Linse – neu gezeichnete (entfernte) geben ihren Filter wieder frei
   svg.setAttribute('aria-hidden', 'true'); svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden'; document.body.append(svg);
   const linse = el => {
     const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight); if (!w || !h) return;
@@ -422,7 +444,7 @@ function glasLinsen(auswahl) {
       const id = `glas-linse-${++nr}`, filter = document.createElementNS(NS, 'filter');
       filter.id = id; filter.setAttribute('color-interpolation-filters', 'sRGB');
       filter.innerHTML = '<feImage x="0" y="0" preserveAspectRatio="none" result="karte"/><feDisplacementMap in="SourceGraphic" in2="karte" xChannelSelector="R" yChannelSelector="G"/>';
-      svg.append(filter); f = { filter }; linsen.set(el, f); el.style.setProperty('--linse', `url(#${id})`);
+      svg.append(filter); f = { filter }; linsen.set(el, f); aktiv.add(el); el.style.setProperty('--linse', `url(#${id})`);
     }
     if (f.w === w && f.h === h && f.r === r) return;
     Object.assign(f, { w, h, r });
@@ -431,11 +453,19 @@ function glasLinsen(auswahl) {
   };
   const beob = new ResizeObserver(l => { for (const e of l) linse(e.target); });
   let geplant = 0;
-  const suchen = () => { geplant = 0; for (const el of document.querySelectorAll(auswahl)) if (!linsen.has(el)) { beob.observe(el); linse(el); } };
+  const suchen = () => { geplant = 0;
+    for (const el of aktiv) if (!el.isConnected) { linsen.get(el).filter.remove(); beob.unobserve(el); aktiv.delete(el); }
+    for (const el of document.querySelectorAll(auswahl)) if (!linsen.has(el)) { beob.observe(el); linse(el); } };
   new MutationObserver(() => { if (!geplant) geplant = requestAnimationFrame(suchen); }).observe(document.body, { childList: true, subtree: true });
   suchen();
 }
-glasLicht(); glasLinsen('.kopf-knopf, #toast');
+glasLicht(); glasLinsen('.kopf-knopf, #toast, .seg, .suche, .knoepfe .knopf:not(.voll), .kennzahl');
+if (matchMedia('(hover:hover) and (pointer:fine)').matches) { // Maus über Glas: Lichtfleck folgt dem Zeiger
+  let warte = 0, letzt = null;
+  addEventListener('pointermove', e => { letzt = e; if (!warte) warte = requestAnimationFrame(() => { warte = 0;
+    const g = letzt.target.closest && letzt.target.closest('.kopf-knopf, .knopf, .seg button, a.zelle, button.zelle, .sheet-kopf .text-knopf'); if (!g) return;
+    const r = g.getBoundingClientRect(); g.style.setProperty('--mx', `${letzt.clientX - r.left}px`); g.style.setProperty('--my', `${letzt.clientY - r.top}px`); }); }, { passive: true });
+}
 zeichne(); abgleichen(true);
 window.__appBereit = true;
 </script>
