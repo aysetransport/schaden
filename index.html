@@ -18,7 +18,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795643738; window.WEB_VERSION = '4.22.0';
+window.WEB_STAND = 1795646314; window.WEB_VERSION = '4.22.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -640,7 +640,7 @@ dialog.aktionsblatt{width:min(420px,calc(100vw - 16px));height:fit-content;max-h
 dialog.aktionsblatt::before{display:none}
 dialog.aktionsblatt::backdrop{background:rgba(0,0,0,.28)}
 dialog.aktionsblatt :is(.ab-gruppe,.ab-abbrechen){border-radius:26px;background:var(--glas-dicht);border:1px solid var(--glas-rand);box-shadow:var(--schatten-gross)}
-dialog.aktionsblatt.ruhig :is(.ab-gruppe,.ab-abbrechen){-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
+dialog.aktionsblatt :is(.ab-gruppe,.ab-abbrechen){-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
 .ab-gruppe{display:flex;flex-direction:column;overflow:hidden}
 .ab-kopf{display:grid;gap:4px;padding:16px 20px 14px;text-align:center;font-size:var(--t-fuss);line-height:1.35;color:var(--leise);overflow-wrap:anywhere}
 .ab-kopf b{font-size:var(--t-fuss);font-weight:600}
@@ -854,13 +854,19 @@ tr.im-bild td{background:color-mix(in srgb,var(--primaer) 12%,transparent)}
 /* Echtes Liquid Glass (Chromium: Android, Windows, Chrome – html.lichtbrechung): der Rand bricht den Hintergrund wie eine Linse
    (SVG-Verschiebungskarte je Element, --linse), dafür weniger Milchglas; ein Glanzlicht wandert mit der Neigung bzw. der Maus. */
 /* klares Glas (keine Milchglas-Unschärfe): Linse am Rand + Glanzlicht machen das Material */
-:is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)){--unschaerfe:blur(2px) saturate(170%) brightness(1.06);--glas:rgba(255,255,255,.16)} /* ohne Linse (iPhone/Safari): klar mit Hauch Unschärfe */
-.lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)){--unschaerfe:blur(.6px) saturate(175%) brightness(1.07);--glas:rgba(255,255,255,.08)}
-@media (prefers-color-scheme:dark){:root:not([data-thema=hell]) :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)){--glas:rgba(40,40,44,.2)}:root:not([data-thema=hell]).lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)){--glas:rgba(40,40,44,.12)}}
-:root[data-thema=dunkel] :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)){--glas:rgba(40,40,44,.2)}:root[data-thema=dunkel].lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)){--glas:rgba(40,40,44,.12)}
-:is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog.ruhig:not(.menue):not(.aktionsblatt)) *{--linse:initial} /* Linse gilt nur für das Element selbst (und sein Glas-::before) */
+:is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog:not(.menue):not(.aktionsblatt)){--unschaerfe:blur(2px) saturate(170%) brightness(1.06);--glas:rgba(255,255,255,.16)} /* ohne Linse (iPhone/Safari): klar mit Hauch Unschärfe */
+.lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog:not(.menue):not(.aktionsblatt)){--unschaerfe:blur(.6px) saturate(175%) brightness(1.07);--glas:rgba(255,255,255,.08)}
+@media (prefers-color-scheme:dark){:root:not([data-thema=hell]) :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog:not(.menue):not(.aktionsblatt)){--glas:rgba(40,40,44,.2)}:root:not([data-thema=hell]).lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog:not(.menue):not(.aktionsblatt)){--glas:rgba(40,40,44,.12)}}
+:root[data-thema=dunkel] :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog:not(.menue):not(.aktionsblatt)){--glas:rgba(40,40,44,.2)}:root[data-thema=dunkel].lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog:not(.menue):not(.aktionsblatt)){--glas:rgba(40,40,44,.12)}
+:is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue,#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.pf-leiste,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))),.ab-gruppe,.ab-abbrechen,dialog:not(.menue):not(.aktionsblatt)) *{--linse:initial} /* Linse gilt nur für das Element selbst (und sein Glas-::before) */
 .lichtbrechung :is(header .symbol,#sync,#suche-knopf,#toast,dialog.menue),.lichtbrechung #navi::before{
   background-image:radial-gradient(140% 120% at var(--glanz-x,30%) var(--glanz-y,0%),rgba(255,255,255,.24),rgba(255,255,255,.05) 45%,transparent 70%)}
+/* Große Glasflächen mit viel Text (Plus-Menü, Menüs, Aktionsblätter, Suchtreffer): dichter getönt und stärker weichgezeichnet, damit sie lesbar
+   bleiben – Rand bricht trotzdem, Glanz wandert. Kleine Knöpfe und Leisten bleiben klar. */
+:root :is(dialog.menue,.ab-gruppe,.ab-abbrechen,#suchtreffer),:root.lichtbrechung :is(dialog.menue,.ab-gruppe,.ab-abbrechen,#suchtreffer){--glas:rgba(248,248,250,.84);--unschaerfe:blur(18px) saturate(180%)}
+@media (prefers-color-scheme:dark){:root:not([data-thema=hell]) :is(dialog.menue,.ab-gruppe,.ab-abbrechen,#suchtreffer),:root:not([data-thema=hell]).lichtbrechung :is(dialog.menue,.ab-gruppe,.ab-abbrechen,#suchtreffer){--glas:rgba(30,30,32,.84)}}
+:root[data-thema=dunkel] :is(dialog.menue,.ab-gruppe,.ab-abbrechen,#suchtreffer),:root[data-thema=dunkel].lichtbrechung :is(dialog.menue,.ab-gruppe,.ab-abbrechen,#suchtreffer){--glas:rgba(30,30,32,.84)}
+dialog.aktionsblatt :is(.ab-gruppe,.ab-abbrechen){background:var(--glas)}
 /* Weitere Bedienelemente aus Glas: Suchfeld, Werkzeugknöpfe, Segmente, Mail-Werkzeugleiste, Aktionsblätter, Sheets */
 :is(#globale-suche,.werkzeuge .knopf:not(.voll),.pf-tabs,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4)))){position:relative;background-color:var(--glas);border:1px solid var(--glas-rand);
   -webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten)}
@@ -868,7 +874,7 @@ tr.im-bild td{background:color-mix(in srgb,var(--primaer) 12%,transparent)}
   background:linear-gradient(var(--licht-winkel,140deg),rgba(255,255,255,.6),rgba(255,255,255,.06) 30%,rgba(255,255,255,0) 55%,rgba(255,255,255,.2));
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
 :is(.ab-gruppe,.ab-abbrechen){position:relative}
-dialog.ruhig:not(.menue):not(.aktionsblatt){--glas-dicht:color-mix(in srgb,var(--hoch) 80%,transparent)} /* Sheets: dichtes Glas (Formulare bleiben lesbar), Rand bricht */
+dialog:not(.menue):not(.aktionsblatt){--glas-dicht:color-mix(in srgb,var(--hoch) 80%,transparent)} /* Sheets: dichtes Glas (Formulare bleiben lesbar), Rand bricht */
 /* Maus (PC, Windows): Licht unter dem Zeiger – ein weicher Lichtfleck folgt der Maus über das Glas (--mx/--my, JS), Knöpfe heben sich leicht */
 @media (hover:hover) and (pointer:fine){
   :is(header .symbol,#sync,#neu-knopf,.werkzeuge .knopf,.pf-leiste .knopf,.pf-tabs > *,.chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))) > .chip,#navi .nav-gross .nav-knopf,.ab-knopf,.kachel.klickbar,.karte.klickbar):hover{background-image:radial-gradient(circle at var(--mx,50%) var(--my,50%),var(--maus-licht),color-mix(in srgb,var(--maus-licht) 25%,transparent) 35%,transparent 70%)}
@@ -877,9 +883,9 @@ dialog.ruhig:not(.menue):not(.aktionsblatt){--glas-dicht:color-mix(in srgb,var(-
     :is(header .symbol,#sync,.werkzeuge .knopf,.pf-leiste .knopf):hover:active{transform:scale(.97)}
   }
 }
-/* Sheets, Menüs, Suche, Meldungen: beim Hereinfedern dichtes Material (flüssig), stehend echtes Glas (JS: .ruhig) */
-:is(dialog.menue,#toast,#suchtreffer).ruhig{background:var(--glas);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
-dialog.ruhig:not(.menue):not(.aktionsblatt){background:var(--glas-dicht);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
+/* Sheets, Menüs, Suche, Meldungen: von Anfang an im endgültigen Material – kein Umspringen von Milchglas zu Glas beim Aufgehen */
+:is(dialog.menue,#toast,#suchtreffer){background:var(--glas);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
+dialog:not(.menue):not(.aktionsblatt){background:var(--glas-dicht);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
 /* Licht folgt dem Finger */
 :is(header .symbol,#suche-knopf,#neu-knopf,.nav-klein .nav-knopf,.am-kachel,.am-gruppe > *,.ab-knopf):active{background-image:radial-gradient(circle at var(--lx,50%) var(--ly,50%),rgba(255,255,255,.3),rgba(255,255,255,.08) 45%,transparent 75%)}
 @media (prefers-reduced-motion:no-preference){
@@ -2017,14 +2023,14 @@ function navLinse() {
   d.addEventListener('touchstart', e => {
     if (!matchMedia('(max-width:700px)').matches || d.scrollTop > 0) return;
     const t = e.touches[0]; if (t.clientY - d.getBoundingClientRect().top > 56) return;
-    start = t.clientY; dy = 0; d.style.transition = 'none'; d.classList.remove('ruhig'); // beim Ziehen ohne Unschärfe (flüssig)
+    start = t.clientY; dy = 0; d.style.transition = 'none';
   }, { passive: true });
   d.addEventListener('touchmove', e => { if (start == null) return; dy = Math.max(0, e.touches[0].clientY - start); d.style.transform = `translateY(${dy}px)`; }, { passive: true });
   d.addEventListener('touchend', () => {
     if (start == null) return; start = null; d.style.transition = 'transform .38s cubic-bezier(.2,.95,.25,1.04)';
     if (dy > 110) { const c = new Event('cancel', { cancelable: true }); d.dispatchEvent(c);
       if (!c.defaultPrevented) { d.style.transform = 'translateY(100%)'; setTimeout(() => { d.close(); d.style.transform = ''; d.style.transition = ''; }, 260); return; } }
-    d.style.transform = ''; setTimeout(() => { if (d.open) d.classList.add('ruhig'); }, 400);
+    d.style.transform = '';
   });
 })();
 const tabScroll = {}; // jeder Tab behält seine Scroll-Position (wie in iOS)
@@ -2179,7 +2185,7 @@ function zeigeSuchtreffer() {
   box._treffer = g.flatMap(x => x.eintraege);
 }
 function trefferOeffnen(t) {
-  $('#globale-suche').value = ''; $('#suchtreffer').hidden = true; $('#suchtreffer').classList.remove('ruhig'); document.body.classList.remove('sucht');
+  $('#globale-suche').value = ''; $('#suchtreffer').hidden = true; document.body.classList.remove('sucht');
   if (t.tourTag) { ANSICHT.bereich = 'touren'; ANSICHT.tourTag = t.tourTag; ANSICHT.tourAnsicht = 'TAG'; gehe('#/'); return; }
   if (t.aufgabe) { aufgabeDialog(S.aufgabenIntern[t.aufgabe]); return; }
   if (t.bereich && !BREIT.has(t.bereich)) ANSICHT.bereich = t.bereich;
@@ -2198,7 +2204,7 @@ $('#suchtreffer').addEventListener('keydown', e => {
   if (e.key === 'ArrowDown' && b.nextElementSibling) { e.preventDefault(); (b.nextElementSibling.classList.contains('treffer') ? b.nextElementSibling : b.nextElementSibling.nextElementSibling || b).focus(); }
   if (e.key === 'ArrowUp') { e.preventDefault(); (b.previousElementSibling && b.previousElementSibling.classList.contains('treffer') ? b.previousElementSibling : $('#globale-suche')).focus(); }
 });
-document.addEventListener('click', e => { if (!e.target.closest('#suche-global, #suche-knopf')) { $('#suchtreffer').hidden = true; $('#suchtreffer').classList.remove('ruhig'); document.body.classList.remove('sucht'); } });
+document.addEventListener('click', e => { if (!e.target.closest('#suche-global, #suche-knopf')) { $('#suchtreffer').hidden = true; document.body.classList.remove('sucht'); } });
 $('#suche-knopf').onclick = () => { document.body.classList.add('sucht'); $('#globale-suche').focus(); };
 document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.body.classList.add('sucht'); $('#globale-suche').focus(); } });
 
@@ -2286,7 +2292,7 @@ const gehe = hash => { if (location.hash === hash) zeichne(); else location.hash
 
 /** Kurze Meldung; mit aktion = { text, fn } erscheint ein Knopf (z. B. „Rückgängig“). */
 function toast(text, ms = 3500, aktion = null) {
-  const el = $('#toast'); el.textContent = text; el.classList.toggle('ruhig', !bewegung()); el.hidden = false; clearTimeout(toast.t);
+  const el = $('#toast'); el.textContent = text; el.hidden = false; clearTimeout(toast.t);
   if (aktion) {
     const b = Object.assign(document.createElement('button'), { className: 'knopf text', textContent: t(aktion.text) });
     b.style.marginLeft = '12px'; b.style.color = 'inherit'; b.style.textDecoration = 'underline';
@@ -2301,7 +2307,7 @@ function dialog(html, { schliessbar = true } = {}) {
   for (const g of d.querySelectorAll('.dialog-knoepfe > .gefahr')) if (g.parentElement.querySelector('.voll')) { g.style.order = '-1'; g.parentElement.append(g); }
   sheetKopf(d);
   if (!d.open) {
-    d.classList.toggle('ruhig', !bewegung()); d.showModal();
+    d.showModal();
     // Mit Tastatur beginnt ein Formular im ersten Feld, nicht auf einem Knopf davor (z. B. „Senden“). Touch: keine Tastatur aufklappen.
     const f = document.activeElement;
     if (matchMedia('(pointer: fine)').matches && (!f || f === d || f.tagName === 'BUTTON' || f.type === 'file')) {
@@ -2330,16 +2336,13 @@ function bestaetige(titel, text, knopf, dann) {
 }
 document.addEventListener('click', e => { const z = e.target.closest('[data-zu]'); if (!z) return; const d = z.closest('dialog') || $('#dialog');
   if (d.geaendert) { e.preventDefault(); dialogZu(d); } else d.close(); });
-/** Liquid Glass: bewegte Flächen werden erst nach dem Hereinfedern zu echtem Glas (Unschärfe in jedem Animationsbild würde ruckeln). */
-document.addEventListener('animationend', e => { if (e.target.matches && e.target.matches('dialog, #toast, #suchtreffer')) e.target.classList.add('ruhig'); });
-document.addEventListener('close', e => e.target.classList && e.target.classList.remove('ruhig'), true);
 /**
  * Echtes Liquid Glass: (1) Lichtbrechung – jedes Glas-Bedienelement bekommt einen SVG-Filter mit Verschiebungskarte, der den
  * Hintergrund am Rand nach innen bricht wie eine gewölbte Linse (backdrop-filter: url(), nur Chromium; Safari/iPhone zeigt
  * weiter Milchglas). (2) Licht – Glanzkante und Glanzlicht folgen der Neigung des Geräts (iPhone fragt beim ersten Tippen
  * nach der Erlaubnis), am PC der Maus. Aus bei „Bewegung reduzieren“ bzw. „Transparenz reduzieren“.
  */
-const GLAS_ELEMENTE = 'header .symbol, #sync, #suche-knopf, #neu-knopf, #navi, #toast, dialog.menue, .werkzeuge .knopf:not(.voll), .pf-tabs, .pf-leiste, .chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))), .ab-gruppe, .ab-abbrechen, dialog.ruhig:not(.menue):not(.aktionsblatt)';
+const GLAS_ELEMENTE = 'header .symbol, #sync, #suche-knopf, #neu-knopf, #navi, #toast, dialog.menue, .werkzeuge .knopf:not(.voll), .pf-tabs, .pf-leiste, .chips:not(.ebenen):has(> .chip:nth-child(2)):not(:has(> :nth-child(4))), .ab-gruppe, .ab-abbrechen, dialog:not(.menue):not(.aktionsblatt)';
 function glasLicht(wurzel = document.documentElement) {
   // Ziel (aus Sensor bzw. Maus) und angezeigter Wert getrennt: das Licht gleitet weich hinterher, statt jedem Zittern zu folgen
   let zx = -0.35, zy = -0.8, x = zx, y = zy, laeuft = 0;
@@ -2432,7 +2435,7 @@ $('#dialog').addEventListener('input', e => { const d = $('#dialog'); if (e.isTr
  * aktionen = [[Text, 'gefahr'|'', fn], …]; die erste bekommt id="ja". Abbrechen, Esc und Tippen daneben schließen ohne Aktion.
  */
 function aktionsblatt(titel, text, aktionen, abbrechen = 'Abbrechen') {
-  const b = document.createElement('dialog'); b.className = 'aktionsblatt' + (bewegung() ? '' : ' ruhig');
+  const b = document.createElement('dialog'); b.className = 'aktionsblatt';
   b.innerHTML = `<div class="ab-gruppe">${titel || text ? `<div class="ab-kopf">${titel ? `<b>${esc(titel)}</b>` : ''}${text ? `<span>${esc(text)}</span>` : ''}</div>` : ''}
     ${aktionen.map(([l, art], i) => `<button class="ab-knopf ${art || ''}" data-i="${i}"${i ? '' : ' id="ja"'}>${esc(l)}</button>`).join('')}</div>
     <button class="ab-knopf ab-abbrechen" data-ab-nein>${esc(abbrechen)}</button>`;
