@@ -282,6 +282,7 @@ function speichereEintrag(e) { e.geaendertAm = new Date().toISOString(); Z.offen
 // ---------- Ansichten ----------
 const route = () => { const m = location.hash.match(/^#\/ma\/([\w-]+)/); return m ? { ma: m[1] } : {}; };
 addEventListener('hashchange', () => { zeichne(); scrollTo(0, 0); });
+/** Zeichnet die aktuelle Ansicht: Anmeldung, Übersicht oder ein Mitarbeiter (#/ma/…). */
 function zeichne() {
   const r = route(), el = $('#inhalt');
   $('#zurueck').hidden = !Z.token || !r.ma; $('#plus').hidden = !Z.token;
@@ -291,6 +292,7 @@ function zeichne() {
   el.innerHTML = r.ma ? person(r.ma) : uebersicht();
   const s = $('#suchfeld'); if (s) { s.value = zeichne.suche || ''; s.oninput = () => { zeichne.suche = s.value; const p = s.selectionStart; zeichne(); const n = $('#suchfeld'); n.focus(); n.setSelectionRange(p, p); }; }
 }
+/** Anmeldeseite (Benutzer + Passwort des Hauptadmins oder Cloud-PIN). */
 function anmeldung() {
   return `<div class="anmeldung"><img class="logo" src="../icon-192.png" alt="">
     <h1>Vorschüsse</h1><p>Anmeldung als Chef (Hauptadmin) – mit Benutzername und Passwort aus Ayse CRM oder mit der Cloud-PIN.</p>
@@ -313,6 +315,7 @@ document.addEventListener('submit', async e => {
   } catch (x) { anmeldung.fehler = /PIN falsch|Passwort falsch/.test(x.message) ? 'Benutzername, Passwort oder PIN falsch' : x.message; zeichne(); }
   finally { knopf.disabled = false; }
 });
+/** Übersicht: offener Betrag gesamt, Suche, Mitarbeiter mit offenem Vorschuss (nach Höhe), übrige alphabetisch. */
 function uebersicht() {
   const such = (zeichne.suche || '').toLowerCase().trim(), alle = eintraege();
   const zeilen = Z.mitarbeiter.map(m => { const l = alle.filter(e => e.mitarbeiterId === m.id); return { m, s: saldo(l), n: l.length }; })
@@ -330,6 +333,7 @@ function uebersicht() {
     ${!Z.mitarbeiter.length ? '<div class="leer">Noch keine Mitarbeiter – sie kommen aus dem Personal in Ayse CRM.</div>' : ''}
     <section class="gruppe"><div class="liste"><button class="zelle" data-abmelden style="color:var(--txt-rot);justify-content:center">Abmelden${Z.name ? ' (' + esc(Z.name) + ')' : ''}</button></div></section>`;
 }
+/** Ein Mitarbeiter: offener Betrag, Knöpfe Vorschuss/Rückzahlung, Buchungen nach Jahren. */
 function person(id) {
   const m = Z.mitarbeiter.find(x => x.id === id); if (!m) return '<h1>Nicht gefunden</h1><div class="leer">Diesen Mitarbeiter gibt es nicht mehr im Personal.</div>';
   const l = vonMa(id), s = saldo(l), jahre = {};
@@ -429,6 +433,7 @@ function linsenKarte(w, h, r, rand) {
   x2.putImageData(bild, 0, 0);
   return c.toDataURL();
 }
+/** Lichtbrechung am Glasrand (aus Ayse CRM übernommen): SVG-Filter je Element als backdrop-filter, nur Chromium. */
 function glasLinsen(auswahl) {
   const ua = navigator.userAgent;
   if (!/Chrome\/\d/.test(ua) || /CriOS|EdgiOS/.test(ua) || matchMedia('(prefers-reduced-transparency: reduce)').matches) return; // Safari kann url() im backdrop-filter nicht

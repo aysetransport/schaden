@@ -93,6 +93,7 @@ var CRM_NAMEN = Object.keys(CRM_TABELLEN);
 
 // ============================== Einstieg ==============================
 
+/** Einstieg für alle Aufrufe der Apps (POST, Text-JSON {fn, args}): ruft die Funktion auf und antwortet immer mit {ok} oder {error} – nie mit einer HTML-Fehlerseite. */
 function doPost(e) {
   var antwort;
   try {
@@ -104,6 +105,7 @@ function doPost(e) {
   return ContentService.createTextOutput(JSON.stringify(antwort)).setMimeType(ContentService.MimeType.JSON);
 }
 
+/** Aufruf im Browser (GET): nur ein Lebenszeichen, damit man prüfen kann, ob die Adresse stimmt. */
 function doGet() {
   return ContentService.createTextOutput('Schadensfälle-Cloud läuft. Diese Adresse in der App eintragen.');
 }
@@ -130,6 +132,7 @@ var GESCHUETZT = {
   vorschussSpeichern: vorschussSpeichern
 };
 
+/** Verteiler: offene Funktionen direkt, alle anderen erst nach Prüfung von PIN bzw. Sitzungs-Token (erstes Argument); setzt ZUGANG_ für die Rechteprüfung. */
 function aufruf_(fn, args) {
   if (Object.prototype.hasOwnProperty.call(OFFEN, fn)) return OFFEN[fn].apply(null, args);
   if (!Object.prototype.hasOwnProperty.call(GESCHUETZT, fn)) throw new Error('Unbekannte Funktion: ' + fn);
@@ -155,6 +158,7 @@ function benutzer_() {
   Object.keys(p).forEach(function (k) { if (k.indexOf('BENUTZER_') === 0) { var x = JSON.parse(p[k]); b[x.id] = x; } });
   return b;
 }
+/** Schreibt alle Benutzer zurück (je Benutzer eine Eigenschaft) und entfernt gelöschte sowie die alte Sammel-Eigenschaft BENUTZER. */
 function speichereBenutzer_(b) {
   var props = PropertiesService.getScriptProperties(), alt = props.getProperties();
   Object.keys(b).forEach(function (id) { props.setProperty('BENUTZER_' + id, JSON.stringify(b[id])); });
@@ -189,6 +193,7 @@ function selbstUpdateEinrichten() {
 }
 function notfallPinAnmeldungEinschalten() { PropertiesService.getScriptProperties().deleteProperty('PIN_AUS'); return 'Die Anmeldung mit der Cloud-PIN ist wieder eingeschaltet.'; }
 
+/** Prüft PIN oder Sitzungs-Token und liefert, wer anfragt (Rolle, Benutzer, Mitarbeiter, Hauptadmin). Wirft bei falscher PIN, abgelaufener Sitzung oder abgeschalteter PIN-Anmeldung. */
 function pruefeZugang_(zugang) {
   var z = String(zugang == null ? '' : zugang);
   if (z.indexOf('T:') !== 0) {
@@ -252,6 +257,7 @@ function einloggen(login, passwort) {
   return { token: token, rolle: b.rolle, name: b.name, mitarbeiterId: b.mitarbeiterId || '', hauptadmin: !!b.hauptadmin && b.rolle === 'ADMIN', api: API_VERSION };
 }
 function abmelden() { if (ZUGANG_.sitzung) PropertiesService.getScriptProperties().deleteProperty(ZUGANG_.sitzung); return true; }
+/** Alle Benutzer ohne Passwort-Hash (nur Admins), alphabetisch. */
 function benutzerListe() {
   nurAdmin_();
   var b = benutzer_();
@@ -286,6 +292,7 @@ function benutzerSpeichern(roh) {
     return benutzerListe();
   } finally { sperre.releaseLock(); }
 }
+/** Löscht einen Benutzer samt seiner Sitzungen. Den Hauptadmin nie; andere Admins nur der Hauptadmin. */
 function benutzerLoeschen(id) {
   nurAdmin_();
   var alle = benutzer_(), b = alle[kennung_(id)];
@@ -297,6 +304,7 @@ function benutzerLoeschen(id) {
 
 /** Was ein Fahrer sehen darf: eigene Touren (ab 45 Tagen zurück), deren Firmen, Team, Fälle, Anlagen. */
 var FAHRER_TABELLEN = ['faelle', 'verlauf', 'anlagen', 'auftraggeber', 'adressen', 'fahrzeuge', 'fahrzeugeintraege', 'mitarbeiter', 'abwesenheiten', 'einsatzarten', 'touren', 'zeiten', 'aufgabenIntern', 'tachotage'];
+/** Ausschnitt der Daten, den ein Fahrer sehen darf: eigene Touren (45 Tage zurück), Team, zugehörige Firmen/Fälle/Anlagen, eigene Zeiten, Abwesenheiten und Aufgaben. */
 function fahrerSicht_(d, ich) {
   var ab = Utilities.formatDate(new Date(Date.now() - 45 * 864e5), 'Europe/Berlin', 'yyyy-MM-dd');
   var lebt = function (x) { return x && !x.geloescht; };
@@ -397,6 +405,7 @@ function bewerten(code, sterne, text) {
   } finally { sperre.releaseLock(); }
 }
 
+/** Öffentliche Statusauskunft (ohne PIN): API-Version, ob schon eine PIN/Benutzer eingerichtet sind, ob die PIN-Anmeldung aus ist. */
 function status() {
   return {
     name: 'Schadensfälle',
@@ -419,12 +428,14 @@ function status() {
 var UPDATE_BASIS = 'https://aysetransport.github.io/schaden/';
 var SKRIPT_API = 'https://script.googleapis.com/v1/projects/';
 
+/** Lädt eine Datei der Update-Quelle (GitHub Pages) ohne Zwischenspeicher; wirft bei anderem Status als 200. */
 function holeText_(url) {
   var r = UrlFetchApp.fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 't=' + Date.now(), { muteHttpExceptions: true });
   if (r.getResponseCode() !== 200) throw new Error('Update-Server nicht erreichbar (' + r.getResponseCode() + ')');
   return r.getContentText();
 }
 function hex_(bytes) { return bytes.map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join(''); }
+/** Aufruf der Apps-Script-API für dieses Projekt (Code ersetzen, Version anlegen, Bereitstellung umstellen). Übersetzt typische Fehler (API aus, fehlende Berechtigung) in klare Meldungen. */
 function skriptApi_(methode, pfad, inhalt) {
   var r = UrlFetchApp.fetch(SKRIPT_API + ScriptApp.getScriptId() + pfad, {
     method: methode, contentType: 'application/json', muteHttpExceptions: true,
@@ -438,6 +449,7 @@ function skriptApi_(methode, pfad, inhalt) {
   }
   return text ? JSON.parse(text) : {};
 }
+/** Kennung der Web-App-Bereitstellung, über die die Apps die Cloud erreichen (gemerkt oder aus der eigenen Adresse gelesen). */
 function bereitstellungsId_() {
   var gemerkt = PropertiesService.getScriptProperties().getProperty('BEREITSTELLUNG');
   if (gemerkt) return gemerkt;
@@ -445,6 +457,7 @@ function bereitstellungsId_() {
   if (!m) throw new Error('Bereitstellung nicht gefunden');
   return m[1];
 }
+/** Update-Auskunft für die Einstellungen: laufende und verfügbare API-Version, Stand, ob das nächtliche Update an ist, letzter Fehler (nur Hauptadmin). */
 function cloudUpdateInfo() {
   nurHauptadmin_();
   var props = PropertiesService.getScriptProperties(), m = null, fehler = '';
@@ -453,6 +466,7 @@ function cloudUpdateInfo() {
     automatisch: props.getProperty('AUTO_UPDATE') === '1', letzterFehler: props.getProperty('UPDATE_FEHLER') || '' };
 }
 function cloudAktualisieren(erzwingen) { nurHauptadmin_(); return selbstUpdate_(!!erzwingen); }
+/** Selbst-Update: lädt Code.gs (und ggf. appsscript.json) von der Update-Quelle, prüft die Prüfsumme, ersetzt den Code, legt eine Version an und stellt dieselbe Bereitstellung darauf um. Antwortet die neue Version nicht, wird zurückgestellt. */
 function selbstUpdate_(erzwingen) {
   var props = PropertiesService.getScriptProperties();
   var m = JSON.parse(holeText_(UPDATE_BASIS + 'cloud-update.json'));
@@ -495,6 +509,7 @@ function selbstUpdate_(erzwingen) {
 function nachtsUpdate() {
   try { selbstUpdate_(false); } catch (e) { PropertiesService.getScriptProperties().setProperty('UPDATE_FEHLER', new Date().toISOString().slice(0, 16) + ' ' + String(e.message || e)); }
 }
+/** Nächtliches Selbst-Update (3 Uhr) ein- oder ausschalten (nur Hauptadmin). */
 function cloudAutoUpdate(an) {
   nurHauptadmin_();
   ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'nachtsUpdate') ScriptApp.deleteTrigger(t); });
@@ -532,6 +547,7 @@ function pinZuruecksetzen() {
   props.deleteProperty('FEHLVERSUCHE');
 }
 
+/** Prüft die Cloud-PIN gegen den gespeicherten Hash, mit Fehlversuch-Zähler und zeitlicher Sperre (gilt für alle Geräte gemeinsam). */
 function pruefePin_(pin) {
   var props = PropertiesService.getScriptProperties();
   var jetzt = Date.now();
@@ -550,6 +566,7 @@ function pruefePin_(pin) {
   throw new Error('PIN falsch');
 }
 
+/** SHA-256 von Salz + Wert, Base64 – für PIN, Passwörter und Sitzungsschlüssel (nie im Klartext gespeichert). */
 function hash_(pin, salz) {
   var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salz + '|' + pin, Utilities.Charset.UTF_8);
   return Utilities.base64Encode(bytes);
@@ -558,6 +575,7 @@ function hash_(pin, salz) {
 // ============================== Abgleich ==============================
 
 var PIN_SITZUNG = '__PIN__';
+/** Anmeldung eines Geräts: liefert Kennung und Stand des Datenbestands, bei PIN-Anmeldung zusätzlich ein Sitzungs-Token. */
 function anmelden() {
   var d = ladeDaten_(), token = '';
   if (ZUGANG_.pin && !ZUGANG_.sitzung) {
@@ -580,6 +598,7 @@ function stand() {
   return { kennung: d.kennung, rev: d.rev };
 }
 
+/** Merkt Datei, Kennung und Revision in den Eigenschaften, damit „stand“ schnell antworten kann, ohne daten.json zu lesen. */
 function merkeStand_(d) {
   var datei = datenDatei_();
   if (datei) PropertiesService.getScriptProperties().setProperty('STAND', datei.getId() + '|' + d.kennung + '|' + d.rev);
@@ -663,6 +682,7 @@ function sync(anfrage) {
   }
 }
 
+/** Übernimmt einen Fall vom Gerät: spätere Änderung gewinnt; Gelöschtes bleibt gelöscht (das Gerät erfährt es über „zurueck“); vergibt bei Bedarf eine eindeutige Fallnummer. */
 function uebernehmeFall_(d, roh, zurueck) {
   var neu = bereinigeFall_(roh);
   var alt = d.faelle[neu.id];
@@ -775,6 +795,7 @@ function loescheFall_(d, id, zeitpunkt) {
   });
 }
 
+/** Übernimmt einen Verlaufseintrag (nur anhängen bzw. löschen – Einträge werden nicht bearbeitet). */
 function uebernehmeVerlauf_(d, roh) {
   var neu = bereinigeVerlauf_(roh);
   var alt = d.verlauf[neu.id];
@@ -788,6 +809,7 @@ function uebernehmeVerlauf_(d, roh) {
   d.verlauf[neu.id] = neu;
 }
 
+/** Übernimmt die Beschreibung einer Anlage (Foto/Beleg); die Datei selbst kommt getrennt über anlageHochladen. */
 function uebernehmeAnlage_(d, roh) {
   var neu = bereinigeAnlage_(roh);
   var alt = d.anlagen[neu.id];
@@ -802,6 +824,7 @@ function uebernehmeAnlage_(d, roh) {
   d.anlagen[neu.id] = neu;
 }
 
+/** Löscht eine Anlage: Datei in Google Drive in den Papierkorb, Eintrag als gelöscht markieren (damit es alle Geräte erfahren). */
 function loescheAnlage_(d, id) {
   var alt = d.anlagen[id];
   if (alt.dateiId) {
@@ -874,12 +897,14 @@ function anlageHochladen(id, base64) {
 function lohnAnlage_(d, a) {
   return !!(a && d.mitarbeiter && d.mitarbeiter[String(a.fallId || '').toLowerCase()] && /^lohnabrechnung/i.test(String(a.anzeigename || '')));
 }
+/** Rechteprüfung für Anlagen: Büro sieht keine Lohnunterlagen, Fahrer nur Anlagen aus ihrer Sicht. */
 function pruefeAnlageSichtbar_(d, a) {
   if (ZUGANG_.rolle === 'DISPO' && lohnAnlage_(d, a)) throw new Error('Kein Zugriff auf diese Anlage');
   if (ZUGANG_.rolle !== 'FAHRER') return;
   var sicht = fahrerSicht_(d, ZUGANG_.mitarbeiterId || '');
   if (!sicht.anlagen.some(function (x) { return x.id === a.id; })) throw new Error('Kein Zugriff auf diese Anlage');
 }
+/** Liefert eine Anlage als Base64 (nach Rechteprüfung). */
 function anlageLaden(id) {
   var d = ladeDaten_(), a = d.anlagen[kennung_(id)];
   if (!a || a.geloescht) throw new Error('Anlage unbekannt');
@@ -889,6 +914,7 @@ function anlageLaden(id) {
   return { base64: Utilities.base64Encode(blob.getBytes()), mimeType: a.mimeType, anzeigename: a.anzeigename };
 }
 
+/** Kopie einer Anlage ohne interne Felder (Drive-Datei-ID) für die Geräte. */
 function ohneInterna_(anlage) {
   var kopie = {};
   Object.keys(anlage).forEach(function (k) { if (k !== 'dateiId') kopie[k] = anlage[k]; });
@@ -903,6 +929,7 @@ var FALL_TEXTE = ['fallnummer', 'kundeName', 'kundeFirma', 'kundeTelefon', 'kund
   'beschreibung', 'wiedervorlageNotiz', 'versicherungsNummer', 'tourId', 'fahrzeugId', 'fahrerId'];
 var FALL_DATEN = ['schadensdatum', 'meldedatum', 'wiedervorlageAm', 'zahlungsfrist'];
 
+/** Bereinigt einen Fall vom Gerät: nur bekannte Felder, Texte gekürzt, Wörter/Datum/Cent geprüft – nichts Fremdes gelangt in daten.json. */
 function bereinigeFall_(roh) {
   roh = roh || {};
   var fall = { id: kennung_(roh.id), geloescht: roh.geloescht === true, geaendertAm: zeitpunkt_(roh.geaendertAm) };
@@ -918,6 +945,7 @@ function bereinigeFall_(roh) {
   return fall;
 }
 
+/** Bereinigt einen Verlaufseintrag (bekannte Felder, Typen geprüft). */
 function bereinigeVerlauf_(roh) {
   roh = roh || {};
   return {
@@ -930,6 +958,7 @@ function bereinigeVerlauf_(roh) {
   };
 }
 
+/** Bereinigt die Beschreibung einer Anlage (bekannte Felder, Typen geprüft). */
 function bereinigeAnlage_(roh) {
   roh = roh || {};
   return {
@@ -943,6 +972,7 @@ function bereinigeAnlage_(roh) {
   };
 }
 
+/** Prüft eine Kennung (UUID-artig: Hex-Ziffern und Bindestriche) – schützt vor Pfad- und Schlüssel-Tricks. */
 function kennung_(wert) {
   wert = String(wert == null ? '' : wert).toLowerCase();
   if (!/^[0-9a-f-]{8,64}$/.test(wert)) throw new Error('Ungültige Kennung');
@@ -951,6 +981,7 @@ function kennung_(wert) {
 function text_(wert) { return String(wert == null ? '' : wert).slice(0, MAX_TEXT); }
 function datum_(wert) { return /^\d{4}-\d{2}-\d{2}$/.test(String(wert)) ? String(wert) : null; }
 function wort_(wert, standard) { return /^[A-Z_]{1,40}$/.test(String(wert)) ? String(wert) : standard; }
+/** Betrag in Cent als ganze Zahl ≥ 0, sonst null. */
 function cent_(wert) {
   if (wert == null || wert === '') return null;
   var zahl = Math.floor(Number(wert));
@@ -965,10 +996,12 @@ function zeitpunkt_(wert) {
 function zeit_(iso) { var ms = Date.parse(String(iso)); return isNaN(ms) ? 0 : ms; }
 function liste_(wert) { return Array.isArray(wert) ? wert : []; }
 
+/** Gleicher Inhalt zweier Datensätze (ohne erstelltAm) – unveränderte Uploads erhöhen die Revision nicht. */
 function gleicherInhalt_(a, b) {
   return Object.keys(b).every(function (k) { return k === 'erstelltAm' || a[k] === b[k]; });
 }
 
+/** Datensätze einer Tabelle, die seit der Revision „seit“ geändert wurden, plus ausdrücklich angeforderte. */
 function auswahl_(tabelle, seit, zusaetzlich) {
   return Object.keys(tabelle)
     .filter(function (k) { return tabelle[k].rev > seit || zusaetzlich[k]; })
@@ -984,6 +1017,7 @@ function auswahl_(tabelle, seit, zusaetzlich) {
 var VORSCHUSS_DATEI = 'vorschuesse.json';
 var VORSCHUSS_ARTEN = { VORSCHUSS: 1, RUECKZAHLUNG: 1 };
 var VORSCHUSS_WEGE = { BAR: 1, UEBERWEISUNG: 1, LOHN: 1 };
+/** Datei vorschuesse.json im Cloud-Ordner (gemerkt per ID, sonst gesucht bzw. neu angelegt). */
 function vorschussDatei_() {
   var props = PropertiesService.getScriptProperties(), ordner = ordner_(), gemerkt = String(props.getProperty('VORSCHUSS_ID') || '').split('|');
   if (gemerkt[0] === ordner.getId() && gemerkt[1]) { try { var f = DriveApp.getFileById(gemerkt[1]); if (!f.isTrashed()) return f; } catch (e) { /* neu suchen */ } }
@@ -992,6 +1026,7 @@ function vorschussDatei_() {
   props.setProperty('VORSCHUSS_ID', ordner.getId() + '|' + datei.getId());
   return datei;
 }
+/** Liest vorschuesse.json. */
 function vorschussStand_() {
   var v = JSON.parse(vorschussDatei_().getBlob().getDataAsString('UTF-8'));
   v.eintraege = v.eintraege || {};
@@ -1029,6 +1064,7 @@ function vorschussSpeichern(liste) {
 
 // ============================== Ablage in Google Drive ==============================
 
+/** Cloud-Ordner „Schadensfaelle“ in Google Drive (gemerkt per ID; gelöscht → neu angelegt bzw. per Name gefunden). */
 function ordner_() {
   var props = PropertiesService.getScriptProperties();
   var id = props.getProperty('ORDNER_ID');
@@ -1044,6 +1080,7 @@ function ordner_() {
   return ordner;
 }
 
+/** Unterordner im Cloud-Ordner (anlagen, sicherungen …), bei Bedarf angelegt. */
 function unterordner_(name) {
   var treffer = ordner_().getFoldersByName(name);
   return treffer.hasNext() ? treffer.next() : ordner_().createFolder(name);
@@ -1080,6 +1117,7 @@ function neueDatenDatei_(text) {
   return datei;
 }
 
+/** Liest daten.json (fehlende Tabellen ergänzt). Gibt es sie noch nicht, wird sofort ein leerer Bestand mit fester Kennung angelegt. */
 function ladeDaten_() {
   var datei = datenDatei_();
   if (datei) {
@@ -1106,6 +1144,7 @@ function ladeDaten_() {
   }
 }
 
+/** Schreibt daten.json (vorher einmal am Tag eine Sicherung) und merkt den Stand. */
 function speichereDaten_(d) {
   var text = JSON.stringify(d);
   var datei = datenDatei_();
