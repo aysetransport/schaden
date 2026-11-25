@@ -18,7 +18,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795627114; window.WEB_VERSION = '4.22.0';
+window.WEB_STAND = 1795643078; window.WEB_VERSION = '4.22.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -142,13 +142,13 @@ body.gescrollt header::before{opacity:1}
 .symbol:hover{background:var(--flaeche2)}
 .symbol:disabled{opacity:.3;cursor:default}
 header .symbol,#suche-knopf{position:relative;width:44px;height:44px;padding:0;background:var(--glas);border:1px solid var(--glas-rand);
-  -webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten)}
+  -webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten)}
 header .symbol .ico,#suche-knopf .ico{width:21px;height:21px;margin:0}
 #neu-knopf{min-height:44px}
 #neu-knopf .ico{margin-right:.3em}
 /* Status: Punkt (grün = aktuell); Text nur, wenn etwas zu tun ist */
 #sync{display:inline-flex;align-items:center;gap:6px;border:0;cursor:pointer;white-space:nowrap;font-size:var(--t-fuss);font-weight:500;padding:6px 12px;border-radius:999px;min-height:32px;background:var(--flaeche2);color:var(--text)}
-#sync:not([data-zustand=anmelden]):not([data-zustand=fehler]){position:relative;overflow:hidden;color:transparent;text-indent:200%;white-space:nowrap;width:44px;height:44px;padding:0;justify-content:center;background:var(--glas);border:1px solid var(--glas-rand);-webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten)}
+#sync:not([data-zustand=anmelden]):not([data-zustand=fehler]){position:relative;overflow:hidden;color:transparent;text-indent:200%;white-space:nowrap;width:44px;height:44px;padding:0;justify-content:center;background:var(--glas);border:1px solid var(--glas-rand);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten)}
 #sync:not([data-zustand=anmelden]):not([data-zustand=fehler])::before{content:"";position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--sys-grau)} /* genau mittig, unabhängig vom versteckten Text */
 #sync[data-zustand=aktuell]::before{background:var(--sys-gruen)!important}
 #sync[data-zustand=beschaeftigt]::before{background:var(--sys-orange)!important}
@@ -171,7 +171,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr);margin:0 auto}
 main>section{padding:8px calc(var(--rand-seite) + env(safe-area-inset-right)) 40px calc(var(--rand-seite) + env(safe-area-inset-left));min-width:0}
 #navi{z-index:7}
 /* Glas der Navigation im ::before – backdrop-filter am Element selbst würde fest positionierte Kinder (Panel „Mehr“) darin einsperren */
-#navi::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;background:var(--glas);-webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe)}
+#navi::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;background:var(--glas);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
 #nav-schleier{display:none}
 #statusleiste{display:none}
 .werkzeuge .werkzeug-mehr{display:none}
@@ -186,7 +186,7 @@ main>section{padding:8px calc(var(--rand-seite) + env(safe-area-inset-right)) 40
 @media (min-width:900px){
   /* Seitenleiste: schwebendes Glas, eingerückt (iPadOS/macOS) */
   #navi{position:fixed;left:10px;top:calc(var(--kopf-hoehe) + 4px);bottom:10px;width:calc(var(--nav-breite) - 20px);padding:10px;overflow:auto;border-radius:24px;
-    border:1px solid var(--glas-rand);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten);background:var(--glas);-webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe)}
+    border:1px solid var(--glas-rand);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten);background:var(--glas);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
   #navi::before{display:none} /* Seitenleiste scrollt: Glas direkt am Element (hier gibt es keine fest positionierten Kinder) */
   .nav-klein{display:none}.nav-gross{display:flex;flex-direction:column;gap:1px}
   .nav-knopf{padding:7px 10px;width:100%;min-height:36px}
@@ -231,8 +231,8 @@ main>section{padding:8px calc(var(--rand-seite) + env(safe-area-inset-right)) 40
   #suche-global{display:none}
   #suche-knopf{display:grid;place-items:center;position:fixed;z-index:7;right:calc(var(--tab-rand) + env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom));width:var(--tab-hoehe);height:var(--tab-hoehe)}
   body.sucht #suche-global{display:block;position:fixed;left:12px;right:12px;top:calc(8px + env(safe-area-inset-top));max-width:none;z-index:21}
-  body.sucht #globale-suche{height:48px;background:var(--glas-dicht);box-shadow:var(--schatten-gross);-webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe)}
-  #neu-knopf{width:44px;height:44px;padding:0;border-radius:50%;color:var(--text);background:var(--glas);border:1px solid var(--glas-rand);-webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten)}
+  body.sucht #globale-suche{height:48px;background:var(--glas-dicht);box-shadow:var(--schatten-gross);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
+  #neu-knopf{width:44px;height:44px;padding:0;border-radius:50%;color:var(--text);background:var(--glas);border:1px solid var(--glas-rand);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten)}
   #neu-knopf .ico{margin:0;width:22px;height:22px}
   #neu-knopf .lang{display:none}
   #navi{position:fixed;left:calc(var(--tab-rand) + env(safe-area-inset-left));right:calc(var(--tab-rand) + var(--tab-hoehe) + 8px + env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom));
@@ -640,7 +640,7 @@ dialog.aktionsblatt{width:min(420px,calc(100vw - 16px));height:fit-content;max-h
 dialog.aktionsblatt::before{display:none}
 dialog.aktionsblatt::backdrop{background:rgba(0,0,0,.28)}
 dialog.aktionsblatt :is(.ab-gruppe,.ab-abbrechen){border-radius:26px;background:var(--glas-dicht);border:1px solid var(--glas-rand);box-shadow:var(--schatten-gross)}
-dialog.aktionsblatt.ruhig :is(.ab-gruppe,.ab-abbrechen){-webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe)}
+dialog.aktionsblatt.ruhig :is(.ab-gruppe,.ab-abbrechen){-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
 .ab-gruppe{display:flex;flex-direction:column;overflow:hidden}
 .ab-kopf{display:grid;gap:4px;padding:16px 20px 14px;text-align:center;font-size:var(--t-fuss);line-height:1.35;color:var(--leise);overflow-wrap:anywhere}
 .ab-kopf b{font-size:var(--t-fuss);font-weight:600}
@@ -663,7 +663,7 @@ dialog.menue::backdrop{background:rgba(0,0,0,.12)}
 .am-gruppe > * + *{border-top:.5px solid var(--linie)!important}
 .am-gruppe > * .ico{order:2;margin:0 0 0 auto;width:20px;height:20px}
 .am-gruppe > :is(:hover,:focus-visible){background:color-mix(in srgb,var(--text) 8%,transparent);outline:0}
-.kontext-menue{position:fixed;z-index:80;min-width:220px;padding:6px;border-radius:16px;background:var(--glas-dicht);border:1px solid var(--glas-rand);box-shadow:var(--schatten-gross);-webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe)}
+.kontext-menue{position:fixed;z-index:80;min-width:220px;padding:6px;border-radius:16px;background:var(--glas-dicht);border:1px solid var(--glas-rand);box-shadow:var(--schatten-gross);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
 .kontext-menue button{display:flex;align-items:center;gap:10px;width:100%;padding:8px 12px;border:0;border-radius:10px;background:transparent;color:var(--text);text-align:left;cursor:pointer;font-size:var(--t-unter)}
 .kontext-menue button:hover,.kontext-menue button:focus{background:var(--primaer);color:#fff;outline:0}
 .kontext-menue hr{border:0;border-top:.5px solid var(--linie);margin:4px 8px}
@@ -755,7 +755,7 @@ body.postfach #liste{padding-left:0;padding-right:0}
 .pf-mehr{display:block;margin:12px auto}
 .pf-lese{max-width:980px}
 .pf-leiste{display:flex;flex-wrap:wrap;gap:2px;padding:4px;margin-bottom:14px;border-radius:21px;position:sticky;top:calc(var(--kopf-hoehe) + 6px);z-index:4;background:var(--glas);border:1px solid var(--glas-rand);
-  -webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten);width:fit-content;max-width:100%}
+  -webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe);box-shadow:inset 0 1px 0 var(--glas-licht),var(--schatten);width:fit-content;max-width:100%}
 .pf-leiste .knopf{min-height:34px;padding:0 12px;font-size:var(--t-fuss);background:transparent}
 .pf-leiste .knopf:hover{background:var(--flaeche2)}
 .pf-leiste .knopf.ic{min-width:36px;padding:0 9px}
@@ -848,12 +848,22 @@ tr.im-bild td{background:color-mix(in srgb,var(--primaer) 12%,transparent)}
 /* ===== Liquid Glass: Licht, Bewegung, Bedienungshilfen ===== */
 /* Lichtkante auf Glas: oben links hell, nach unten rechts auslaufend */
 :is(header .symbol,#suche-knopf,#toast,.nav-linse)::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
-  background:linear-gradient(140deg,rgba(255,255,255,.55),rgba(255,255,255,.06) 30%,rgba(255,255,255,0) 55%,rgba(255,255,255,.18));
+  background:linear-gradient(var(--licht-winkel,140deg),rgba(255,255,255,.6),rgba(255,255,255,.06) 30%,rgba(255,255,255,0) 55%,rgba(255,255,255,.2)); /* Lichtkante folgt Neigung bzw. Maus (glasLicht) */
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
 #toast{position:fixed}
+/* Echtes Liquid Glass (Chromium: Android, Windows, Chrome – html.lichtbrechung): der Rand bricht den Hintergrund wie eine Linse
+   (SVG-Verschiebungskarte je Element, --linse), dafür weniger Milchglas; ein Glanzlicht wandert mit der Neigung bzw. der Maus. */
+/* klares Glas (keine Milchglas-Unschärfe): Linse am Rand + Glanzlicht machen das Material */
+:is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue){--unschaerfe:blur(2px) saturate(170%) brightness(1.06);--glas:rgba(255,255,255,.16)} /* ohne Linse (iPhone/Safari): klar mit Hauch Unschärfe */
+.lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue){--unschaerfe:blur(.6px) saturate(175%) brightness(1.07);--glas:rgba(255,255,255,.08)}
+@media (prefers-color-scheme:dark){:root:not([data-thema=hell]) :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue){--glas:rgba(40,40,44,.2)}:root:not([data-thema=hell]).lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue){--glas:rgba(40,40,44,.12)}}
+:root[data-thema=dunkel] :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue){--glas:rgba(40,40,44,.2)}:root[data-thema=dunkel].lichtbrechung :is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue){--glas:rgba(40,40,44,.12)}
+:is(header .symbol,#sync,#suche-knopf,#neu-knopf,#navi,#toast,dialog.menue) *{--linse:initial} /* Linse gilt nur für das Element selbst (und sein Glas-::before) */
+.lichtbrechung :is(header .symbol,#sync,#suche-knopf,#toast,dialog.menue),.lichtbrechung #navi::before{
+  background-image:radial-gradient(140% 120% at var(--glanz-x,30%) var(--glanz-y,0%),rgba(255,255,255,.24),rgba(255,255,255,.05) 45%,transparent 70%)}
 /* Sheets, Menüs, Suche, Meldungen: beim Hereinfedern dichtes Material (flüssig), stehend echtes Glas (JS: .ruhig) */
-:is(dialog.menue,#toast,#suchtreffer).ruhig{background:var(--glas);-webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe)}
-dialog.ruhig:not(.menue):not(.aktionsblatt){background:var(--glas-dicht);-webkit-backdrop-filter:var(--unschaerfe);backdrop-filter:var(--unschaerfe)}
+:is(dialog.menue,#toast,#suchtreffer).ruhig{background:var(--glas);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
+dialog.ruhig:not(.menue):not(.aktionsblatt){background:var(--glas-dicht);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
 /* Licht folgt dem Finger */
 :is(header .symbol,#suche-knopf,#neu-knopf,.nav-klein .nav-knopf,.am-kachel,.am-gruppe > *,.ab-knopf):active{background-image:radial-gradient(circle at var(--lx,50%) var(--ly,50%),rgba(255,255,255,.3),rgba(255,255,255,.08) 45%,transparent 75%)}
 @media (prefers-reduced-motion:no-preference){
@@ -2307,6 +2317,70 @@ document.addEventListener('click', e => { const z = e.target.closest('[data-zu]'
 /** Liquid Glass: bewegte Flächen werden erst nach dem Hereinfedern zu echtem Glas (Unschärfe in jedem Animationsbild würde ruckeln). */
 document.addEventListener('animationend', e => { if (e.target.matches && e.target.matches('dialog, #toast, #suchtreffer')) e.target.classList.add('ruhig'); });
 document.addEventListener('close', e => e.target.classList && e.target.classList.remove('ruhig'), true);
+/**
+ * Echtes Liquid Glass: (1) Lichtbrechung – jedes Glas-Bedienelement bekommt einen SVG-Filter mit Verschiebungskarte, der den
+ * Hintergrund am Rand nach innen bricht wie eine gewölbte Linse (backdrop-filter: url(), nur Chromium; Safari/iPhone zeigt
+ * weiter Milchglas). (2) Licht – Glanzkante und Glanzlicht folgen der Neigung des Geräts (iPhone fragt beim ersten Tippen
+ * nach der Erlaubnis), am PC der Maus. Aus bei „Bewegung reduzieren“ bzw. „Transparenz reduzieren“.
+ */
+const GLAS_ELEMENTE = 'header .symbol, #sync, #suche-knopf, #neu-knopf, #navi, #toast, dialog.menue';
+function glasLicht(wurzel = document.documentElement) {
+  let lx = -0.35, ly = -0.8, warte = 0;
+  const setzen = () => { warte = 0;
+    wurzel.style.setProperty('--licht-winkel', `${(Math.atan2(-lx, ly) * 180 / Math.PI).toFixed(1)}deg`); // Verlauf beginnt auf der Lichtseite
+    wurzel.style.setProperty('--glanz-x', `${(50 + lx * 45).toFixed(1)}%`); wurzel.style.setProperty('--glanz-y', `${(50 + ly * 50).toFixed(1)}%`); };
+  const licht = (x, y) => { lx = Math.max(-1, Math.min(1, x)); ly = Math.max(-1, Math.min(1, y)); if (!warte) warte = requestAnimationFrame(setzen); };
+  setzen();
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // Neigung: gamma = links/rechts, beta = vor/zurück (normal gehalten ~45°) – das Licht kommt scheinbar von oben aus dem Raum
+  addEventListener('deviceorientation', e => { if (e.gamma != null) licht(-e.gamma / 40, -1 + (e.beta - 45) / 60); }, { passive: true });
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')
+    addEventListener('touchend', () => DeviceOrientationEvent.requestPermission().catch(() => {}), { once: true }); // iPhone: nur nach einer Berührung erlaubt
+  if (matchMedia('(pointer:fine)').matches) addEventListener('pointermove', e => licht(e.clientX / innerWidth * 2 - 1, e.clientY / innerHeight * 2 - 1), { passive: true });
+}
+/** Verschiebungskarte einer abgerundeten Fläche (w × h, Radius r): Rot/Grün = Verschiebung nach innen, stark am Rand, innen keine. */
+function linsenKarte(w, h, r, rand) {
+  const k = Math.min(1, 160 / Math.max(w, h)), cw = Math.max(2, Math.round(w * k)), ch = Math.max(2, Math.round(h * k));
+  const c = Object.assign(document.createElement('canvas'), { width: cw, height: ch }), x2 = c.getContext('2d'), bild = x2.createImageData(cw, ch), d = bild.data;
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+    const px = (x + 0.5) / k - w / 2, py = (y + 0.5) / k - h / 2, qx = Math.abs(px) - (w / 2 - r), qy = Math.abs(py) - (h / 2 - r);
+    const aussen = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)), tiefe = -(aussen + Math.min(Math.max(qx, qy), 0) - r); // Abstand zum Rand (innen positiv)
+    let nx = 0, ny = 0;
+    if (qx > 0 && qy > 0) { nx = Math.sign(px) * qx / aussen; ny = Math.sign(py) * qy / aussen; } else if (qx > qy) nx = Math.sign(px); else ny = Math.sign(py);
+    const st = tiefe <= 0 ? 0 : tiefe < rand ? (1 - tiefe / rand) ** 2 : 0, i = (y * cw + x) * 4;
+    d[i] = 128 - nx * st * 127; d[i + 1] = 128 - ny * st * 127; d[i + 2] = 128; d[i + 3] = 255;
+  }
+  x2.putImageData(bild, 0, 0);
+  return c.toDataURL();
+}
+function glasLinsen(auswahl) {
+  const ua = navigator.userAgent;
+  if (!/Chrome\/\d/.test(ua) || /CriOS|EdgiOS/.test(ua) || matchMedia('(prefers-reduced-transparency: reduce)').matches) return; // Safari kann url() im backdrop-filter nicht
+  document.documentElement.classList.add('lichtbrechung');
+  const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), linsen = new WeakMap(); let nr = 0;
+  svg.setAttribute('aria-hidden', 'true'); svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden'; document.body.append(svg);
+  const linse = el => {
+    const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight); if (!w || !h) return;
+    const r = Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, w / 2, h / 2), rand = Math.max(10, Math.min(r || 18, 32, Math.min(w, h) / 2));
+    let f = linsen.get(el);
+    if (!f) {
+      const id = `glas-linse-${++nr}`, filter = document.createElementNS(NS, 'filter');
+      filter.id = id; filter.setAttribute('color-interpolation-filters', 'sRGB');
+      filter.innerHTML = '<feImage x="0" y="0" preserveAspectRatio="none" result="karte"/><feDisplacementMap in="SourceGraphic" in2="karte" xChannelSelector="R" yChannelSelector="G"/>';
+      svg.append(filter); f = { filter }; linsen.set(el, f); el.style.setProperty('--linse', `url(#${id})`);
+    }
+    if (f.w === w && f.h === h && f.r === r) return;
+    Object.assign(f, { w, h, r });
+    const bildEl = f.filter.firstChild; bildEl.setAttribute('width', w); bildEl.setAttribute('height', h); bildEl.setAttribute('href', linsenKarte(w, h, r, rand));
+    f.filter.lastChild.setAttribute('scale', String(Math.round(rand * 2.2)));
+  };
+  const beob = new ResizeObserver(l => { for (const e of l) linse(e.target); });
+  let geplant = 0;
+  const suchen = () => { geplant = 0; for (const el of document.querySelectorAll(auswahl)) if (!linsen.has(el)) { beob.observe(el); linse(el); } };
+  new MutationObserver(() => { if (!geplant) geplant = requestAnimationFrame(suchen); }).observe(document.body, { childList: true, subtree: true });
+  suchen();
+}
+glasLicht(); glasLinsen(GLAS_ELEMENTE);
 /** Licht folgt dem Finger: Berührungspunkt für den Lichtfleck auf Glas-Bedienelementen (CSS --lx/--ly). */
 document.addEventListener('pointerdown', e => {
   const g = e.target.closest && e.target.closest('header .symbol, #suche-knopf, #neu-knopf, .nav-klein .nav-knopf, .am-kachel, .am-gruppe > *, .ab-knopf'); if (!g) return;

@@ -95,8 +95,18 @@ header{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:1fr au
 body.gescrollt header{background:var(--glas-dicht);-webkit-backdrop-filter:var(--unschaerfe,blur(20px) saturate(180%));backdrop-filter:var(--unschaerfe,blur(20px) saturate(180%));box-shadow:0 .5px 0 var(--linie)}
 #kopf-titel{font-size:var(--t-kopf);font-weight:600;text-align:center;opacity:0;transition:opacity .2s;overflow-wrap:anywhere}
 body.titel-klein #kopf-titel{opacity:1}
-.kopf-knopf{justify-self:start;display:inline-flex;align-items:center;gap:2px;min-height:44px;min-width:44px;padding:0 10px 0 6px;border:0;border-radius:999px;
-  background:var(--glas);box-shadow:inset 0 0 0 1px var(--glas-rand),var(--schatten);color:var(--primaer);font-weight:500;cursor:pointer;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+/* Liquid Glass: Linse (--linse, nur Chromium), Lichtkante und Glanzlicht folgen Neigung bzw. Maus (glasLicht) */
+.kopf-knopf{position:relative;justify-self:start;display:inline-flex;align-items:center;gap:2px;min-height:44px;min-width:44px;padding:0 10px 0 6px;border:0;border-radius:999px;
+  background:var(--glas);box-shadow:inset 0 0 0 1px var(--glas-rand),var(--schatten);color:var(--primaer);font-weight:500;cursor:pointer;-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe)}
+.kopf-knopf::after,#toast::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(var(--licht-winkel,140deg),rgba(255,255,255,.6),rgba(255,255,255,.06) 30%,rgba(255,255,255,0) 55%,rgba(255,255,255,.2));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.kopf-knopf *,#toast *{--linse:initial}
+/* klares Glas (keine Milchglas-Unschärfe): Linse am Rand + Glanzlicht machen das Material */
+:is(.kopf-knopf,#toast){--unschaerfe:blur(2px) saturate(170%) brightness(1.06);--glas:rgba(255,255,255,.16)} /* ohne Linse (iPhone/Safari): klar mit Hauch Unschärfe */
+.lichtbrechung :is(.kopf-knopf,#toast){--unschaerfe:blur(.6px) saturate(175%) brightness(1.07);--glas:rgba(255,255,255,.08);
+  background-image:radial-gradient(140% 120% at var(--glanz-x,30%) var(--glanz-y,0%),rgba(255,255,255,.24),rgba(255,255,255,.05) 45%,transparent 70%)}
+@media (prefers-color-scheme:dark){:is(.kopf-knopf,#toast){--glas:rgba(40,40,44,.2)}.lichtbrechung :is(.kopf-knopf,#toast){--glas:rgba(40,40,44,.12)}}
 .kopf-knopf .ico{width:22px;height:22px}
 #zurueck{grid-column:1}#kopf-titel{grid-column:2}
 #plus{grid-column:3;justify-self:end;padding:0;justify-content:center;width:44px} /* feste Spalten: auch ohne Zurück-Knopf bleibt das Plus rechts */
@@ -165,7 +175,7 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 #status.fehler-box{margin:-6px 16px 22px;padding:14px 16px;border-radius:var(--r-zelle);background:var(--rot-f);color:var(--rot-t);font-size:var(--t-unter);line-height:1.35}
 #status .knopf{display:flex;width:100%;min-height:44px;margin-top:10px;background:var(--flaeche);color:var(--primaer)}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;pointer-events:none;z-index:30;
-  padding:12px 18px;border-radius:999px;background:var(--glas-dicht);box-shadow:var(--schatten);font-size:var(--t-unter);transition:opacity .25s,transform .3s var(--weich);max-width:calc(100vw - 32px);text-align:center}
+  padding:12px 18px;border-radius:999px;background:var(--glas);-webkit-backdrop-filter:var(--linse,) var(--unschaerfe);backdrop-filter:var(--linse,) var(--unschaerfe);box-shadow:var(--schatten);font-size:var(--t-unter);transition:opacity .25s,transform .3s var(--weich);max-width:calc(100vw - 32px);text-align:center}
 #toast.zeigen{opacity:1;transform:translate(-50%,0)}
 @media (min-width:700px){h1{margin-left:20px}}
 </style>
@@ -238,6 +248,7 @@ async function abgleichen(still) {
     if (/Nur der Hauptadmin/.test(e.message)) { Z.token = ''; sichern(); zeichne(); toast('Nur der Chef (Hauptadmin) hat Zugriff.'); return; }
     const n = Object.keys(Z.offen).length, m = e.message;
     const grund = /Unbekannte Funktion/.test(m) ? 'Die Cloud kennt die Vorschüsse noch nicht – ihr Update ist noch nicht angekommen. Bitte in ein paar Minuten erneut versuchen, oder in Ayse CRM unter Einstellungen → Cloud „Aktualisieren“ tippen.'
+      : /^UPDATE: .*(Berechtigung|permission|authoriz)/i.test(m) ? 'Die Cloud darf sich noch nicht selbst aktualisieren. Einmalig muss der Besitzer des Google-Kontos das Cloud-Skript von Hand erneuern und „selbstUpdateEinrichten“ ausführen – danach lädt die App.'
       : /^UPDATE: /.test(m) ? 'Die Cloud konnte sich nicht aktualisieren: ' + m.slice(8) + ' – bitte in Ayse CRM unter Einstellungen → Cloud aktualisieren.'
       : /fetch|network|load failed|json/i.test(m) ? 'Keine Verbindung zur Cloud.' : 'Laden fehlgeschlagen: ' + m;
     zeigeStatus(grund + (n ? ` ${n === 1 ? '1 Buchung wartet' : n + ' Buchungen warten'} und wird übertragen, sobald es klappt.` : ''), true);
@@ -361,6 +372,70 @@ addEventListener('scroll', () => { document.body.classList.toggle('gescrollt', s
 addEventListener('online', () => abgleichen(true));
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - Z.zuletzt > 60000) abgleichen(true); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// shortcut: Liquid-Glass-Funktionen aus web/index.html kopiert (gleiches Verhalten) – bei Änderungen dort hier nachziehen
+/**
+ * Echtes Liquid Glass: (1) Lichtbrechung – jedes Glas-Bedienelement bekommt einen SVG-Filter mit Verschiebungskarte, der den
+ * Hintergrund am Rand nach innen bricht wie eine gewölbte Linse (backdrop-filter: url(), nur Chromium; Safari/iPhone zeigt
+ * weiter Milchglas). (2) Licht – Glanzkante und Glanzlicht folgen der Neigung des Geräts (iPhone fragt beim ersten Tippen
+ * nach der Erlaubnis), am PC der Maus. Aus bei „Bewegung reduzieren“ bzw. „Transparenz reduzieren“.
+ */
+function glasLicht(wurzel = document.documentElement) {
+  let lx = -0.35, ly = -0.8, warte = 0;
+  const setzen = () => { warte = 0;
+    wurzel.style.setProperty('--licht-winkel', `${(Math.atan2(-lx, ly) * 180 / Math.PI).toFixed(1)}deg`); // Verlauf beginnt auf der Lichtseite
+    wurzel.style.setProperty('--glanz-x', `${(50 + lx * 45).toFixed(1)}%`); wurzel.style.setProperty('--glanz-y', `${(50 + ly * 50).toFixed(1)}%`); };
+  const licht = (x, y) => { lx = Math.max(-1, Math.min(1, x)); ly = Math.max(-1, Math.min(1, y)); if (!warte) warte = requestAnimationFrame(setzen); };
+  setzen();
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // Neigung: gamma = links/rechts, beta = vor/zurück (normal gehalten ~45°) – das Licht kommt scheinbar von oben aus dem Raum
+  addEventListener('deviceorientation', e => { if (e.gamma != null) licht(-e.gamma / 40, -1 + (e.beta - 45) / 60); }, { passive: true });
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function')
+    addEventListener('touchend', () => DeviceOrientationEvent.requestPermission().catch(() => {}), { once: true }); // iPhone: nur nach einer Berührung erlaubt
+  if (matchMedia('(pointer:fine)').matches) addEventListener('pointermove', e => licht(e.clientX / innerWidth * 2 - 1, e.clientY / innerHeight * 2 - 1), { passive: true });
+}
+/** Verschiebungskarte einer abgerundeten Fläche (w × h, Radius r): Rot/Grün = Verschiebung nach innen, stark am Rand, innen keine. */
+function linsenKarte(w, h, r, rand) {
+  const k = Math.min(1, 160 / Math.max(w, h)), cw = Math.max(2, Math.round(w * k)), ch = Math.max(2, Math.round(h * k));
+  const c = Object.assign(document.createElement('canvas'), { width: cw, height: ch }), x2 = c.getContext('2d'), bild = x2.createImageData(cw, ch), d = bild.data;
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+    const px = (x + 0.5) / k - w / 2, py = (y + 0.5) / k - h / 2, qx = Math.abs(px) - (w / 2 - r), qy = Math.abs(py) - (h / 2 - r);
+    const aussen = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)), tiefe = -(aussen + Math.min(Math.max(qx, qy), 0) - r); // Abstand zum Rand (innen positiv)
+    let nx = 0, ny = 0;
+    if (qx > 0 && qy > 0) { nx = Math.sign(px) * qx / aussen; ny = Math.sign(py) * qy / aussen; } else if (qx > qy) nx = Math.sign(px); else ny = Math.sign(py);
+    const st = tiefe <= 0 ? 0 : tiefe < rand ? (1 - tiefe / rand) ** 2 : 0, i = (y * cw + x) * 4;
+    d[i] = 128 - nx * st * 127; d[i + 1] = 128 - ny * st * 127; d[i + 2] = 128; d[i + 3] = 255;
+  }
+  x2.putImageData(bild, 0, 0);
+  return c.toDataURL();
+}
+function glasLinsen(auswahl) {
+  const ua = navigator.userAgent;
+  if (!/Chrome\/\d/.test(ua) || /CriOS|EdgiOS/.test(ua) || matchMedia('(prefers-reduced-transparency: reduce)').matches) return; // Safari kann url() im backdrop-filter nicht
+  document.documentElement.classList.add('lichtbrechung');
+  const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), linsen = new WeakMap(); let nr = 0;
+  svg.setAttribute('aria-hidden', 'true'); svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden'; document.body.append(svg);
+  const linse = el => {
+    const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight); if (!w || !h) return;
+    const r = Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, w / 2, h / 2), rand = Math.max(10, Math.min(r || 18, 32, Math.min(w, h) / 2));
+    let f = linsen.get(el);
+    if (!f) {
+      const id = `glas-linse-${++nr}`, filter = document.createElementNS(NS, 'filter');
+      filter.id = id; filter.setAttribute('color-interpolation-filters', 'sRGB');
+      filter.innerHTML = '<feImage x="0" y="0" preserveAspectRatio="none" result="karte"/><feDisplacementMap in="SourceGraphic" in2="karte" xChannelSelector="R" yChannelSelector="G"/>';
+      svg.append(filter); f = { filter }; linsen.set(el, f); el.style.setProperty('--linse', `url(#${id})`);
+    }
+    if (f.w === w && f.h === h && f.r === r) return;
+    Object.assign(f, { w, h, r });
+    const bildEl = f.filter.firstChild; bildEl.setAttribute('width', w); bildEl.setAttribute('height', h); bildEl.setAttribute('href', linsenKarte(w, h, r, rand));
+    f.filter.lastChild.setAttribute('scale', String(Math.round(rand * 2.2)));
+  };
+  const beob = new ResizeObserver(l => { for (const e of l) linse(e.target); });
+  let geplant = 0;
+  const suchen = () => { geplant = 0; for (const el of document.querySelectorAll(auswahl)) if (!linsen.has(el)) { beob.observe(el); linse(el); } };
+  new MutationObserver(() => { if (!geplant) geplant = requestAnimationFrame(suchen); }).observe(document.body, { childList: true, subtree: true });
+  suchen();
+}
+glasLicht(); glasLinsen('.kopf-knopf, #toast');
 zeichne(); abgleichen(true);
 window.__appBereit = true;
 </script>

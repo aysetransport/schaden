@@ -175,6 +175,18 @@ function hauptadmin_() { var a = benutzer_(), h = null; Object.keys(a).forEach(f
  * NOTFALL: Im Apps-Script-Editor diese Funktion auswählen und „Ausführen“ – schaltet die Anmeldung mit der
  * Cloud-PIN wieder ein (z. B. wenn das Passwort des Hauptadmins verloren ist). Nur der Besitzer des Google-Kontos kann das.
  */
+/**
+ * EINMALIG im Apps-Script-Editor ausführen (Funktion oben auswählen → „Ausführen“ → Berechtigungen erlauben):
+ * erteilt dem Skript die Rechte für das Selbst-Update (Internetabruf, Skript-API) und prüft, ob alles bereit ist.
+ * Ohne diesen Schritt meldet das Update „nicht die erforderliche Berechtigung … UrlFetchApp.fetch“.
+ */
+function selbstUpdateEinrichten() {
+  var m = JSON.parse(holeText_(UPDATE_BASIS + 'cloud-update.json'));
+  var api = skriptApi_('get', '/content');
+  if (!api || !api.files) throw new Error('Die Apps Script API ist noch aus: unter https://script.google.com/home/usersettings einschalten und erneut ausführen.');
+  PropertiesService.getScriptProperties().setProperty('CODE_STAND', String(API_VERSION >= Number(m.api) ? m.stand : 0));
+  return 'Selbst-Update eingerichtet (diese Fassung: API ' + API_VERSION + ', verfügbar: API ' + m.api + ').';
+}
 function notfallPinAnmeldungEinschalten() { PropertiesService.getScriptProperties().deleteProperty('PIN_AUS'); return 'Die Anmeldung mit der Cloud-PIN ist wieder eingeschaltet.'; }
 
 function pruefeZugang_(zugang) {
