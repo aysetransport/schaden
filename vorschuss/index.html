@@ -161,6 +161,9 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 .anmeldung .knopf{width:calc(100% - 32px);margin:0 16px}
 .fehler{color:var(--txt-rot);font-size:var(--t-fuss);margin:-14px 32px 18px;text-align:center}
 #status{margin:-18px 20px 14px;font-size:var(--t-fuss);color:var(--leise)}
+#status:empty{display:none}
+#status.fehler-box{margin:-6px 16px 22px;padding:14px 16px;border-radius:var(--r-zelle);background:var(--rot-f);color:var(--rot-t);font-size:var(--t-unter);line-height:1.35}
+#status .knopf{display:flex;width:100%;min-height:44px;margin-top:10px;background:var(--flaeche);color:var(--primaer)}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;pointer-events:none;z-index:30;
   padding:12px 18px;border-radius:999px;background:var(--glas-dicht);box-shadow:var(--schatten);font-size:var(--t-unter);transition:opacity .25s,transform .3s var(--weich);max-width:calc(100vw - 32px);text-align:center}
 #toast.zeigen{opacity:1;transform:translate(-50%,0)}
@@ -220,18 +223,30 @@ async function abgleichen(still) {
   try {
     let st;
     try { st = await api('vorschussSpeichern', Z.token, Object.values(Z.offen)); }
-    catch (e) { if (!/Unbekannte Funktion/.test(e.message)) throw e; await api('cloudAktualisieren', Z.token); st = await api('vorschussSpeichern', Z.token, Object.values(Z.offen)); }
+    catch (e) {
+      if (!/Unbekannte Funktion/.test(e.message)) throw e;
+      // Cloud-Skript noch ohne Vorschüsse: einmal selbst aktualisieren (der Chef ist Hauptadmin)
+      zeigeStatus('Die Cloud wird aktualisiert – das dauert bis zu einer Minute …');
+      try { await api('cloudAktualisieren', Z.token); } catch (x) { throw new Error('UPDATE: ' + x.message); }
+      st = await api('vorschussSpeichern', Z.token, Object.values(Z.offen));
+    }
     for (const id of Object.keys(Z.offen)) if (st.eintraege.some(x => x.id === id)) delete Z.offen[id];
     Z.mitarbeiter = st.mitarbeiter; Z.eintraege = Object.fromEntries(st.eintraege.map(e => [e.id, e])); Z.zuletzt = Date.now(); sichern();
     zeigeStatus('');
   } catch (e) {
     if (abgelaufen(e)) { Z.token = ''; sichern(); zeichne(); toast('Bitte neu anmelden'); return; }
     if (/Nur der Hauptadmin/.test(e.message)) { Z.token = ''; sichern(); zeichne(); toast('Nur der Chef (Hauptadmin) hat Zugriff.'); return; }
-    zeigeStatus(Object.keys(Z.offen).length ? `Offline – ${Object.keys(Z.offen).length} Änderung(en) werden später übertragen` : 'Offline – zuletzt geladener Stand');
-    if (!still) toast('Cloud nicht erreichbar: ' + e.message);
+    const n = Object.keys(Z.offen).length, m = e.message;
+    const grund = /Unbekannte Funktion/.test(m) ? 'Die Cloud kennt die Vorschüsse noch nicht – ihr Update ist noch nicht angekommen. Bitte in ein paar Minuten erneut versuchen, oder in Ayse CRM unter Einstellungen → Cloud „Aktualisieren“ tippen.'
+      : /^UPDATE: /.test(m) ? 'Die Cloud konnte sich nicht aktualisieren: ' + m.slice(8) + ' – bitte in Ayse CRM unter Einstellungen → Cloud aktualisieren.'
+      : /fetch|network|load failed|json/i.test(m) ? 'Keine Verbindung zur Cloud.' : 'Laden fehlgeschlagen: ' + m;
+    zeigeStatus(grund + (n ? ` ${n === 1 ? '1 Buchung wartet' : n + ' Buchungen warten'} und wird übertragen, sobald es klappt.` : ''), true);
+    if (!still) toast(/Keine Verbindung/.test(grund) ? grund : 'Nicht geladen – Grund steht oben');
   } finally { abgleichen.laeuft = false; zeichne(); if (abgleichen.nochmal && Z.token) abgleichen(true); } // während des Abgleichs Gebuchtes gleich hinterher
 }
-function zeigeStatus(t) { abgleichen.status = t; const el = $('#status'); if (el) el.textContent = t; }
+function zeigeStatus(t, fehler = false) { abgleichen.status = t; abgleichen.fehler = fehler; const el = $('#status'); if (el) el.outerHTML = statusHtml(); }
+/** Zustand des Abgleichs unter dem Titel – ein Fehler bleibt stehen (mit „Erneut versuchen“), statt nur kurz aufzublitzen. */
+const statusHtml = () => `<div id="status" class="${abgleichen.fehler ? 'fehler-box' : ''}" role="status">${esc(abgleichen.status || '')}${abgleichen.fehler ? '<button class="knopf" data-neu-laden>Erneut versuchen</button>' : ''}</div>`;
 
 // ---------- Daten ----------
 /** Alle gültigen Einträge (Cloud-Stand, darüber noch nicht übertragene Änderungen). */
@@ -284,7 +299,7 @@ function uebersicht() {
   const zelle = z => `<a class="zelle pfeil" href="#/ma/${esc(z.m.id)}" style="text-decoration:none"><span class="avatar" aria-hidden="true">${esc(initialen(z.m.name))}</span>
     <span class="mitte"><div class="name">${esc(z.m.name)}</div><div class="unter">${z.m.personalnummer ? 'Nr. ' + esc(z.m.personalnummer) + ' · ' : ''}${z.n === 1 ? '1 Buchung' : z.n ? z.n + ' Buchungen' : 'keine Buchungen'}${z.m.aktiv ? '' : ' · ausgeschieden'}</div></span>
     <span class="betrag ${z.s < 0 ? 'minus' : ''}">${z.s ? euro(z.s) : '<span class="leise">–</span>'}</span></a>`;
-  return `<h1>Vorschüsse</h1><div id="status">${esc(abgleichen.status || '')}</div>
+  return `<h1>Vorschüsse</h1>${statusHtml()}
     <div class="kennzahl"><div class="ueber">Offen insgesamt</div><div class="zahl">${euro(gesamt)}</div><div class="unter">${offen.length === 1 ? '1 Mitarbeiter' : offen.length + ' Mitarbeiter'} mit offenem Vorschuss</div></div>
     <label class="suche"><svg class="ico"><use href="#i-suche"/></svg><input id="suchfeld" type="search" placeholder="Mitarbeiter suchen" aria-label="Mitarbeiter suchen"></label>
     <section class="gruppe"><div class="gruppe-titel">Offen</div><div class="liste mit-bild">${offen.map(zelle).join('') || '<div class="leer">Keine offenen Vorschüsse</div>'}</div></section>
@@ -296,7 +311,7 @@ function person(id) {
   const m = Z.mitarbeiter.find(x => x.id === id); if (!m) return '<h1>Nicht gefunden</h1><div class="leer">Diesen Mitarbeiter gibt es nicht mehr im Personal.</div>';
   const l = vonMa(id), s = saldo(l), jahre = {};
   for (const e of l) (jahre[e.datum.slice(0, 4)] = jahre[e.datum.slice(0, 4)] || []).push(e);
-  return `<h1>${esc(m.name)}</h1><div id="status">${esc(abgleichen.status || '')}</div>
+  return `<h1>${esc(m.name)}</h1>${statusHtml()}
     <div class="kennzahl"><div class="ueber">${s < 0 ? 'Zu viel zurückgezahlt' : 'Offen'}</div><div class="zahl">${euro(Math.abs(s))}</div>
       <div class="unter">${esc([m.personalnummer && 'Personalnummer ' + m.personalnummer, !m.aktiv && 'ausgeschieden'].filter(Boolean).join(' · ') || 'Vorschuss abzüglich Rückzahlungen')}</div></div>
     <div class="knoepfe"><button class="knopf voll" data-neu="VORSCHUSS"><svg class="ico"><use href="#i-geld"/></svg>Vorschuss</button><button class="knopf" data-neu="RUECKZAHLUNG"><svg class="ico"><use href="#i-zurueckzahlen"/></svg>Rückzahlung</button></div>
@@ -336,6 +351,7 @@ function blatt(e) {
 document.addEventListener('click', e => {
   const n = e.target.closest('[data-neu]'); if (n) { blatt({ art: n.dataset.neu, mitarbeiterId: route().ma }); return; }
   const b = e.target.closest('[data-eintrag]'); if (b) { const x = eintraege().find(y => y.id === b.dataset.eintrag); if (x) blatt({ ...x }); return; }
+  if (e.target.closest('[data-neu-laden]')) { abgleichen(); return; }
   if (e.target.closest('[data-abmelden]')) { if (Object.keys(Z.offen).length && !confirm('Es gibt noch nicht übertragene Buchungen. Trotzdem abmelden? Sie gehen dann verloren.')) return;
     if (Z.token.startsWith('T:')) api('abmelden', Z.token).catch(() => {}); Z = leer(); sichern(); location.hash = ''; zeichne(); }
 });
