@@ -537,14 +537,18 @@ function pinFestlegen(pin) {
 }
 
 /**
- * Im Skript-Editor ausführen, wenn die PIN vergessen wurde. Danach kann in der App eine neue
- * festgelegt werden. Die Daten bleiben erhalten.
+ * Im Skript-Editor ausführen, wenn die PIN vergessen wurde: setzt sofort eine neue, zufällige PIN und zeigt sie im
+ * Ausführungsprotokoll an. Die Daten bleiben erhalten. Es gibt keinen Moment ohne PIN – sonst könnte jeder, der die
+ * (öffentliche) Adresse kennt, über pinFestlegen die PIN bestimmen.
  */
 function pinZuruecksetzen() {
   var props = PropertiesService.getScriptProperties();
-  props.deleteProperty('PIN_HASH');
-  props.deleteProperty('PIN_SALZ');
+  var pin = Utilities.getUuid().replace(/-/g, '').slice(0, 12), salz = Utilities.getUuid();
+  props.setProperty('PIN_SALZ', salz);
+  props.setProperty('PIN_HASH', hash_(pin, salz));
   props.deleteProperty('FEHLVERSUCHE');
+  Logger.log('Neue Cloud-PIN: ' + pin + ' – in der App eingeben und dort unter ⚙ ändern bzw. notieren.');
+  return pin;
 }
 
 /** Prüft die Cloud-PIN gegen den gespeicherten Hash, mit Fehlversuch-Zähler und zeitlicher Sperre (gilt für alle Geräte gemeinsam). */
@@ -779,6 +783,7 @@ function uebernehmeCrm_(d, tabelle, roh, zurueck) {
   }
   // Bewertungen kommen nur vom Kunden (Statuslink) – ein Gerät mit älterem Stand löscht sie nicht.
   if ((tabelle === 'touren' || tabelle === 'stopps') && alt && alt.bewertung && !neu.bewertung) { neu.bewertung = alt.bewertung; neu.bewertungText = alt.bewertungText; neu.bewertetAm = alt.bewertetAm; }
+  if (tabelle === 'belege') neu.nummer = eindeutigeBelegnummer_(d, neu, alt);
   neu.rev = ++d.rev;
   d[tabelle][neu.id] = neu;
 }
@@ -854,6 +859,26 @@ function eindeutigeFallnummer_(d, fall) {
   var laufend = String(hoechste + 1);
   while (laufend.length < 3) laufend = '0' + laufend;
   return jahr + '-' + laufend;
+}
+
+/**
+ * Belegnummern vergeben die Geräte selbst – zwei Geräte ohne Abgleich vergeben dann dieselbe (§ 14 UStG verlangt
+ * eindeutige Rechnungsnummern). Wer zuerst abgleicht, behält sie; ein Entwurf des anderen bekommt die nächste freie
+ * Nummer mit demselben Präfix. Versendete Belege und Nummern von außen (extern, Gutschriftverfahren) bleiben unverändert.
+ */
+function eindeutigeBelegnummer_(d, b, alt) {
+  if (!b.nummer || b.extern || b.status !== 'ENTWURF') return b.nummer;
+  var belegt = {};
+  Object.keys(d.belege).forEach(function (k) { var x = d.belege[k]; if (k !== b.id && !x.geloescht && x.nummer) belegt[x.nummer] = true; });
+  if (!belegt[b.nummer]) return b.nummer;
+  if (alt && alt.nummer && !belegt[alt.nummer]) return alt.nummer; // schon einmal umnummeriert
+  var m = /^(.*?)(\d+)$/.exec(b.nummer);
+  if (!m) return b.nummer;
+  var hoechste = 0;
+  Object.keys(belegt).forEach(function (n) { if (n.indexOf(m[1]) === 0 && /^\d+$/.test(n.slice(m[1].length))) hoechste = Math.max(hoechste, Number(n.slice(m[1].length))); });
+  var laufend = String(hoechste + 1);
+  while (laufend.length < m[2].length) laufend = '0' + laufend;
+  return m[1] + laufend;
 }
 
 // ============================== Anlagen ==============================

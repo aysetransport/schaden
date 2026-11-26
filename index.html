@@ -18,7 +18,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbw_wOlZk2pXCaHAVOOCjwh
 })();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
 // Stand dieser Oberfläche (von tools/app-update.js gesetzt) – für das In-App-Update der Windows- und Android-App.
-window.WEB_STAND = 1795648739; window.WEB_VERSION = '4.22.0';
+window.WEB_STAND = 1795695762; window.WEB_VERSION = '4.22.0';
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
@@ -1644,13 +1644,15 @@ async function abgleich() {
     S.kennung = r.kennung;
     speichere();
 
+    let anlageFehler = '';
     for (const a of alle('anlagen').filter(a => !a.vorhanden && !a._dirty)) {
       const blob = await Dateien.hole(a.id);
       if (!blob) continue; // liegt auf einem anderen Gerät und wird von dort hochgeladen
-      await api('anlageHochladen', PIN, a.id, await alsBase64(blob));
-      a.vorhanden = true; speichere();
+      // je Datei einzeln: eine abgelehnte Datei (z. B. „Kein Zugriff“) hält die übrigen nicht auf
+      try { await api('anlageHochladen', PIN, a.id, await alsBase64(blob)); a.vorhanden = true; speichere(); }
+      catch (e) { if (e instanceof TypeError || /PIN|GESPERRT/.test(String(e.message))) throw e; anlageFehler = `Anlage „${a.anzeigename || a.id}“ nicht hochgeladen: ${e.message || e}`; }
     }
-    SYNC.fehler = ''; SYNC.zuletzt = Date.now();
+    SYNC.fehler = anlageFehler; SYNC.zuletzt = Date.now();
     if (neuesVomServer) zeichne();
   } catch (e) {
     const m = String(e.message || e);
@@ -3077,7 +3079,7 @@ function zeichneEinstellungenVoll() {
       <p class="leise">Vorher fehlen z. B. Rechnungen, Löhne oder Fahrzeugkosten – Umsatz, Kosten, Gewinn & Verlust, Top & Flop und Geld-Statistiken zählen dann erst ab diesem Tag. Touren, Schäden und Personal bleiben vollständig.</p></div>
     <div class="karte block"><h3>Arbeitszeit und Kalender</h3>
       <label class="feld">Bundesland (Feiertage)<select data-einst-wahl="bundesland">${Object.entries(BUNDESLAENDER).map(([k, l]) => `<option value="${k}" ${(e.bundesland || 'NW') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      <label class="feld">Gesetzlicher Mindestlohn (€/Std.)<input data-einst="mindestlohn" inputmode="decimal" placeholder="13,90" value="${esc(e.mindestlohn || '')}"></label>
+      <label class="feld">Gesetzlicher Mindestlohn (€/Std.)<input data-einst="mindestlohn" inputmode="decimal" placeholder="${geldOhneSymbol(mindestlohnCent())}" value="${esc(e.mindestlohn || '')}"></label>
       <div class="zeile"><label class="feld fuell">Üblicher Arbeitsbeginn<input type="time" data-einst="tagesbeginn" value="${esc(e.tagesbeginn || '07:00')}"></label>
         <label class="feld fuell">Übliche Tagesdauer (Std., für Entwürfe)<input data-einst="tagesdauer" inputmode="decimal" placeholder="8,5" value="${esc(e.tagesdauer || '')}"></label></div></div>
     <div class="karte block"><h3>Datensicherung</h3><p class="leise" style="margin-bottom:8px">Alle Daten in einer Datei (ohne Mail-Passwörter). Empfohlen einmal im Monat${e.letzteSicherung ? ` – letzte Sicherung ${esc(datumText(e.letzteSicherung))}` : ' – bisher keine Sicherung'}.</p>
@@ -4931,7 +4933,7 @@ function zeichneMitarbeiter(id) {
       ${dok.length ? `<div class="anlagen">${dok.map(d => `<div class="anlage"><button class="anlage" data-ma-dok="${d.id}" title="${esc(d.anzeigename)}">
         <div class="bild" data-bild="${d.id}">${d.mimeType.startsWith('image/') ? '🖼' : '📄'}</div><span>${esc(d.anzeigename)}</span></button>
         <button class="symbol weg" data-ma-dok-weg="${d.id}" aria-label="Dokument ${esc(d.anzeigename)} entfernen">✕</button></div>`).join('')}</div>` : '<p class="leise">Arbeitsvertrag, Führerschein, Fahrerkarte, Nachweise … als Foto oder PDF ablegen.</p>'}
-      <div class="zeile" style="margin-top:8px"><select id="ma-dok-art" aria-label="Art des Dokuments">${PERSONAL_DOKUMENTE.map(d => `<option>${esc(d)}</option>`).join('')}</select>
+      <div class="zeile" style="margin-top:8px"><select id="ma-dok-art" aria-label="Art des Dokuments">${PERSONAL_DOKUMENTE.filter(d => rolle() === 'ADMIN' || d !== 'Lohnabrechnung').map(d => `<option>${esc(d)}</option>`).join('')}</select>
         <label class="knopf">📎 Datei oder Foto<input type="file" id="ma-datei" multiple hidden></label></div></div>
     <div class="karte block"><h3>Stammdaten</h3>
       ${dl([['Telefon', m.telefon], ['E-Mail', m.email], ['Anschrift', m.adresse], ['Geburtstag', datumText(m.geburtstag)], ['Notfallkontakt', m.notfallkontakt],
@@ -7441,7 +7443,8 @@ const minZeit = min => `${pad(Math.floor(((min % 1440) + 1440) % 1440 / 60))}:${
 /** Minuten als Stunden-Text („7:30 h“). */
 const stdText = min => (min == null ? '–' : `${Math.floor(Math.abs(min) / 60)}:${pad(Math.abs(min) % 60)} h`.replace(/^/, min < 0 ? '−' : ''));
 /** Mindestlohn in Cent (Einstellung, sonst Vorgabe). */
-const mindestlohnCent = () => Math.round((Number(String(S.einstellungen.mindestlohn || '').replace(',', '.')) || 13.9) * 100);
+/** Gesetzlicher Mindestlohn in Cent am Tag „tag“ (Einstellung geht vor; sonst 13,90 € bis Ende 2026, 14,60 € ab 2027). */
+const mindestlohnCent = (tag = heute()) => Math.round((Number(String(S.einstellungen.mindestlohn || '').replace(',', '.')) || (tag < '2027-01-01' ? 13.9 : 14.6)) * 100);
 /** Arbeitszeiten eines Mitarbeiters im Zeitraum. */
 const zeitenVon = (id, von = '0000', bis = '9999') => alle('zeiten').filter(z => z.mitarbeiterId === id && z.datum >= von && z.datum <= bis).sort((a, b) => a.datum.localeCompare(b.datum) || String(a.beginn).localeCompare(String(b.beginn)));
 /** Dauer eines Eintrags in Minuten (über Mitternacht möglich), ohne Pause. */
@@ -7491,7 +7494,7 @@ function zeitMonat(m, monat) {
     feiertag: tage.filter(t => feiertagAm(t.datum)).reduce((n, t) => n + t.min, 0), nacht: tage.reduce((n, t) => n + t.nacht, 0),
     arbeitstage: tage.filter(t => t.min).length, entwuerfe: tage.filter(t => t.entwurf).length, ohneZeit: tage.filter(t => t.tour && !t.eintraege.length).length,
     wochenUeber48: Object.entries(wochen).filter(([, v]) => v > 48 * 60).map(([w, v]) => [w, v]), verstoesse: tage.reduce((n, t) => n + t.hinweise.filter(([f]) => f === 'rot').length, 0),
-    mindestlohn: m.stundenlohnCent != null && m.stundenlohnCent < mindestlohnCent(), lohn };
+    mindestlohn: m.stundenlohnCent != null && m.stundenlohnCent < mindestlohnCent(bis), lohn };
 }
 const ZeitAktionen = {
   speichern(z) { const x = merke('zeiten', { art: 'ARBEIT', quelle: 'ERFASST', pauseMin: 0, ...z, id: z.id || uuid(), firmaId: '', geaendertAm: jetztIso() }); nachAenderung(); return x.id; },
@@ -9332,7 +9335,7 @@ function listenZeit(iso) {
 }
 /** Gruppe in der Mail-Liste (Heute, Gestern, Diese Woche, Monat …). */
 function datumsGruppe(iso) {
-  const tag = String(iso || '').slice(0, 10), h = heute(), mo = plusTage(h, -((alsTag(h).getDay() + 6) % 7));
+  const tag = iso ? isoTag(new Date(iso)) : '', h = heute(), mo = plusTage(h, -((alsTag(h).getDay() + 6) % 7));
   if (tag === h) return 'Heute';
   if (tag === plusTage(h, -1)) return 'Gestern';
   if (tag >= mo) return 'Diese Woche';
@@ -9422,7 +9425,7 @@ function sucheZerlegen(text) {
 }
 /** Prüft eine Mail gegen die Suche (von:, an:, hat:anhang, ist:ungelesen, Datum, Text). */
 function passtSuche(m, s) {
-  const tag = String(m.zeitpunkt || '').slice(0, 10), enth = (x, w) => String(x || '').toLowerCase().includes(w);
+  const tag = m.zeitpunkt ? isoTag(new Date(m.zeitpunkt)) : '', enth = (x, w) => String(x || '').toLowerCase().includes(w);
   if (s.von && !(enth(m.von, s.von) || enth(m.vonName, s.von))) return false;
   if (s.an && !(enth(m.an, s.an) || enth(m.cc, s.an))) return false;
   if (s.betreff && !enth(m.betreff, s.betreff)) return false;
@@ -11374,12 +11377,10 @@ function winRahmen() {
   const d = window.desktop && window.desktop.fenster;
   if (d) {
     d.beiAenderung(info => { window.WIN = { ...window.WIN, ...info }; titelleisteFarben(); });
-    d.beiZoom(f => { WIN_ZOOM = f; statusleisteZeichnen(); });
   }
   titelleisteFarben();
   statusleisteZeichnen();
 }
-var WIN_ZOOM = 1;
 /** Ist die Oberfläche gerade dunkel (Einstellung bzw. Gerät)? */
 function winDunkel() { return S.einstellungen.thema === 'dunkel' || (S.einstellungen.thema !== 'hell' && matchMedia('(prefers-color-scheme: dark)').matches); }
 /** Windows-App: Farben der Fensterknöpfe passend zu hell/dunkel. */
